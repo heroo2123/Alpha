@@ -53,6 +53,8 @@ from tools.v11_r09_gate3_runtime import (
     SyntheticTransport, acquire_runtime_journals,
 )
 from tools.v11_gate3_evidence_intake_guard import EvidenceIntakeRecord
+from tools import v11_gate3_evidence_intake_guard as intake_guard_module
+from tools import v11_gate3_real_intake_offline_caller as offline_caller
 from tools.v11_gate3_evidence_preflight_checker import (
     FROZEN_REQUEST, OUTCOME_REFUSED, OUTCOME_SATISFIED,
 )
@@ -109,17 +111,20 @@ def _dirs(tmp_path):
     return tmp_path
 
 
-def _acquire(tmp_path):
+def _acquire(tmp_path, *, history_head=None, store_head=None, store_descriptor=None):
     return acquire_runtime_journals(
         shared_dir=tmp_path / 'shared', session_dir=tmp_path / 'session',
         budget_dir=tmp_path / 'budget', store_root=tmp_path / 'store',
-        shared_kwargs=dict(boot_id=BOOT, genesis_review_digest=GENESIS),
+        shared_kwargs=dict(boot_id=BOOT,
+                           genesis_review_digest=GENESIS if history_head is None else None,
+                           expected_history_head=history_head),
         session_kwargs=dict(manifest_sha256=MANIFEST, boot_id=BOOT),
         budget_kwargs=dict(manifest_sha256=MANIFEST, max_bytes=1 << 20, boot_id=BOOT),
         store_kwargs=dict(manifest_sha256=MANIFEST, policy_sha256='b' * 64,
                            build_id='fixture', clock_method='synthetic',
                            max_clock_age_seconds=30, host_id='fixture-host',
-                           boot_id=BOOT),
+                           boot_id=BOOT, expected_head=store_head,
+                           expected_descriptor_sha256=store_descriptor),
     )
 
 
@@ -189,6 +194,31 @@ def _build_runtime(shared, session, budget, store, tmp_path, *, requests,
         window=window or _window(), allowed_peer_ips=('8.8.8.8',),
         manifest_sha256=MANIFEST, plan=plan, expected_plan_sha256=plan.sha256,
         report_sink=sink, attempt_model=attempt_model, evidence_intake=evidence_intake)
+
+
+def _offline_call(shared, session, budget, store, tmp_path, *, request, requests,
+                  exchange, attempt_model=None, transport=None):
+    plan = _frozen_plan(requests)
+    report_dir = tmp_path / 'report'
+    report_dir.mkdir(mode=0o700, exist_ok=True)
+    sink = ReportSink(report_dir)
+    try:
+        return offline_caller.run_offline_real_intake_attempt(
+            request=request, shared=shared, session=session, budget=budget,
+            store=store, transport=(SyntheticTransport(exchange) if transport is None
+                                    else transport), clock=_clock(),
+            resources=_resources(), window=_window(),
+            allowed_peer_ips=('8.8.8.8',), manifest_sha256=MANIFEST,
+            plan=plan, expected_plan_sha256=plan.sha256,
+            report_sink=sink, attempt_model=attempt_model)
+    finally:
+        sink.close()
+
+
+def _assert_no_shared_budget_transport(shared, budget, exchange, shared_before):
+    assert (shared.prev, list(shared.events)) == shared_before
+    assert budget.count == 0 and budget.in_flight is None
+    assert exchange._used == set()
 
 
 # ---------------------------------------------------------------------------
@@ -526,3 +556,204 @@ def test_from_real_intake_builds_a_refusing_guard_from_synthetic_tmp_path_files(
     assert set(RETAINED_22_REASONS) <= set(guard.record.refusal_reasons)
     with pytest.raises(LaunchContractError, match='RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
         guard.require_admission()
+
+
+# The explicit offline callable is the only non-test runtime caller. These
+# fixtures replace its retained input only inside the test; production always
+# uses the tracked repository binding and docs directory.
+def test_offline_caller_rebinds_real_intake_after_restart_and_keeps_refusal_local(
+        tmp_path, monkeypatch):
+    calls = []
+    def fresh_intake(*, repo_docs_dir, binding_path):
+        assert repo_docs_dir == offline_caller._REPO_DOCS
+        assert binding_path == offline_caller._TRACKED_BINDING
+        calls.append(len(calls))
+        return _report(satisfied=False, outcome=OUTCOME_REFUSED,
+                       refusal_reasons=['NULL_COMPLETE_LINEAGE_REVIEW'])
+
+    monkeypatch.setattr(intake_guard_module, 'run_real_evidence_intake', fresh_intake)
+    root = _dirs(tmp_path)
+    first, second = _pilot_request(request_id='first'), _pilot_request(request_id='second')
+    exchange = SyntheticExchange({})
+    with _acquire(root) as (shared, session, budget, store):
+        before = (shared.prev, list(shared.events))
+        result1 = _offline_call(shared, session, budget, store, root,
+                                request=first, requests=(first, second),
+                                exchange=exchange)
+        assert result1['outcome'] == 'REFUSED'
+        assert result1['reasons'] == ['RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED']
+        assert session.attempt_history['first']['outcome'] == 'REFUSED'
+        _assert_no_shared_budget_transport(shared, budget, exchange, before)
+        history_head = shared.prev
+        store_head = (store._seq, store._head)
+        store_descriptor = store.descriptor_sha256
+
+    # Reopen the same durable journals. The next request must obtain a new
+    # intake report; the previous guard cannot be replayed or omitted.
+    with _acquire(root, history_head=history_head, store_head=store_head,
+                  store_descriptor=store_descriptor) as (shared, session, budget, store):
+        before = (shared.prev, list(shared.events))
+        result2 = _offline_call(shared, session, budget, store, root,
+                                request=second, requests=(first, second), exchange=exchange)
+        assert result2 == dict(result1, request_id='second')
+        assert session.attempt_history['second']['outcome'] == 'REFUSED'
+        _assert_no_shared_budget_transport(shared, budget, exchange, before)
+    assert calls == [0, 1]
+
+
+def test_offline_caller_attempt_model_alone_cannot_replace_real_intake(
+        tmp_path, monkeypatch):
+    from tests.v11_gate3_preflight_synthetic_cases import genesis_checkpoint, good_inputs
+    monkeypatch.setattr(intake_guard_module, 'run_real_evidence_intake',
+                        lambda **_: _report(satisfied=False, outcome=OUTCOME_REFUSED,
+                                            refusal_reasons=['NULL_COMPLETE_LINEAGE_REVIEW']))
+    root = _dirs(tmp_path)
+    exchange = SyntheticExchange({})
+    model = AttemptModelGuard(good_inputs(), genesis_checkpoint())
+    with _acquire(root) as (shared, session, budget, store):
+        before = (shared.prev, list(shared.events))
+        result = _offline_call(shared, session, budget, store, root,
+                               request=_pilot_request(), requests=(_pilot_request(),),
+                               exchange=exchange, attempt_model=model)
+        assert result['reasons'] == ['RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED']
+        assert model._consumed is False
+        _assert_no_shared_budget_transport(shared, budget, exchange, before)
+
+
+def test_offline_caller_satisfied_intake_reaches_synthetic_attempt_only(
+        tmp_path, monkeypatch):
+    calls = []
+    def satisfied(**_):
+        calls.append(1)
+        return _report()
+    monkeypatch.setattr(intake_guard_module, 'run_real_evidence_intake', satisfied)
+    root = _dirs(tmp_path)
+    body = b'0123456789012345678901234567890'
+    exchange = SyntheticExchange({'req-1': _ok_response(body)})
+    request = _request(reservation_bytes=len(body))
+    with _acquire(root) as (shared, session, budget, store):
+        result = _offline_call(shared, session, budget, store, root,
+                               request=request, requests=(request,), exchange=exchange)
+        assert result['outcome'] == 'SUCCESS'
+        assert budget.received == len(body)
+        assert exchange._used == {'req-1'}
+    assert calls == [1]
+
+
+@pytest.mark.parametrize('bad_report', [
+    _report(extra='tampered'),
+    _report(outcome=OUTCOME_REFUSED),
+    _report(execution_authority=True),
+])
+def test_offline_caller_malformed_intake_stops_before_runtime_effects(
+        tmp_path, monkeypatch, bad_report):
+    monkeypatch.setattr(intake_guard_module, 'run_real_evidence_intake',
+                        lambda **_: bad_report)
+    root = _dirs(tmp_path)
+    exchange = SyntheticExchange({})
+    with _acquire(root) as (shared, session, budget, store):
+        before_shared = (shared.prev, list(shared.events))
+        before_session = list(session.events)
+        with pytest.raises(LaunchContractError):
+            _offline_call(shared, session, budget, store, root,
+                          request=_request(), requests=(_request(),), exchange=exchange)
+        assert list(session.events) == before_session
+        _assert_no_shared_budget_transport(shared, budget, exchange, before_shared)
+
+
+def test_offline_caller_unreadable_binding_stops_before_runtime_effects(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(offline_caller, '_TRACKED_BINDING', tmp_path / 'absent.json')
+    root = _dirs(tmp_path)
+    exchange = SyntheticExchange({})
+    with _acquire(root) as (shared, session, budget, store):
+        before_shared = (shared.prev, list(shared.events))
+        before_session = list(session.events)
+        with pytest.raises(FileNotFoundError):
+            _offline_call(shared, session, budget, store, root,
+                          request=_request(), requests=(_request(),), exchange=exchange)
+        assert list(session.events) == before_session
+        _assert_no_shared_budget_transport(shared, budget, exchange, before_shared)
+
+
+def test_offline_caller_rejects_non_synthetic_transport_before_intake(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(intake_guard_module, 'run_real_evidence_intake',
+                        lambda **_: pytest.fail('intake reached for non-synthetic transport'))
+    root = _dirs(tmp_path)
+    exchange = SyntheticExchange({})
+    with _acquire(root) as (shared, session, budget, store):
+        before_shared = (shared.prev, list(shared.events))
+        before_session = list(session.events)
+        with pytest.raises(LaunchContractError,
+                           match='OFFLINE_REAL_INTAKE_SYNTHETIC_ONLY'):
+            _offline_call(shared, session, budget, store, root,
+                          request=_request(), requests=(_request(),),
+                          exchange=exchange, transport=object())
+        assert list(session.events) == before_session
+        _assert_no_shared_budget_transport(shared, budget, exchange, before_shared)
+
+
+def test_offline_caller_refuses_tampered_retained_bytes_before_runtime_effects(
+        tmp_path, monkeypatch):
+    import json
+    from tools.v11_gate3_evidence_preflight_real_intake import EvidenceIntakeError
+    from tests.v11_gate3_preflight_synthetic_cases import (
+        good_binding_dict, protocol_raw_bytes,
+    )
+
+    package_raw, restrictions_raw, _, _ = good_raws()
+    protocol_raw = protocol_raw_bytes()
+    private = tmp_path / 'private'
+    private.mkdir()
+    docs = tmp_path / 'docs'
+    docs.mkdir()
+    package_path = private / 'package.json'
+    restrictions_path = private / 'restrictions.json'
+    package_path.write_bytes(package_raw)
+    restrictions_path.write_bytes(restrictions_raw)
+    (docs / 'PROTOCOL.md').write_bytes(protocol_raw)
+    binding = good_binding_dict(package_raw, restrictions_raw, protocol_raw)
+    binding['private_package']['path'] = str(package_path)
+    binding['private_restrictions']['path'] = str(restrictions_path)
+    binding_path = docs / 'binding.json'
+    binding_path.write_bytes(json.dumps(binding).encode())
+    package_path.write_bytes(package_raw + b' ')
+    monkeypatch.setattr(offline_caller, '_REPO_DOCS', docs)
+    monkeypatch.setattr(offline_caller, '_TRACKED_BINDING', binding_path)
+
+    root = tmp_path / 'runtime'
+    root.mkdir()
+    _dirs(root)
+    exchange = SyntheticExchange({})
+    with _acquire(root) as (shared, session, budget, store):
+        before_shared = (shared.prev, list(shared.events))
+        before_session = list(session.events)
+        with pytest.raises(EvidenceIntakeError):
+            _offline_call(shared, session, budget, store, root,
+                          request=_request(), requests=(_request(),), exchange=exchange)
+        assert list(session.events) == before_session
+        _assert_no_shared_budget_transport(shared, budget, exchange, before_shared)
+
+
+def test_offline_caller_deterministic_refusal_replay(tmp_path, monkeypatch):
+    reads = []
+    def refused(**_):
+        reads.append(1)
+        return _report(satisfied=False, outcome=OUTCOME_REFUSED,
+                       refusal_reasons=['NULL_COMPLETE_LINEAGE_REVIEW'])
+    monkeypatch.setattr(intake_guard_module, 'run_real_evidence_intake', refused)
+    outcomes = []
+    for name in ('one', 'two'):
+        root = tmp_path / name
+        root.mkdir()
+        _dirs(root)
+        exchange = SyntheticExchange({})
+        with _acquire(root) as (shared, session, budget, store):
+            before = (shared.prev, list(shared.events))
+            outcomes.append(_offline_call(shared, session, budget, store, root,
+                                          request=_request(), requests=(_request(),),
+                                          exchange=exchange))
+            _assert_no_shared_budget_transport(shared, budget, exchange, before)
+    assert reads == [1, 1]
+    assert outcomes[0] == outcomes[1]
