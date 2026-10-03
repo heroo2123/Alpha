@@ -1,3 +1,7 @@
+## Coordinator offline lane correction — 2026-10-03 00:21 UTC
+
+Verified clean main and held exact repair candidates, unchanged protected master, no new checked forward evidence, adequate host headroom, and no separate active Alpha worker. Requested review-only authorization for the two new repair commits; their parent review approvals do not apply to the repaired bytes. Corrected a stale InventoryTransform start-contract status header without running the observer. No provider request, G3-L PASS, forward SHADOW, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator Brain findings intake — 2026-10-03 00:17 UTC
 
 The recovered offline Sonnet worker completed as `dac20a0` with a clean exit-0 terminal. Corrected its documentation-only handoff to distinguish the existing Gate 3 decoder/collector from the missing Gate 4 real feature-capture-to-example bridge and to record the 123 passing focused tests. The corrected `88c4b48` branch merged locally at `5c3560c`; current-main trajectory tests pass 123/123. Real adapter admission remains gated by G3-E captures and independent Gate 4 review. The two weather repair candidates remain separately review-held; no provider request, forward SHADOW, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
