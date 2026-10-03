@@ -1,6 +1,6 @@
 ## Two independent Gate 3 exact reviews active — 2026-10-03 11:49 UTC
 
-Codex Astra/high exact reviews of clean `cd6575b` clock recorder and clean `9d80dd9` conditional offline resource budget are active in separate detached checkouts. The latter replaces the Claude attempt that exited at its weekly limit before verdict. No PASS, merge, operational resource/clock qualification, provider request or SHADOW admission follows. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+The exact reviews of `9d80dd9` resource budget and `cd6575b` clock recorder both returned CHANGES_REQUIRED. Narrow tested resource successor `f19ee8f` is under independent exact review; a single isolated Sol/high clock repair is live on `cd6575b`. Neither has PASS or merge; no operational resource/clock qualification, provider request or SHADOW admission follows. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
 
 ## Clock successor exact review active — 2026-10-03 11:46 UTC
 
