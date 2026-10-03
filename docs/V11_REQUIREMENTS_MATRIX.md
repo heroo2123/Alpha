@@ -1,3 +1,7 @@
+## Resource-plan member bound repair under independent review — 2026-10-03 14:22 UTC
+
+Independent `4165945` review returned **CHANGES_REQUIRED** for an oversized caller member-list allocation before refusal. Clean isolated successor `4273456` bounds before snapshot and passes 9/9 focused tests in both Python modes; one different-model exact review is live. No successor PASS, merge, operational qualification, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Resource-plan binding repair under independent review — 2026-10-03 14:13 UTC
 
 The exact `32de1f8` Astra/high review returned **CHANGES_REQUIRED**: a mutable string-subclass key could undercount a cohort event while falsely claiming capacity coverage. The preserved isolated author worktree now has tested clean successor `4165945` (8/8 focused cases in each Python mode), under one different-model exact review. No successor PASS, merge, real-host resource qualification, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
