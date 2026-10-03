@@ -7420,3 +7420,6 @@ With 3,782,823,936 bytes free disk and 983,536 KiB MemAvailable, launched one in
 ## Clock review worker recovered — 2026-10-03 11:13 UTC
 
 Preserved the first interrupted Astra/high review transcript of clean `f0ca627`; restarted the same exact review in persistent session 55382 with a terminal marker. The candidate remains unmerged pending independent verdict. No provider request, host qualification, capture, or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO**.
+## Independently reviewed resource budget integrated — 2026-10-03 12:22 UTC
+
+The clean `f19ee8f` exact review ended `PASS_IN_SCOPE` with retained terminal and report hashes in the checkpoint. Local merge `336a58a` preserves all three reviewed blobs; focused post-merge offline tests pass 6/6 in normal and optimized Python. The separate `cd6575b` clock repair remains live in its preserved isolated worktree; no clock successor, host qualification, provider request, eligible capture, forward SHADOW or score crossing is claimed. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

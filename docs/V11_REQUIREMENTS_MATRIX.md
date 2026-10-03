@@ -4687,3 +4687,6 @@ With 3,782,823,936 bytes free disk and 983,536 KiB MemAvailable, launched one in
 ## Clock exact review recovered — 2026-10-03 11:13 UTC
 
 The interrupted Astra/high exact review of `f0ca627` was resumed in its clean isolated checkout. No verdict, merge, host clock qualification, provider request, or SHADOW admission exists. Boundary remains **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Offline resource proposal integrated — 2026-10-03 12:22 UTC
+
+`f19ee8f` received independent exact `PASS_IN_SCOPE` and was merged locally as `336a58a` with identical reviewed file blobs; 6/6 focused post-merge tests pass in normal and optimized Python. It is a synthetic offline budget diagnostic with caller-supplied events, not a host resource receipt or authority. The clock repair remains live and unreviewed; Gate 3 retains 77 missing identities, zero qualification and **G3-L NO-GO**. No C/J/E/A boundary crossed: **91/200, formal 1/50; NOT_READY_TO_FUND**.
