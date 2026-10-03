@@ -1,3 +1,7 @@
+## Intake consistency reviewed and integrated; qualification still open — 2026-10-03 21:36 UTC
+
+Different-model exact review passed the `383412e` direct intake-record consistency repair, and local merge `afbbad7` passes 32 focused post-merge tests per Python mode. This closes the reviewed code P2 only; current runtime/real-caller qualification, all 77 G3-L PRE_REVIEW identities, provider rights and SHADOW admission remain open. FC1 `6ddcd9d` is under independent exact review, while a separate isolated writer builds offline real-caller composition. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Real-caller mapping completed; qualification unchanged — 2026-10-03 21:27 UTC
 
 The frozen `f45f321` read-only mapping handoff is sealed and identifies a missing non-test `GateRuntime` caller plus the offline launch-composition/test slice. This is implementation preparation only: `code.runtime_entrypoint_review`, real launch qualification and all 77 G3-L PRE_REVIEW identities remain open. The `383412e` independent exact review and FC1 successor repair are still active; no verdict or integration credit. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

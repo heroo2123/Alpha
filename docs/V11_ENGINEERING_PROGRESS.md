@@ -1,3 +1,7 @@
+## Intake repair merged; two independent weather lanes active — 2026-10-03 21:36 UTC
+
+Exact `383412e` received independent Astra/high PASS_IN_SCOPE for the direct-constructor repair and merged locally as `afbbad7`; focused merged-main intake tests passed 32/32 in both Python modes. The detailed verdict and one non-reproduced runtime-test anomaly remain in the retained `.out`. FC1 clean successor `6ddcd9d` is under different-model exact review; a separate Sol/high writer has started the mapped offline real-caller composition from reviewed main. Only verified inactive synthetic test fixtures were reclaimed to restore >3 GiB free disk. No provider request, G3-L PASS, identity credit, qualified capture or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Real-caller handoff sealed and active scratch pressure contained — 2026-10-03 21:27 UTC
 
 The read-only real-caller map finished cleanly and identified an offline fail-closed runtime composition slice with no provider access. The FC1 successor writer and independent `383412e` G3-L reviewer remain live. Active review test artifacts drove disk below the 2 GiB floor; verified inactive, re-creatable FC1 test scratch was removed, returning free disk to about 2,044 MiB. Hold a new worker until the reserve is stable or additional safe headroom exists. No review verdict, merge, provider request, qualified capture or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
