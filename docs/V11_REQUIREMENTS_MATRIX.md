@@ -1,3 +1,7 @@
+## Reviewed production-mapping proposal integrated — 2026-10-03 15:09 UTC
+
+Documentation-only `1dad476` received independent `PASS_IN_SCOPE` and merged locally as `e8bdfb0` with unchanged blobs; post-merge V4 tests pass 58/58. Its P3 direct-pin recommendation applies to any later amendment. The current V4 mapping predicate, provider rights and G3-L holds remain unchanged. Passive host assessment `4fe59ea` is under separate exact review. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Passive host feasibility under exact review — 2026-10-03 15:07 UTC
 
 Clean passive `4fe59ea` assessment is under different-model exact review. Its host sample shows only arithmetic room for bare/P1 floors; physical reservation, custody, foreign-consumer and memory bounds remain unqualified. The independent `1dad476` mapping-design review continues. No provider authority, G3-L identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
