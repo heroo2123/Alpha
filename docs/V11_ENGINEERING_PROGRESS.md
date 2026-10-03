@@ -1,3 +1,7 @@
+## Four independent Gate-3 lanes active — 2026-10-03 22:50 UTC
+
+Transport `60ac120` exact review sealed **CHANGES_REQUIRED** for residual F4 byte loss and its sole isolated successor repair is live. RAW binding repair continues after its prior P2 review. The read-only physical-proof verifier sealed with no host qualification, and its slot moved to a distinct offline allocation/lifetime model writer. A fourth isolated read-only G3-L identity/evidence next-step mapper was launched at clean `1194ed8` under current safe headroom. Preserve each unfinished worktree; launch exact reviews only for sealed clean candidates, then reconcile against newer main. No provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## RAW binding repair and physical-store proof verification — 2026-10-03 22:42 UTC
 
 The physical-store readiness map sealed cleanly and its slot was recycled into an isolated read-only gap verifier. Different-model exact review of RAW binding `7fc9223` found two reproduced P2 defects, so an isolated Sol/high repair is active in the original author worktree; no merge or credit followed. The separate transport `60ac120` exact reviewer continues. Three lanes fit the current memory reserve, with no fourth launch. No provider request, physical qualification, G3-L PASS, eligible capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
