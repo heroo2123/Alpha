@@ -213,7 +213,10 @@ before starting it. Full decode/validation/durable feature seal and every
 metadata/dependency receipt upper must be **<= decision lower**, which is itself
 strictly before local-day start using pinned timezone data. The protocol's causal
 `<=` is not silently changed to P1's strict `<`. Review/preregistration must
-finish before acquisition. A local recorder provides no proof that all 2,713
+finish before acquisition. Separately, each qualified metadata-receipt upper
+bound must be **strictly before the first acquisition lower bound**; satisfying
+the later decision cutoff alone does not establish pre-acquisition receipt.
+A local recorder provides no proof that all 2,713
 slots, decode work, reservation or the full capture schedule will fit.
 
 A durable seal timestamp needs an **after-successful-fsync** observation whose
