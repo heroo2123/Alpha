@@ -1,3 +1,7 @@
+## Passive host feasibility under exact review — 2026-10-03 15:07 UTC
+
+Clean passive `4fe59ea` assessment is under different-model exact review. Its host sample shows only arithmetic room for bare/P1 floors; physical reservation, custody, foreign-consumer and memory bounds remain unqualified. The independent `1dad476` mapping-design review continues. No provider authority, G3-L identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Production-mapping design independent review active — 2026-10-03 15:03 UTC
 
 The exact clean public-source design `1dad476` entered different-model Codex Sol/high review after a retained Claude weekly-limit exit before review. The passive host-resource feasibility worker remains live separately. Neither task supplies production mapping acceptance, resource/clock qualification, provider authority, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**. See the checkpoint for exact checkout, runner and terminal bindings.
