@@ -1,3 +1,7 @@
+## Live V5 merge preflight — 2026-10-03 19:29 UTC
+
+Current main `81ebac3` is clean. The isolated `610ee4a` exact reviewer and separate FC1 schema author are both active; no terminal or verdict exists. A read-only `610ee4a` merge-tree probe and diff whitespace check pass; integration awaits independent PASS and post-merge tests. Disk remains above the 2 GiB floor, memory below the 900 MiB third-worker threshold, V10/V11 execution units inactive, and the protected master hash unchanged. No provider request, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 IFS successor and independent review — 2026-10-03 19:25 UTC
 
 The isolated Sol/high author sealed clean `610ee4a` / tree `6e914139` after 244 passed/1 skipped in each Python mode with sockets blocked; the author reported early refusal of all four prior late-effect reproductions. A different-model Astra/high exact reviewer is active in a clean detached checkout. Separate FC1 offline schema author is active. No verdict or merge is claimed. Main is clean, checked V10/V11 units inactive, disk above 2 GiB but below preferred 3 GiB, and the host's two heavy slots are occupied. No provider request, qualified capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

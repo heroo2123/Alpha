@@ -1,3 +1,7 @@
+## V5 live review preflight — 2026-10-03 19:29 UTC
+
+`610ee4a` is conflict-free against current main by read-only merge-tree probe, but its independent exact review remains live without a verdict. FC1 schemas remain unfinished in a separate isolated author worktree. Neither grants V5 acceptance, G3-L identity credit, provider authority or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 IFS successor review active — 2026-10-03 19:25 UTC
 
 Clean `610ee4a` repairs the outer admission P1 per author tests (244 passed/1 skipped in each Python mode, socket blocked). Different-model Astra/high exact review is live; no independent PASS or merge. Separate FC1 schema author is live in an isolated worktree. Both are offline prerequisites only. No provider request, identity credit, qualified capture or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
