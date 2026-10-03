@@ -7112,3 +7112,7 @@ The original worker exited after committing clean `0df1a95` (tree `6069e0f`) and
 ## Coordinator resource-candidate verification — 2026-10-03 04:19 UTC
 
 Verified clean exact candidate `0df1a95` and staged checkout at tree `6069e0f`; its four offline tests pass on the host with normal and optimized Python. Recorded it in the five-candidate review queue. The missing original runner terminal is preserved as uncertainty, and no independent review or merge is claimed. All five pending exact candidates remain held for their own authorized different-model review. No provider request, genuine clock/resource evidence, capture, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Fifth Gate 3 candidate reconciliation probe — 2026-10-03 04:22 UTC
+
+Recorded a conflict-free, non-destructive merge-tree result for `0df1a95` against main `483b38b` in the pending exact-review handoff. The five-candidate queue remains unreviewed and unmerged; no resource qualification, provider request, forward SHADOW or score crossing occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

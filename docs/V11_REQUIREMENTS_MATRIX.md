@@ -4358,3 +4358,5 @@ At 2026-10-03 04:12 UTC, offline resource-budget candidate `0df1a95` is clean an
 
 
 At 2026-10-03 04:19 UTC, exact offline resource-budget candidate `0df1a95` and its detached checkout match tree `6069e0f`; four host-side focused tests pass in normal and optimized Python. It joins four prior clean review-held candidates. All five lack candidate-specific authorized different-model PASS and remain unmerged. This proposal fills no G3-L identity or acceptance boundary: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+At 2026-10-03 04:22 UTC, the fifth offline resource-budget candidate `0df1a95` had a clean non-destructive merge probe against main `483b38b`. Its exact review remains authorization-held; no candidate was integrated or qualified. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
