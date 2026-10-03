@@ -1,3 +1,7 @@
+## Coordinator offline worker recovery — 2026-10-03 00:08 UTC
+
+Verified clean main `2790ee3`, clean held weather repairs `976217d` and `741c6ae`, unchanged protected FINAL-REVIEWED master, and no newer SHADOW/backfill evidence. The offline Brain/IFS-AIFS worker exited without a terminal or changes, so the same isolated task was restarted through a persistent PTY; runner/Sonnet `2595390`/`2595392` were live at verification. Weather exact repair reviews remain authorization-held and unmerged. No provider request, G3-L PASS, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator offline continuation — 2026-10-03 00:02 UTC
 
 Verified clean newer main `a1f8a57`, clean Gate 3 repair and exact-checkout worktrees, unchanged protected FINAL-REVIEWED master hash, no new commissioning/backfill evidence, and adequate disk/memory. New exact `976217d` and `741c6ae` reviews remain held for candidate-specific external transfer authorization. Started and recovered one terminal-bound Sonnet worker in a new isolated worktree for the distinct offline IFS/AIFS source-native adapter question; runner/child `2593693`/`2593697` were live, with completion pending. The first launcher failure is retained separately. No provider request, merge, G3-L PASS, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
