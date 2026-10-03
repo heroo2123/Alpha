@@ -1,3 +1,7 @@
+## 2026-10-03 23:32 UTC transport exact PASS and local integration
+
+Independent Astra/high exact review passed clean transport `5a0ce21`. Conflict-free local merge `c13c2a4` imported all three reviewed blobs; 25 focused post-merge tests passed in normal and optimized Python. The read-only allocation compatibility map finished without a demonstrated defect and identified a next calculator-to-allocation boundary test. RAW custody/closure repair remains live and unreviewed. No provider request, physical qualification, G3-L PASS, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## 2026-10-03 23:19 UTC RAW repair and dual exact reviews
 
 Independent RAW `cea7461` adjudication sealed CHANGES_REQUIRED with four reproduced P2 defects and one Sol/high successor repair now runs in its original isolated worktree. Transport successor `5a0ce21` sealed clean with author tests and entered different-model exact review. Allocation `91d3b00` exact review remains live. A separate read-only test planner sealed a concrete synthetic no-socket composition plan for post-integration. No merge, provider request, G3-L PASS, physical qualification, capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
