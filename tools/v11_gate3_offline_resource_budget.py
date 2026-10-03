@@ -29,7 +29,9 @@ def _number(value, low=0, high=MAX_INT):
 
 
 def _mapping(value, keys):
-    if type(value) is not dict or len(value) != len(keys) or set(value) != set(keys):
+    if (type(value) is not dict or len(value) != len(keys) or
+            any(type(key) is not str for key in value) or
+            set(value) != set(keys)):
         raise ValueError('unexpected proposal shape')
     return value
 
@@ -40,19 +42,21 @@ def _calculate(manifest, frozen_plan):
     ``manifest`` is the parsed payload of a separately accepted V4 manifest.
     ``frozen_plan`` has exactly ``mode``, ``requests`` and ``events``. Requests
     repeat the manifest's ordered (id, purpose, reservation) triples; events
-    carry only ``field_request_ids``. The event list has no binding to a
-    validated manifest schedule here. Its capacity is conditional on the
-    caller-supplied events and cannot cover the actual frozen schedule.
+    carry only ``field_request_ids``. In a validated V4 manifest, each cohort
+    event projects to every FIELD request in schedule order. Check that exact
+    capacity-relevant expansion; side, keys and event metadata are outside
+    this deliberately narrow projection.
     """
     if type(manifest) is not dict or type(frozen_plan) is not dict:
         raise ValueError('mapping required')
     _mapping(frozen_plan, ('mode', 'requests', 'events'))
-    if frozen_plan['mode'] != 'OFFLINE_PROPOSAL':
+    if type(frozen_plan['mode']) is not str or frozen_plan['mode'] != 'OFFLINE_PROPOSAL':
         raise ValueError('unsupported mode')
     try:
         identity = manifest['identity']
         limits = manifest['limits']
         schedule = manifest['schedule']
+        cohort = manifest['cohort']
         runtime = manifest['runtime']
         storage = manifest['storage']
         source_requests = schedule['requests']
@@ -63,7 +67,7 @@ def _calculate(manifest, frozen_plan):
     except (KeyError, TypeError) as exc:
         raise ValueError('incomplete V4 projection') from exc
     if (any(type(value) is not dict for value in
-            (identity, limits, schedule, runtime, storage, bounds)) or
+            (identity, limits, schedule, cohort, runtime, storage, bounds)) or
             identity.get('schema') != SCHEMA or
             type(source_requests) is not list or
             type(requests) is not list or
@@ -72,6 +76,9 @@ def _calculate(manifest, frozen_plan):
             type(purpose_plan) is not dict or len(purpose_plan) != len(PURPOSES) or
             set(purpose_plan) != set(PURPOSES)):
         raise ValueError('unbounded or mismatched V4 projection')
+    # Work from one bounded event-list snapshot. The caller's mutable list
+    # cannot change the number of capacity nodes after the shape check.
+    events = tuple(events)
 
     maximum_requests = _number(limits['max_requests'], 1, MAX_REQUESTS)
     maximum_bytes = _number(limits['max_received_bytes'], 1, MAX_BYTES)
@@ -126,16 +133,33 @@ def _calculate(manifest, frozen_plan):
                 _number(claim['reservation_bytes'], 0, MAX_BYTES)):
             raise ValueError('V4 purpose plan mismatch')
 
+    cohort_events = cohort.get('events')
+    if (type(cohort_events) is not list or
+            not 1 <= len(cohort_events) <= 2 or
+            any(type(side) is not str or side not in ('HIGH', 'LOW')
+                for side in cohort_events) or
+            len(set(cohort_events)) != len(cohort_events) or
+            len(events) != len(cohort_events)):
+        raise ValueError('V4 cohort event count mismatch')
+    field_ids = [r['request_id'] for r in requests if r['purpose'] == 'FIELD']
+    if not field_ids or len(field_ids) * len(events) > MAX_EVENT_LINKS:
+        raise ValueError('V4 event expansion exceeds bounds')
     aggregate_nodes = links = 0
-    field_ids = {r['request_id'] for r in requests if r['purpose'] == 'FIELD'}
     for event in events:
         _mapping(event, ('field_request_ids',))
         members = event['field_request_ids']
-        if (type(members) is not list or not members or
+        if type(members) is not list:
+            raise ValueError('frozen event differs from V4 field expansion')
+        # Refuse an oversized caller plan before allocating its snapshot.
+        if (len(members) != len(field_ids) or
+                len(members) > MAX_EVENT_LINKS - links):
+            raise ValueError('frozen event differs from V4 field expansion')
+        members = tuple(members[:len(field_ids) + 1])
+        if (len(members) != len(field_ids) or
                 len(members) > MAX_EVENT_LINKS - links or
-                any(type(rid) is not str or rid not in field_ids for rid in members) or
-                len(set(members)) != len(members)):
-            raise ValueError('invalid frozen event')
+                any(type(rid) is not str or rid != expected
+                    for rid, expected in zip(members, field_ids))):
+            raise ValueError('frozen event differs from V4 field expansion')
         links += len(members)
         width = len(members)
         aggregate_nodes += 1
@@ -169,8 +193,10 @@ def _calculate(manifest, frozen_plan):
             _number(bounds['session_journal_max_events']) != 32768 or
             _number(bounds['denial_journal_max_events']) != 32768):
         raise ValueError('V4 ceiling or quota mismatch')
-    # These are fresh-root estimates. Existing journal bytes/events and host
-    # resources are deliberately absent, so this is never runtime admission.
+    # These are fresh-root estimates. The schedule coverage flag below is a
+    # mathematical comparison against the supplied manifest under the external
+    # validation precondition, not proof of manifest custody or runtime admission.
+    # Existing journal bytes/events and host resources are deliberately absent.
     fresh_ceiling_checks = {
         'budget_events': records <= 131072,
         'budget_journal_bytes': records * RECORD_BYTES <= 64 * 1024**2,
@@ -197,8 +223,8 @@ def _calculate(manifest, frozen_plan):
         'runtime_capacity': {'disk_bytes': disk, 'memory_bytes': memory,
                              'budget_records': records, 'store_events': store_events,
                              'aggregate_nodes': aggregate_nodes},
-        'event_binding': 'UNVERIFIED_CALLER_SUPPLIED',
-        'capacity_covers_frozen_schedule': False,
+        'event_binding': 'MATCHES_SUPPLIED_V4_MANIFEST_FIELD_EXPANSION',
+        'capacity_covers_frozen_schedule': True,
         'v4_local_storage_quota_bytes': _number(bounds['local_storage_quota_bytes']),
         'v4_quota_formula_bytes': v4_quota,
         'minimum_free_disk_for_fresh_plan_bytes': DISK_FLOOR + disk,
