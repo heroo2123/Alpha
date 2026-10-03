@@ -1,5 +1,11 @@
 # Gate 3 pending exact reviews — 2026-10-03 03:38 UTC
 
+## Frozen-event binding design added — 2026-10-03 04:55 UTC
+
+The public-source, documentation-only design candidate is `3d414b3707b4052a14a6f49162fbbbfa8e809711` (tree `474a6f1f003a67a69eab4a094863eebf8afb927a`), staged in clean detached checkout `/tmp/alpha-v11-gate3-frozen-event-binding-review-3d414b3`. Its design file SHA-256 is `b01bf346b866254679af743909f4193445cd15dc67928ff5ab093b69252be8d3`. Author prompt, runner, log, and final hashes are respectively `64f0392826dbe158e9173c14e24488740140811709f519f0bc9ef78ee1ccfb12`, `918f217e44865247413f239e952d214aa6ac52bdb0c5e6c80aa5249490029a5f`, `893b1289cb3f74232a9f0ca29413fae8111efa2811616af0d6a8548c3d432763`, and `394003ed518bce395274cb6baedd8a5afd96209ab113236c8b1cb49f25c3c103`. The author final contains `FROZEN_EVENT_BINDING_DESIGN_READY` and the worktree and patch check are clean. The runner and model exited without writing the expected terminal; process exit status is unverified. The retained log reports source-bound checks for eight paths and 20 symbols plus three isolated pure probes; no independent reproduction or verdict is claimed here.
+
+This sixth, separate candidate documents a fail-closed prerequisite: an independently pinned export of the validated full frozen plan is absent. It is **unreviewed and unmerged**. Obtain candidate-specific authorized different-model exact review before integration. Its clean detached checkout is preparation only, not permission to transfer private-repository bytes. The five earlier review-held candidates remain unchanged, with resource-budget child `9d80dd9` superseding only its parent for current review. No resource qualification, provider request, G3-L credit, capture, or SHADOW admission follows.
+
 This packet records four clean, unmerged candidates against local main `512d2be63c276ee86c28aee18b33449c3e6a7dc6`. It is a local handoff only. It grants no external transfer, review PASS, integration, host qualification, provider request, capture, or SHADOW admission.
 
 | Lane | Commit | Tree | Exact checkout | Review state |

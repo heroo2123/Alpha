@@ -1,5 +1,9 @@
 # Gate 3 review hold and restart order — 2026-10-03 03:47 UTC
 
+## Current design intake — 2026-10-03 04:55 UTC
+
+The sixth clean exact-review-held candidate is frozen-event binding design `3d414b3`; full commit, tree, file hashes, detached checkout, and missing-runner-terminal uncertainty are in [pending exact reviews](V11_GATE3_PENDING_EXACT_REVIEWS_20261003.md). This is a documentation-only fail-closed design. It identifies the missing externally pinned validated-plan export, so the current offline resource-budget child `9d80dd9` cannot prove production schedule coverage by itself. Do not integrate either candidate without its own authorized different-model exact PASS. Prioritize the earlier fresh-readiness and G3-L repairs when their candidate-specific review authorization is established. No provider request, real resource/clock qualification, G3-L PASS, or forward SHADOW is implied.
+
 This is an offline coordinator handoff. It is not a launch package, review verdict, provider-access decision, clock or resource qualification, or SHADOW admission.
 
 Local main was clean at `f7fec8920695540427172ca76c54fa0ffb1e483d` (82 commits ahead of its tracking ref). Four clean isolated candidates remain unmerged, with their exact commits, trees and review checkouts recorded in [pending exact reviews](V11_GATE3_PENDING_EXACT_REVIEWS_20261003.md): fresh readiness `976217d`, G3-L audit `741c6ae`, passive clock recorder `5667acb`, and resource reservation design `5faedb8`. The prior exact reviews of the parents of the first two returned CHANGES_REQUIRED. The newer four commits have no candidate-specific authorized different-model PASS. Automatic approval review rejected transfer of `5667acb`; a resource-design review attempt was stopped with no verdict. The owner has already been asked for review-only authorization for these exact candidates and their referenced retained evidence. Do not infer an answer or retry the rejected transfer without it.
