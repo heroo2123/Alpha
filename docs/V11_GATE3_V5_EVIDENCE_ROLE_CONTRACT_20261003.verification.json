@@ -1,0 +1,977 @@
+{
+  "schema": "G3_V5_PROPOSAL_VERIFICATION_1",
+  "baseline_commit": "40da1570e66d36f1f7f3e41e12b190a74cf0f9c1",
+  "scope": "DOCUMENTATION_AND_PUBLIC_OFFLINE_REGRESSIONS_ONLY",
+  "denominator": {
+    "GEFS": 775,
+    "IFS": 1275,
+    "AIFS": 663,
+    "total": 2713
+  },
+  "g3l_preservation": [
+    {
+      "identity": "code.collector_commit_tree",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.launch_validator_commit_tree",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.transport_commit_tree",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.decoder_commit_tree",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.clock_recorder_commit_tree",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.source_file_hashes",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.dependency_build_lock",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.runtime_entrypoint_review",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.slice3_exact_commit_review",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "code.mapping_exact_commit_review",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3p_original_commit_tree_document",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3p_original_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3p_addendum_commit_tree_document",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3p_addendum_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3i_collector_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3i_provider_bound_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3i_gefs_ceiling_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.transport_design_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "protocol.g3i_composition_review_terminal",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.station_version_coordinates_timezone",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.tzdata_bytes",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.pre_weather_selection_rationale",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.high_low_event_ids",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.official_rule_rounding_buckets",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.settlement_source",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.metadata_bytes_receipt",
+      "stage": "PRE_REVIEW",
+      "scope": "run",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "cohort.requested_gate2_key_mapping",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "cohort/events and COHORT_METADATA",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_operational_release_dossier",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_release_document_retrieval",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_licence_anonymous_access",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_control_perturbed_mapping",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_grib_identity_decoder_build",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_purpose_endpoint_contracts",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_current_run_index_object_range",
+      "stage": "PRE_REVIEW",
+      "scope": "run",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.gefs_publication_attestation_or_absence_reason",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_operational_release_dossier",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_release_document_retrieval",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_licence_anonymous_access",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_control_perturbed_mapping",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_grib_identity_decoder_build",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_purpose_endpoint_contracts",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_current_run_index_object_range",
+      "stage": "PRE_REVIEW",
+      "scope": "run",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.ifs_publication_attestation_or_absence_reason",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_operational_release_dossier",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_release_document_retrieval",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_licence_anonymous_access",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_control_perturbed_mapping",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_grib_identity_decoder_build",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_purpose_endpoint_contracts",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_current_run_index_object_range",
+      "stage": "PRE_REVIEW",
+      "scope": "run",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "sources.aifs_publication_attestation_or_absence_reason",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "sources and role/capability semantic enrollment",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "network.exact_origin_path_purpose_allowlist",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "network.dns_tls_build_peer_policy",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "network.anonymous_no_retry_credential_policy",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "network.restriction_domain_lineage",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "network.ecmwf_503_429_expiry_resumption_review",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "network.preflight_approval_receipts_if_used",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "storage.private_root_owner_mode_dev_inode",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "storage.denial_root_history_head",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "storage.session_report_root_identities",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "storage.exclusive_lock_atomic_seal_qualification",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "storage.physical_persistence_review",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "storage.live_disk_memory_quota_measurement",
+      "stage": "PRE_REVIEW",
+      "scope": "window",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "clocks.unprivileged_recorder_build_method",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "clocks.calibration_sync_uncertainty",
+      "stage": "PRE_REVIEW",
+      "scope": "window",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "clocks.host_boot_monotonic_identity",
+      "stage": "PRE_REVIEW",
+      "scope": "window",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "clocks.measurement_age_policy",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.run_candidate_readiness_evidence",
+      "stage": "PRE_REVIEW",
+      "scope": "run",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.full_2713_slot_inventory_digest",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.ordered_subset_request_paths_ranges",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.shared_index_object_cache_binding",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.purpose_reservations_and_resource_quota",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.terminal_reason_precedence",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.four_phase_receipt_schema",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "schedule.observed_size_evidence_review",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "review.private_v4_manifest_canonical_bytes",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "review.private_v4_manifest_digest",
+      "stage": "PRE_REVIEW",
+      "scope": "accepted_static",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained",
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "review.detached_g3l_report",
+      "stage": "FINAL",
+      "scope": "accepted_static",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    },
+    {
+      "identity": "review.detached_g3l_completed_terminal",
+      "stage": "FINAL",
+      "scope": "accepted_static",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained",
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "qualification_credit": 0
+    }
+  ],
+  "g3l_counts": {
+    "pre_review": 77,
+    "final": 79,
+    "missing_pre_review_unchanged": 77,
+    "credit": 0
+  },
+  "verification_matrix": [
+    {
+      "id": "V01",
+      "boundary": "bytes/validator",
+      "positive_control": "Canonical bounded synthetic bundle",
+      "adversarial_cases": "Nested duplicate/unknown/missing key; float/bool slot; negative zero; NaN; lone surrogate; oversized/deep JSON",
+      "expected_refusal": "BOUNDS/CANONICAL/SCHEMA",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V02",
+      "boundary": "denominator/report",
+      "positive_control": "Exact 775/1275/663 inventory with prespecified subset",
+      "adversarial_cases": "Drop GEFS; downsample IFS; duplicate slot; rehash 2712 rows; hide failed/unscheduled row",
+      "expected_refusal": "SCHEMA/PROJECTION",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V03",
+      "boundary": "roles/validator",
+      "positive_control": "Three explicit roles per FIELD; zero network overhead with presealed proofs",
+      "adversarial_cases": "Missing role; empty bindings; wrong role; unsupported interpretation; unused/dangling proof",
+      "expected_refusal": "SOURCE_PIN/PROJECTION/DEPENDENCY",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V04",
+      "boundary": "applicability",
+      "positive_control": "Shared metadata across explicit provider/run/cohort slot edges",
+      "adversarial_cases": "Swap run/release/station/date/member/cohort; use outside interval; stale re-seal",
+      "expected_refusal": "APPLICABILITY",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V05",
+      "boundary": "native selection",
+      "positive_control": "IFS control/perturbed and AIFS shared-file selections, including IFS 3-hour step",
+      "adversarial_cases": "CGI-to-S3 transplant; wrong model/path suffix; ef-vs-pf confusion; duplicate member; last-row out-of-bounds/overlap; unqualified packing",
+      "expected_refusal": "SOURCE_PIN/APPLICABILITY/DEPENDENCY",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V06",
+      "boundary": "object identity",
+      "positive_control": "Independent target strong ETag/size and exact index coherence",
+      "adversarial_cases": "Index ETag as field ETag; weak ETag; path hash alone; mismatched total/range",
+      "expected_refusal": "APPLICABILITY/DEPENDENCY",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V07",
+      "boundary": "schedule/transport",
+      "positive_control": "Frozen earlier confirmation then exact 206 FIELD; overhead first",
+      "adversarial_cases": "Changed index chooses range; late metadata first receipt; fallback full 200; redirect/retry; future prerequisite; unscheduled probe",
+      "expected_refusal": "PROJECTION/APPLICABILITY/DEPENDENCY",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V08",
+      "boundary": "accounting/resources",
+      "positive_control": "Real attempts charged; offline reads use local budget only; zero PROBE",
+      "adversarial_cases": "Fabricated HTTP receipt for file; omit eager failed bytes; transfer purpose headroom; dedup hides costs",
+      "expected_refusal": "PROJECTION/BUDGET",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V09",
+      "boundary": "trust/review",
+      "positive_control": "Test-only external pins from isolated independent fixture principal",
+      "adversarial_cases": "Recompute all caller hashes; fabricated/same-model review; unfinished terminal; untrusted key; caller channel; revoked/stale rollback pins",
+      "expected_refusal": "TRUST/SOURCE_PIN",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V10",
+      "boundary": "rights/lineage",
+      "positive_control": "Accepted applicable rights and complete control-domain denial lineage",
+      "adversarial_cases": "Missing terms; expired use; origin change clears 429/503; unknown expiry; reset history head; offline artifact clears hold",
+      "expected_refusal": "RIGHTS_LINEAGE",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V11",
+      "boundary": "freeze/export",
+      "positive_control": "Seven roles and full events/requests/roles/context survive projection",
+      "adversarial_cases": "Rehashed omission/reorder; different primary provider/event key; lost object/index/cache; omit event_policy_review; V4/V5 mixing",
+      "expected_refusal": "SCHEMA/PROJECTION/TRUST",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V12",
+      "boundary": "resource bounds",
+      "positive_control": "Exact-bound control for every section 6 dimension; local plus network cost model",
+      "adversarial_cases": "Each bound+1; combined 256/257 dependencies; integer overflow; omit parsing/report/recovery cost; graph fanout; CPU/wall overrun",
+      "expected_refusal": "BOUNDS/BUDGET",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V13",
+      "boundary": "custody/replay",
+      "positive_control": "Create-only sealed bytes replay to same projection and original clocks",
+      "adversarial_cases": "Artifact changed after review; symlink/FIFO/inode alias; short write/fsync failure; missing dependency; cyclic graph; replay truncation",
+      "expected_refusal": "CUSTODY/DEPENDENCY",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V14",
+      "boundary": "restart/clock",
+      "positive_control": "Current authenticated time/context and full journal reconciliation",
+      "adversarial_cases": "Crash at intent/reserve/body/seal/report; boot change; expired window; re-clock receipt; stale measurement; retry unfinished intent",
+      "expected_refusal": "CUSTODY/CLOCK/RIGHTS_LINEAGE",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V15",
+      "boundary": "eligibility/G3-L",
+      "positive_control": "All raw rows/event-provider outcomes visible; zero fixture credit",
+      "adversarial_cases": "Scheduled RAW success treated as native trajectory/G3-E; HIGH/LOW double counted; remove one of 79 identities; premature final review output",
+      "expected_refusal": "PROJECTION/TRUST",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    },
+    {
+      "id": "V16",
+      "boundary": "isolation/integration",
+      "positive_control": "Pure synthetic validation with network/private-path/subprocess tripwires; legacy consumer refuses",
+      "adversarial_cases": "Real adapter invoked during parse; fixture promoted; absent A8 bridge/hook; changed loaded source after verification",
+      "expected_refusal": "SOURCE_PIN/TRUST; zero prohibited side effects",
+      "status": "PLANNED_NOT_RUN_V5_IMPLEMENTATION_ABSENT"
+    }
+  ],
+  "performed_checks": [
+    {
+      "check": "41 baseline public source file SHA-256, byte length, Git blob OID and working-byte equality",
+      "result": "PASS"
+    },
+    {
+      "check": "64 source anchors and full baseline commit/tree resolution",
+      "result": "PASS"
+    },
+    {
+      "check": "Prior 1dad476 review exact retained UTF-8 hash/length and target commit/tree; all 10 historical mapping source hashes",
+      "result": "PASS"
+    },
+    {
+      "check": "Proposal hash/length; JSON duplicate-key rejection, source schema and source-label closure",
+      "result": "PASS"
+    },
+    {
+      "check": "79 exact ordered G3-L identities: 77 PRE_REVIEW, two FINAL outputs; preserved run/window/static scopes; zero evidence/credit",
+      "result": "PASS"
+    },
+    {
+      "check": "16 finite planned test families, source-derived 775+1275+663=2713 denominator and 8139 role obligations",
+      "result": "PASS"
+    },
+    {
+      "check": "All pre-existing tracked files unchanged against baseline; only three new proposal artifacts",
+      "result": "PASS"
+    },
+    {
+      "check": "git diff --cached --check; exactly three added docs artifacts, no existing-file edits",
+      "result": "PASS"
+    }
+  ],
+  "tests": [
+    {
+      "mode": "normal",
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "argv": [
+        "timeout",
+        "60s",
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_v11_r09_gate3_launch_v4.py",
+        "tests/test_v11_gate3_validated_plan_export_offline.py",
+        "tests/test_v11_gate3_offline_resource_budget.py",
+        "tests/test_v11_r09_gate3_runtime.py::test_frozen_plan_derives_from_validated_v4_manifest_bytes",
+        "tests/test_v11_r09_gate3_runtime.py::test_unvalidated_plan_cannot_enter_runtime",
+        "tests/test_v11_r09_gate3_runtime.py::test_capacity_includes_nested_dependency_roots",
+        "tests/test_v11_r09_gate3_g3l_prep.py::test_full_denominator_and_prespecified_bounded_attempt_order",
+        "tests/test_v11_r09_gate3_g3l_prep.py::test_pre_review_stage_rejects_premature_review_outputs",
+        "tests/test_v11_r09_gate3_g3l_identity_audit.py::test_retained_evidence_counts_and_current_runtime_drift",
+        "--basetemp=/tmp/v5-evidence-contract-check-normal"
+      ],
+      "exit_code": 0,
+      "passed": 115,
+      "seconds": 9.13,
+      "scope": "Existing tests only; synthetic fixtures and public Git evidence. Not V5 tests or operational qualification."
+    },
+    {
+      "mode": "optimized",
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "argv": [
+        "timeout",
+        "60s",
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-O",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_v11_r09_gate3_launch_v4.py",
+        "tests/test_v11_gate3_validated_plan_export_offline.py",
+        "tests/test_v11_gate3_offline_resource_budget.py",
+        "tests/test_v11_r09_gate3_runtime.py::test_frozen_plan_derives_from_validated_v4_manifest_bytes",
+        "tests/test_v11_r09_gate3_runtime.py::test_unvalidated_plan_cannot_enter_runtime",
+        "tests/test_v11_r09_gate3_runtime.py::test_capacity_includes_nested_dependency_roots",
+        "tests/test_v11_r09_gate3_g3l_prep.py::test_full_denominator_and_prespecified_bounded_attempt_order",
+        "tests/test_v11_r09_gate3_g3l_prep.py::test_pre_review_stage_rejects_premature_review_outputs",
+        "tests/test_v11_r09_gate3_g3l_identity_audit.py::test_retained_evidence_counts_and_current_runtime_drift",
+        "--basetemp=/tmp/v5-evidence-contract-check-optimized"
+      ],
+      "exit_code": 0,
+      "passed": 115,
+      "seconds": 10.1,
+      "scope": "Existing tests only; synthetic fixtures and public Git evidence. Not V5 tests or operational qualification.",
+      "warnings": [
+        "PytestConfigWarning: assertions outside test modules/plugins are ignored by optimized Python. Existing pytest-rewritten tests still ran; this is not a V5 verification claim."
+      ]
+    }
+  ],
+  "v5_execution_tests_run": false,
+  "provider_requests": 0,
+  "private_evidence_accessed": false,
+  "operational_authority": false,
+  "different_model_candidate_review": "PENDING_REQUIRED_BEFORE_INTEGRATION",
+  "limitations": [
+    "No V5 implementation or enrolled production interpretation/capability registry.",
+    "No provider rights, current-run evidence, independent pin channel, live restriction reconciliation or resource/clock qualification supplied.",
+    "79-row map is proposed preservation, not accepted equivalence or G3-L evidence.",
+    "Source claims bind only this baseline; later integration requires byte reconciliation and independent different-model exact review."
+  ],
+  "role_obligation_cells": 8139,
+  "scratch": {
+    "limit_description": "60-second timeout per test command; isolated synthetic scratch, no broad suite or provider/private reads",
+    "measurement": "du -sh reported 23M for normal-mode retained scratch; no claim of process peak memory or host qualification",
+    "normal_retained_snapshot_bytes_approx": 24117248
+  }
+}

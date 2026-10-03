@@ -1,0 +1,754 @@
+{
+  "schema": "G3_V5_PROPOSAL_SOURCE_BINDING_1",
+  "baseline_commit": "40da1570e66d36f1f7f3e41e12b190a74cf0f9c1",
+  "baseline_tree": "d6169d53a42d88636c9a031776cc3b3bc5a8f386",
+  "proposal": {
+    "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.md",
+    "sha256": "e020882313866ce4bf8cee25cecc742d58be74330a3e4afe874e16cd42fd9bed",
+    "byte_length": 33528
+  },
+  "sources": [
+    {
+      "label": "CHECKPOINT",
+      "path": "docs/V11_WORK_CHECKPOINT.md",
+      "git_blob_oid": "36025cd849249ec3a0cd7407c03467fa8adbcd01",
+      "sha256": "e6137689cb37e0eaf4cec97efaa5bc38c81d782e40bfbf3c46eb2dc2856905c0",
+      "byte_length": 1663559,
+      "anchors": []
+    },
+    {
+      "label": "REQUIREMENTS",
+      "path": "docs/V11_REQUIREMENTS_MATRIX.md",
+      "git_blob_oid": "c0cf50d2c4f040c73f2e0627e6443844c4f98ac1",
+      "sha256": "090b0398df6046750e8abe15e21686205def1357159ed462d6f0b0cdc5631d2f",
+      "byte_length": 497645,
+      "anchors": []
+    },
+    {
+      "label": "PROGRESS",
+      "path": "docs/V11_ENGINEERING_PROGRESS.md",
+      "git_blob_oid": "908a59ae07b0904c1384afc4ece5a76f44895648",
+      "sha256": "9089b69b6f1ea27246cb54a2406592e486d6086eeea82465af7e63e4c171e2ec",
+      "byte_length": 595076,
+      "anchors": []
+    },
+    {
+      "label": "MAPPING",
+      "path": "docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.md",
+      "git_blob_oid": "a0f9857d8e46579d5b1818de7c0146e82bda43d2",
+      "sha256": "20c5d72dd4ac9f235b8964998ff608420333349f44e428cd29e12901e7583525",
+      "byte_length": 17526,
+      "anchors": []
+    },
+    {
+      "label": "MAPPING_SOURCES",
+      "path": "docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.sources.json",
+      "git_blob_oid": "80353243804802f9078a39db254f27bc5d7dd167",
+      "sha256": "ca8af3cc79a54fbd7d3503cbfdd13484404075a9643dc8184f99dd217fd831aa",
+      "byte_length": 6326,
+      "anchors": []
+    },
+    {
+      "label": "MAPPING_VERIFICATION",
+      "path": "docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.verification.json",
+      "git_blob_oid": "423ddeffea6be8586383d978a3ec31423de241d0",
+      "sha256": "25313fbd31ad22eb1ca20402cff7f0fffa7a62b103cae30f98c6fb6e877b28dd",
+      "byte_length": 4089,
+      "anchors": []
+    },
+    {
+      "label": "EXPORT_DESIGN",
+      "path": "docs/V11_GATE3_VALIDATED_PLAN_EXPORT_DESIGN_20261003.md",
+      "git_blob_oid": "37379034aee93365d77b5bb21e2d242c8018de1a",
+      "sha256": "d62af7c0ce34425b43a7f0f1f96b6def95300d52ef0d82c4643b835ba55a9060",
+      "byte_length": 45779,
+      "anchors": [
+        {
+          "needle": "## 4. Closed",
+          "lines": [
+            137
+          ]
+        },
+        {
+          "needle": "### 4.3",
+          "lines": [
+            256
+          ]
+        },
+        {
+          "needle": "## 5. Full",
+          "lines": [
+            316
+          ]
+        },
+        {
+          "needle": "## 7. Bounded",
+          "lines": [
+            396
+          ]
+        }
+      ]
+    },
+    {
+      "label": "EXPORT_SLICE",
+      "path": "docs/V11_GATE3_VALIDATED_PLAN_EXPORT_OFFLINE_SLICE_20261003.md",
+      "git_blob_oid": "f3c9fbfc947b9b681c461b2d8494ad9b6811e456",
+      "sha256": "97e9fbac757461f2782d3e97476fff8c97996f6c30633c1d6675a0ad2e41b808",
+      "byte_length": 3612,
+      "anchors": []
+    },
+    {
+      "label": "V4",
+      "path": "tools/v11_r09_gate3_launch_v4.py",
+      "git_blob_oid": "14f52ec73b4c8a54ac4506835f1f6d57ca20861f",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+      "byte_length": 47602,
+      "anchors": [
+        {
+          "needle": "GROUPS =",
+          "lines": [
+            50
+          ]
+        },
+        {
+          "needle": "def validate_manifest_v4",
+          "lines": [
+            206
+          ]
+        },
+        {
+          "needle": "SOURCE_MAPPING_UNSUPPORTED",
+          "lines": [
+            194,
+            437
+          ]
+        },
+        {
+          "needle": "ENDPOINT_TABLE_COVERAGE",
+          "lines": [
+            560
+          ]
+        },
+        {
+          "needle": "FIELD_PREREQUISITES",
+          "lines": [
+            680
+          ]
+        },
+        {
+          "needle": "OVERHEAD_MUST_PRECEDE_FIELD",
+          "lines": [
+            692
+          ]
+        },
+        {
+          "needle": "RUNTIME_RESOURCE_BOUNDS",
+          "lines": [
+            823
+          ]
+        }
+      ]
+    },
+    {
+      "label": "SLOTS",
+      "path": "tools/v11_r09_gate3_launch.py",
+      "git_blob_oid": "1025a0b5443abe4e04d57012d773bc07c6f4a8fe",
+      "sha256": "d126744f3905b65b97dd19ccddc787d4bcdd71fca88288c1504966b0fb2681b8",
+      "byte_length": 57812,
+      "anchors": [
+        {
+          "needle": "SLOTS =",
+          "lines": [
+            26
+          ]
+        },
+        {
+          "needle": "SLOT_COUNT =",
+          "lines": [
+            27
+          ]
+        },
+        {
+          "needle": "def _slot_inventory",
+          "lines": [
+            244
+          ]
+        },
+        {
+          "needle": "def parse_canonical",
+          "lines": [
+            93
+          ]
+        }
+      ]
+    },
+    {
+      "label": "CANONICAL",
+      "path": "tools/v11_multimodel_panel.py",
+      "git_blob_oid": "63fe115f46adfdd98ba02c83dfdac090973b5aec",
+      "sha256": "ecc08fca4ad92585a3028a5188afeedacc90512adeec94d89f54736d3bffe8f2",
+      "byte_length": 29252,
+      "anchors": [
+        {
+          "needle": "def canonical",
+          "lines": [
+            47
+          ]
+        }
+      ]
+    },
+    {
+      "label": "PROTOCOL",
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "git_blob_oid": "107f160a1498cd871a2ae5bb6fff076acb3753b3",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+      "byte_length": 20041,
+      "anchors": [
+        {
+          "needle": "## 3. Concrete",
+          "lines": [
+            91
+          ]
+        },
+        {
+          "needle": "## 4. Bounded",
+          "lines": [
+            141
+          ]
+        },
+        {
+          "needle": "## 5. Receipt",
+          "lines": [
+            186
+          ]
+        },
+        {
+          "needle": "## 6. Coverage",
+          "lines": [
+            223
+          ]
+        }
+      ]
+    },
+    {
+      "label": "RUNTIME",
+      "path": "tools/v11_r09_gate3_runtime.py",
+      "git_blob_oid": "d98425bfac504e8b0bdd7560fc6d4d586a54804c",
+      "sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+      "byte_length": 120122,
+      "anchors": [
+        {
+          "needle": "class CapacityPlan",
+          "lines": [
+            275
+          ]
+        },
+        {
+          "needle": "class AttemptRequest",
+          "lines": [
+            366
+          ]
+        },
+        {
+          "needle": "class FrozenPlan",
+          "lines": [
+            467
+          ]
+        },
+        {
+          "needle": "def verify_validated_projection",
+          "lines": [
+            589
+          ]
+        },
+        {
+          "needle": "def _resolve_prerequisites",
+          "lines": [
+            1184
+          ]
+        },
+        {
+          "needle": "def run_attempt",
+          "lines": [
+            1485
+          ]
+        },
+        {
+          "needle": "def build_terminal_report",
+          "lines": [
+            1814
+          ]
+        }
+      ]
+    },
+    {
+      "label": "EXPORT",
+      "path": "tools/v11_gate3_validated_plan_export_offline.py",
+      "git_blob_oid": "c652313549c1f560cceed638dc0d3df5859cef29",
+      "sha256": "312946ee591ae059b5e905b5d8d3b2d84c9b2e358e0ff5b88ddb0007f4d7d187",
+      "byte_length": 22360,
+      "anchors": [
+        {
+          "needle": "ROLES =",
+          "lines": [
+            21
+          ]
+        },
+        {
+          "needle": "def inspect_supplied_inputs",
+          "lines": [
+            174
+          ]
+        },
+        {
+          "needle": "def consume_accepted_export",
+          "lines": [
+            435
+          ]
+        },
+        {
+          "needle": "VPE_EXTERNAL_TRUST_UNAVAILABLE",
+          "lines": [
+            449
+          ]
+        }
+      ]
+    },
+    {
+      "label": "BUDGET",
+      "path": "tools/v11_gate3_offline_resource_budget.py",
+      "git_blob_oid": "1d9820e629413f2ce93d7101deb9f387572420bd",
+      "sha256": "0d0ce9218878a1cd374011316b6f6fd57dadf589796d354a6cbc25bffea011d9",
+      "byte_length": 16038,
+      "anchors": []
+    },
+    {
+      "label": "G3L",
+      "path": "tools/v11_r09_gate3_g3l_prep.py",
+      "git_blob_oid": "f72b4fffa9de8852a81664c29adf9e9d08a3c967",
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481",
+      "byte_length": 31205,
+      "anchors": [
+        {
+          "needle": "REQUIRED =",
+          "lines": [
+            54
+          ]
+        },
+        {
+          "needle": "RUN_SPECIFIC =",
+          "lines": [
+            106
+          ]
+        },
+        {
+          "needle": "WINDOW_SPECIFIC =",
+          "lines": [
+            112
+          ]
+        },
+        {
+          "needle": "ALL_IDS =",
+          "lines": [
+            114
+          ]
+        },
+        {
+          "needle": "FINAL_ONLY_IDS =",
+          "lines": [
+            119
+          ]
+        }
+      ]
+    },
+    {
+      "label": "AUDIT",
+      "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
+      "git_blob_oid": "6b54887fc66b9413670883f66585098fbe5839c2",
+      "sha256": "6c7245523194ff91ed7a096282b70ba9f023f2c94cf24c2a4a252b7356730a39",
+      "byte_length": 26766,
+      "anchors": [
+        {
+          "needle": "CODE_BYTE_OBSERVATION_PATHS =",
+          "lines": [
+            66
+          ]
+        },
+        {
+          "needle": "REUSABLE_ROW_CODE_DEPENDENCIES =",
+          "lines": [
+            75
+          ]
+        },
+        {
+          "needle": "def _git_bytes",
+          "lines": [
+            191
+          ]
+        },
+        {
+          "needle": "def _validate_artifact_commit",
+          "lines": [
+            227
+          ]
+        }
+      ]
+    },
+    {
+      "label": "ECMWF",
+      "path": "polymarket_scanner/v11/ecmwf_sources.py",
+      "git_blob_oid": "efa8585ba76952e15017b3e24de239cd80e2daee",
+      "sha256": "d02a298ff96ecaf98de7c3b514047d0b7c457237122217841bdbb9949bc1a523",
+      "byte_length": 13179,
+      "anchors": [
+        {
+          "needle": "class ECMWFRequest",
+          "lines": [
+            26
+          ]
+        },
+        {
+          "needle": "def selectors",
+          "lines": [
+            52
+          ]
+        },
+        {
+          "needle": "def plan_ranges",
+          "lines": [
+            116
+          ]
+        }
+      ]
+    },
+    {
+      "label": "GEFS",
+      "path": "polymarket_scanner/v11/gefs_sources.py",
+      "git_blob_oid": "11d27cdd91f9e0d29ae7bfa25cb8399ce30d3a02",
+      "sha256": "7d02d473d17647ece47f79a7ceb29b80e1a031c1cabef6d8eb3640f156e30df5",
+      "byte_length": 16506,
+      "anchors": [
+        {
+          "needle": "ENDPOINT =",
+          "lines": [
+            26
+          ]
+        },
+        {
+          "needle": "def field_request",
+          "lines": [
+            106
+          ]
+        }
+      ]
+    },
+    {
+      "label": "COLLECTOR",
+      "path": "tools/v11_r09_gate3_collector.py",
+      "git_blob_oid": "360e990a5f384b5c5838c6e284f14ef9445ade61",
+      "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe",
+      "byte_length": 39633,
+      "anchors": [
+        {
+          "needle": "class NativeECMWFThreeHourRequest",
+          "lines": [
+            142
+          ]
+        },
+        {
+          "needle": "class CaptureManifest",
+          "lines": [
+            199
+          ]
+        }
+      ]
+    },
+    {
+      "label": "NATIVE_DECODER",
+      "path": "polymarket_scanner/v11/ecmwf_grib.py",
+      "git_blob_oid": "e8249fed2a8020be121f6b34986628d7680faa00",
+      "sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4",
+      "byte_length": 12889,
+      "anchors": []
+    },
+    {
+      "label": "NATIVE_FINDINGS",
+      "path": "docs/V11_BRAIN_IFS_AIFS_NATIVE_ADAPTER_FINDINGS_20261003.md",
+      "git_blob_oid": "75094a146f57300413312d53181b7e735ade294b",
+      "sha256": "3c5710f1713df398584dca3856c39f510f74e88122e3de862af18272675b3c0d",
+      "byte_length": 6571,
+      "anchors": []
+    },
+    {
+      "label": "NATIVE_EXTREMA",
+      "path": "docs/V11_R09_ECMWF_NATIVE_EXTREMA.md",
+      "git_blob_oid": "6b6e1a603f1e2352400c8a0f2e0e3b0d689a74b8",
+      "sha256": "74db60b1314318bc2e7bda9e2b97bee7575dc8afa7ca9f09014c6c9959587ea6",
+      "byte_length": 17336,
+      "anchors": []
+    },
+    {
+      "label": "BOOTSTRAP",
+      "path": "docs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.md",
+      "git_blob_oid": "c0b3331a3fbac13cfbafa173930e26c65ad9be33",
+      "sha256": "ad3449e5df97b6c2a4db89a63e9731345cfff59f6cb5fcf716e4fcec6ac7b964",
+      "byte_length": 5408,
+      "anchors": [
+        {
+          "needle": "503s",
+          "lines": [
+            20
+          ]
+        }
+      ]
+    },
+    {
+      "label": "BOOTSTRAP_ADJUDICATION",
+      "path": "docs/V11_R09_GATE3_BOOTSTRAP_ADJUDICATION_20261002.md",
+      "git_blob_oid": "ce7ad97ee74a101010b2b2d1a4973667ff7cb5a3",
+      "sha256": "4c28e16704ab62093483033229036f5df8194c0790ed35ac9f61bf5dc2619c02",
+      "byte_length": 11880,
+      "anchors": []
+    },
+    {
+      "label": "ACCEPTANCE",
+      "path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "git_blob_oid": "bcf28c8f63fdde52e0b89e4b69fe238b51dd1c47",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+      "byte_length": 16704,
+      "anchors": [
+        {
+          "needle": "| A2:",
+          "lines": [
+            45
+          ]
+        },
+        {
+          "needle": "| A3:",
+          "lines": [
+            46
+          ]
+        },
+        {
+          "needle": "| A4:",
+          "lines": [
+            47
+          ]
+        },
+        {
+          "needle": "| A5:",
+          "lines": [
+            48
+          ]
+        },
+        {
+          "needle": "| A6:",
+          "lines": [
+            49
+          ]
+        },
+        {
+          "needle": "| A7:",
+          "lines": [
+            50
+          ]
+        },
+        {
+          "needle": "| A8:",
+          "lines": [
+            51
+          ]
+        }
+      ]
+    },
+    {
+      "label": "A2A3",
+      "path": "tools/v11_r09_gate3_a2a3_dossier.py",
+      "git_blob_oid": "97283eef255754b2390a2678356e56d9138c9bc6",
+      "sha256": "21cfac6c0ab573fd4a051955288ef0de734b9fb79ec8a517e5131f2b14c4e496",
+      "byte_length": 9374,
+      "anchors": []
+    },
+    {
+      "label": "A4",
+      "path": "tools/v11_r09_gate3_a4_closure_spec.py",
+      "git_blob_oid": "4e175bdd34897890d91a3f3af964905109661895",
+      "sha256": "af5eb195548a746f73dcf8fe2e36b49db6dfadf29b16148817c2d02bde251a64",
+      "byte_length": 20347,
+      "anchors": []
+    },
+    {
+      "label": "A5A6",
+      "path": "tools/v11_r09_gate3_a5a6_audit.py",
+      "git_blob_oid": "e6c41c6a09757fc44d001343d3e64ba0bb09800e",
+      "sha256": "fe9849628b31d3a0e860e41791c2cc7a977e835f483043cd2e3f8f3b1ab20134",
+      "byte_length": 9675,
+      "anchors": []
+    },
+    {
+      "label": "A7",
+      "path": "tools/v11_r09_gate3_a7_decoder.py",
+      "git_blob_oid": "c184cf6eb54c7541eb1a2fad44ab5a46e429458a",
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20",
+      "byte_length": 17101,
+      "anchors": []
+    },
+    {
+      "label": "A8",
+      "path": "tools/v11_r09_gate3_a8_composition.py",
+      "git_blob_oid": "83e4d7e8ff0ccd3880121487e03c10c177cebd86",
+      "sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f",
+      "byte_length": 24385,
+      "anchors": [
+        {
+          "needle": "class PreparedComposition",
+          "lines": [
+            331
+          ]
+        },
+        {
+          "needle": "def validate_a8_composition",
+          "lines": [
+            339
+          ]
+        },
+        {
+          "needle": "def recheck_a8_composition",
+          "lines": [
+            445
+          ]
+        }
+      ]
+    },
+    {
+      "label": "STORE",
+      "path": "tools/v11_r09_gate3_store_v1.py",
+      "git_blob_oid": "3c6a61567bc7d8fba25b2e9cce0999d404436a31",
+      "sha256": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636",
+      "byte_length": 34393,
+      "anchors": [
+        {
+          "needle": "class ObjectProvenance",
+          "lines": [
+            173
+          ]
+        },
+        {
+          "needle": "class VersionedImmutableObjectStore",
+          "lines": [
+            222
+          ]
+        },
+        {
+          "needle": "def _replay",
+          "lines": [
+            443
+          ]
+        }
+      ]
+    },
+    {
+      "label": "LEDGERS",
+      "path": "tools/v11_r09_gate3_ledgers.py",
+      "git_blob_oid": "5f0195607a3b3b5dca6b04b34e3131c69abb05b8",
+      "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4",
+      "byte_length": 69644,
+      "anchors": [
+        {
+          "needle": "class SharedLedger",
+          "lines": [
+            339
+          ]
+        },
+        {
+          "needle": "def _validate_restriction",
+          "lines": [
+            544
+          ]
+        },
+        {
+          "needle": "class SessionLedger",
+          "lines": [
+            692
+          ]
+        }
+      ]
+    },
+    {
+      "label": "test_v11_r09_gate3_launch_v4",
+      "path": "tests/test_v11_r09_gate3_launch_v4.py",
+      "git_blob_oid": "9ea3196bcee00f05347879aa7547d671bb283520",
+      "sha256": "aa6f06f4593bcfbc7635612f71e52c0f9d7b0094e9bbf4ea22843f7e70b20ca2",
+      "byte_length": 52079,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_gate3_validated_plan_export_offline",
+      "path": "tests/test_v11_gate3_validated_plan_export_offline.py",
+      "git_blob_oid": "09b2bbc5fedc46467cf5fcc9d39edb5f6113eb98",
+      "sha256": "f924c814c9c9a627c76f9e021a12f233c8efd369a7c82e8efbceb59e661bee0e",
+      "byte_length": 19899,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_gate3_offline_resource_budget",
+      "path": "tests/test_v11_gate3_offline_resource_budget.py",
+      "git_blob_oid": "831b31857b4d8096c2c8183c271ce4385bcc6b6a",
+      "sha256": "92b62d8aabceb1dd5e4170ea259589d45065be8373abb10b15e6dca67a809913",
+      "byte_length": 22779,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_r09_gate3_runtime",
+      "path": "tests/test_v11_r09_gate3_runtime.py",
+      "git_blob_oid": "19af6d8c03ec01fbb66a2080e478110a0f035cde",
+      "sha256": "8ef5c9c629dd2ca56e7527190229fedaadf9a5f0efd33c74804c8d368076e466",
+      "byte_length": 96474,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_r09_gate3_g3l_prep",
+      "path": "tests/test_v11_r09_gate3_g3l_prep.py",
+      "git_blob_oid": "3968050e8754391051a8b2cdbb9d190e91fc57df",
+      "sha256": "dfde2f31acfa863972471d2b58fabfdd16508e86443d87102f04490a772be65b",
+      "byte_length": 14505,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_r09_gate3_g3l_identity_audit",
+      "path": "tests/test_v11_r09_gate3_g3l_identity_audit.py",
+      "git_blob_oid": "c9cd3e90a2d75bc17bf546904ca51850309102d4",
+      "sha256": "f6494288475ddbe1054a04913d9677a32c1f4037ea97313544e5050e77155d27",
+      "byte_length": 15919,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_r09_gate3_g3l_binding",
+      "path": "tests/test_v11_r09_gate3_g3l_binding.py",
+      "git_blob_oid": "507065346c3c5debaa80bba5a7729a6e4cc737e6",
+      "sha256": "3c1720eec649e6658ee90ab4368a78946d6593a75a89713e7310d46895d16868",
+      "byte_length": 12088,
+      "anchors": []
+    },
+    {
+      "label": "test_v11_r09_gate3_collector",
+      "path": "tests/test_v11_r09_gate3_collector.py",
+      "git_blob_oid": "f870fb46b83b9feafd1c3a9ed5ec80b62bdea546",
+      "sha256": "e02872b25dd0e9f5b33f6c01b50d3a1ca8f1a819589bc424fd31bf49a1b88926",
+      "byte_length": 27182,
+      "anchors": []
+    }
+  ],
+  "prior_review": {
+    "label": "REVIEW",
+    "candidate_commit": "1dad476cf8df19b9eee7f92578104f133823085d",
+    "candidate_tree": "442058a68781c9089ad98262ba77fca2fda10d40",
+    "path_at_read": "/tmp/alpha-v11-production-mapping-review-1dad476-codex.final",
+    "sha256": "c21f8e2ecf418771a6c5196c57a0b78478f470190389c8b8386a5393a24ce801",
+    "byte_length": 2678,
+    "exact_utf8_text": "**PASS_IN_SCOPE** \u2014 documentation-only architecture review. No blocking findings.\n\nReviewed commit `1dad476cf8df19b9eee7f92578104f133823085d`, tree `442058a68781c9089ad98262ba77fca2fda10d40`. HEAD is detached and the checkout is clean. The cumulative parent diff adds only the three proposal artifacts; `git diff --check` passes.\n\nThe proposed separation of evidence roles from scheduled network requests addresses a real V4 blocker: V4 requires all 15 provider-purpose mappings, while its production predicate admits only four ECMWF FIELD/INDEX pairs ([V4 validator](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/tools/v11_r09_gate3_launch_v4.py:429), [endpoint coverage](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/tools/v11_r09_gate3_launch_v4.py:557)). The proposal keeps V4\u2019s refusal in force, retains three providers and the 2,713-slot denominator, requires all three FIELD evidence roles, and freezes ranges, dependencies, subset and schedule before review ([proposal](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.md:141)). Its rights, identity, provenance, denial-history and clock requirements do not silently qualify a provider ([evidence packet](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.md:88)).\n\n**P3, nonblocking traceability:** The [source binding](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.sources.json:7) omits direct pins for the file defining `SLOTS` and `SLOT_COUNT` and for the collection protocol defining the fixed window. Add those pins to the later exact amendment\u2019s preservation map; I verified the claims directly in the [launch constants](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/tools/v11_r09_gate3_launch.py:26) and [collection protocol](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md:91).\n\nChecks were offline and read-only: the three current status docs, full candidate diff, baseline source and protocol requirements, all 10 source hashes and lengths, all 34 anchors, design hash and length, 15-row verification table, and denominator calculation. I did not rerun the author\u2019s pytest result. Provider rights, private evidence and live restriction state were outside this review. This verdict accepts the proposal\u2019s **review scope only**; it is no protocol amendment or launch authority. **G3-L remains NO_GO, with zero qualified entries and no provider request** ([checkpoint](/tmp/alpha-v11-gate3-production-mapping-review-1dad476/docs/V11_WORK_CHECKPOINT.md:51)).",
+    "scope": "Prior documentation architecture only; not V5 acceptance. Hash agreement is not channel authentication."
+  },
+  "candidate_review": "REQUIRED_DIFFERENT_MODEL_EXACT_COMMIT_TREE",
+  "authority": false
+}
