@@ -441,6 +441,49 @@ def test_calibration_anchor_interval_overlap_boundary():
     verdict(item, "CLOCK_STEP")
 
 
+def test_overlap_bridge_cannot_discard_retained_calibration_lower_bound():
+    # Exact review counterexample (a): a bridge sample whose wide uncertainty
+    # interval overlaps the calibration must not erase the calibration's
+    # lower bound for a later, tighter sample.
+    anchor = {"id": "cal-1", "host_id": "host-A", "boot_id": "boot-A",
+              "monotonic_us": 0, "utc_us": 10_000_000, "uncertainty_us": 0}
+    bridge = {"event_kind": "dispatch", "sequence": 1, "monotonic_us": 1_000_000,
+              "utc_us": 9_500_000, "uncertainty_us": 500_000,
+              "calibration_id": "cal-1", "calibration_monotonic_us": 0}
+    later = {"event_kind": "seal", "sequence": 2, "monotonic_us": 2_000_000,
+              "utc_us": 9_000_000, "uncertainty_us": 0,
+              "calibration_id": "cal-1", "calibration_monotonic_us": 0}
+    item = p1(); item["clock"] = dossier(anchor, [bridge, later])
+    verdict(item, "CLOCK_STEP")
+    assert validate(json.dumps(item).encode())["reasons"] == ["CLOCK_STEP"]
+    item = p1(); item["clock"] = dossier(anchor, [later])
+    verdict(item, "CLOCK_STEP")
+    assert validate(json.dumps(item).encode())["reasons"] == ["CLOCK_STEP"]
+
+
+def test_overlap_bridge_cannot_discard_retained_earlier_sample_lower_bound():
+    # Exact review counterexample (b): the same forgetting defect, but the
+    # discarded constraint comes from an earlier accepted sample rather than
+    # the original calibration.
+    anchor = {"id": "cal-1", "host_id": "host-A", "boot_id": "boot-A",
+              "monotonic_us": 0, "utc_us": 0, "uncertainty_us": 0}
+    first = {"event_kind": "dispatch", "sequence": 1, "monotonic_us": 1_000_000,
+             "utc_us": 10_000_000, "uncertainty_us": 0,
+             "calibration_id": "cal-1", "calibration_monotonic_us": 0}
+    bridge = {"event_kind": "dispatch", "sequence": 2, "monotonic_us": 2_000_000,
+              "utc_us": 9_500_000, "uncertainty_us": 500_000,
+              "calibration_id": "cal-1", "calibration_monotonic_us": 0}
+    later = {"event_kind": "seal", "sequence": 3, "monotonic_us": 3_000_000,
+              "utc_us": 9_000_000, "uncertainty_us": 0,
+              "calibration_id": "cal-1", "calibration_monotonic_us": 0}
+    item = p1(); item["clock"] = dossier(anchor, [first, bridge, later])
+    verdict(item, "CLOCK_STEP")
+    assert validate(json.dumps(item).encode())["reasons"] == ["CLOCK_STEP"]
+    item = p1(); item["clock"] = dossier(anchor, [first, later])
+    verdict(item, "CLOCK_STEP")
+    assert validate(json.dumps(item).encode())["reasons"] == ["CLOCK_STEP"]
+
+
 def test_declared_build_ref_represents_actual_current_source_bytes():
     source_path = Path(__file__).resolve().parents[1] / "tools" / "v11_gate3_readiness_boundaries.py"
     source_bytes = source_path.read_bytes()

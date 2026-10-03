@@ -394,10 +394,11 @@ def _clock(value, evaluation):
         _refuse("CLOCK_LINKAGE")
     previous_sequence = -1
     previous_mono = -1
-    # Seed with the retained original anchor so the first sample is checked
-    # against it too, not only against later samples.
-    previous_utc = calibration["utc_us"]
-    previous_uncertainty = calibration["uncertainty_us"]
+    # Retain the strongest (maximum) prior interval lower bound, seeded from
+    # the original anchor, across the whole sequence. Overwriting it with
+    # only the immediately preceding sample would let an intervening
+    # overlapping sample silently discard an earlier, tighter constraint.
+    lower_bound_floor = calibration["utc_us"] - calibration["uncertainty_us"]
     for sample in samples:
         _keys(sample, {"event_kind", "sequence", "monotonic_us", "utc_us",
                        "uncertainty_us", "calibration_id", "calibration_monotonic_us"},
@@ -421,11 +422,12 @@ def _clock(value, evaluation):
                 calibration_mono != calibration["monotonic_us"]):
             _refuse("CLOCK_REBASE")
         # A wholly backwards UTC interval, including one entirely before the
-        # retained original anchor, is a step under every nonnegative
-        # monotonic drift envelope. No forward-drift envelope is assumed.
-        if utc + uncertainty < previous_utc - previous_uncertainty:
+        # retained original anchor or any earlier retained sample, is a step
+        # under every nonnegative monotonic drift envelope. No forward-drift
+        # envelope is assumed.
+        if utc + uncertainty < lower_bound_floor:
             _refuse("CLOCK_STEP")
-        previous_utc, previous_uncertainty = utc, uncertainty
+        lower_bound_floor = max(lower_bound_floor, utc - uncertainty)
         previous_sequence, previous_mono = sequence, mono
     return "STRUCTURALLY_LINKED_UNQUALIFIED"
 
