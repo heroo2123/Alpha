@@ -4528,3 +4528,7 @@ The completed `976217d` review output is CHANGES_REQUIRED: overridable leaf valu
 ## Fresh-leaf repair intake — 2026-10-03 09:07 UTC
 
 Clean unmerged child `5419a4e` has host-reproduced **617/617** focused offline tests and awaits its own authorized different-model exact review. G3-L binding repair is still active and uncommitted. No reviewed identity, provider evidence, SHADOW admission, or C/J/E/A boundary changed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L binding repair intake — 2026-10-03 09:14 UTC
+
+Clean unmerged child `84849e4` repairs the recorded G3-L binding findings; its 19 focused adversarial tests pass on the host. Worker-reported broader tests pass, but candidate-specific authorized different-model exact PASS is still absent. No reviewed identity, provider right, SHADOW admission or C/J/E/A boundary changed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

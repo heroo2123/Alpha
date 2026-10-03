@@ -7302,3 +7302,7 @@ Read the completed review outputs for exact children `976217d` (SHA-256 `96c4ef8
 ## Fresh-leaf repair intake — 2026-10-03 09:07 UTC
 
 The first of two isolated Gate 3 repair workers completed clean `5419a4e` (tree `fd1dbf9`); host-side focused fresh-window/checker tests pass **617/617**. Candidate-specific review-only authorization was requested; no different-model PASS or merge is claimed. The G3-L binding worker remains active with preserved edits. No provider request, forward capture, SHADOW admission, or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L binding repair intake and disk recovery — 2026-10-03 09:14 UTC
+
+The second isolated repair worker finished clean `84849e4` (tree `489b610`), with `G3L_BINDING_REPAIR_READY`. Its worker-reported 65 focused tests per Python mode, 19 adversarial tests per mode and 219 adjacent tests passed; the 19 binding regressions were reproduced on the host. The child is unmerged pending candidate-specific authorized different-model exact review and PASS. Removed only two inactive pytest scratch directories after checking no open files, restoring about 3.0 GiB free. The protected master hash and inactive V10/V11 system execution state were rechecked; PAPER unit state remains unverified. No provider request, capture, SHADOW admission, or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
