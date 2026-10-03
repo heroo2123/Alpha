@@ -40,8 +40,9 @@ def _calculate(manifest, frozen_plan):
     ``manifest`` is the parsed payload of a separately accepted V4 manifest.
     ``frozen_plan`` has exactly ``mode``, ``requests`` and ``events``. Requests
     repeat the manifest's ordered (id, purpose, reservation) triples; events
-    carry only ``field_request_ids``. This narrow projection cannot validate
-    the manifest's evidence, mapping, or external review.
+    carry only ``field_request_ids``. The event list has no binding to a
+    validated manifest schedule here. Its capacity is conditional on the
+    caller-supplied events and cannot cover the actual frozen schedule.
     """
     if type(manifest) is not dict or type(frozen_plan) is not dict:
         raise ValueError('mapping required')
@@ -195,6 +196,8 @@ def _calculate(manifest, frozen_plan):
         'runtime_capacity': {'disk_bytes': disk, 'memory_bytes': memory,
                              'budget_records': records, 'store_events': store_events,
                              'aggregate_nodes': aggregate_nodes},
+        'event_binding': 'UNVERIFIED_CALLER_SUPPLIED',
+        'capacity_covers_frozen_schedule': False,
         'v4_local_storage_quota_bytes': _number(bounds['local_storage_quota_bytes']),
         'v4_quota_formula_bytes': v4_quota,
         'minimum_free_disk_for_fresh_plan_bytes': DISK_FLOOR + disk,

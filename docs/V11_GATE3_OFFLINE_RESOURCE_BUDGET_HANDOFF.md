@@ -4,6 +4,11 @@
 validated V4 manifest payload and an ordered frozen projection of its requests
 and event field IDs. It checks their agreement, recounts V4 purpose budgets and
 quota arithmetic, and reproduces the runtime `CapacityPlan` reserve formula.
+The event list is caller supplied and is not bound to a validated schedule.
+An omitted event lowers the estimate. Every report therefore explicitly marks
+`event_binding=UNVERIFIED_CALLER_SUPPLIED` and
+`capacity_covers_frozen_schedule=false`; capacity and minimum host-resource
+figures are conditional on that list and cannot qualify the actual schedule.
 It reports unused request, byte, and elapsed ceilings separately from unknown
 delivered bytes. Fresh journal ceilings are diagnostics; existing occupancy and
 live disk and memory remain unknown.

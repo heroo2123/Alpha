@@ -64,6 +64,8 @@ def test_arithmetic_parity_and_separate_unknown_budgets():
         (SimpleNamespace(reservation_bytes=3), SimpleNamespace(reservation_bytes=5)),
         (SimpleNamespace(field_request_ids=('field',)),))
     check.assertEqual(result['runtime_capacity'], vars(expected))
+    check.assertEqual(result['event_binding'], 'UNVERIFIED_CALLER_SUPPLIED')
+    check.assertIs(result['capacity_covers_frozen_schedule'], False)
     check.assertEqual(result['purpose_budgets']['INDEX'],
                       {'requests': 1, 'reservation_bytes': 3})
     check.assertEqual(result['purpose_budgets']['PROBE'],
@@ -154,6 +156,21 @@ def test_runtime_journal_ceiling_is_visible_and_never_admission():
     check.assertEqual(result['g3l'], 'NO_GO')
 
 
+def test_omitted_event_remains_explicitly_unbound():
+    check = unittest.TestCase()
+    manifest, plan = fixture()
+    baseline = calculate_offline_resource_budget(manifest, plan)
+    plan['events'] = []
+    omitted = calculate_offline_resource_budget(manifest, plan)
+    check.assertLess(omitted['runtime_capacity']['disk_bytes'],
+                     baseline['runtime_capacity']['disk_bytes'])
+    for result in (baseline, omitted):
+        check.assertEqual(result['event_binding'], 'UNVERIFIED_CALLER_SUPPLIED')
+        check.assertIs(result['capacity_covers_frozen_schedule'], False)
+        check.assertIs(result['resource_qualification'], False)
+        check.assertEqual(result['g3l'], 'NO_GO')
+
+
 class OfflineResourceBudgetTests(unittest.TestCase):
     def test_parity(self):
         test_arithmetic_parity_and_separate_unknown_budgets()
@@ -166,3 +183,6 @@ class OfflineResourceBudgetTests(unittest.TestCase):
 
     def test_journal_ceiling(self):
         test_runtime_journal_ceiling_is_visible_and_never_admission()
+
+    def test_event_binding(self):
+        test_omitted_event_remains_explicitly_unbound()
