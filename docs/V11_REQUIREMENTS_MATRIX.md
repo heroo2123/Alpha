@@ -4823,3 +4823,7 @@ Independent exact review passed documentation candidate `1c0e2d0` in scope; loca
 ## V5 feasibility prerequisite active — 2026-10-03 16:42 UTC
 
 One isolated architecture worker is testing whether the reviewed V5 proposal can preserve all 2,713 native slots under the unchanged request, receipt, time, storage and host bounds. Its output requires independent exact review before integration. No existing hard cap or identity requirement has changed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 full-cohort feasibility exact review active — 2026-10-03 16:59 UTC
+
+Clean offline `87e8940` author candidate identifies potential retained-cap and adapter contradictions; one independent Sol/high exact review is live. Its claims remain unaccepted pending verdict. No V5 amendment, provider authority, G3-L identity credit or SHADOW admission. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
