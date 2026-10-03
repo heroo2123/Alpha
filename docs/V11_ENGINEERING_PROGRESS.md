@@ -7578,3 +7578,7 @@ Read-only offline audit `/tmp/alpha-v11-g3l-audit-current-main-20261003-1717.jso
 ## V5 baseline replay exact review dispatched — 2026-10-03 17:20 UTC
 
 Author candidate `986f642` is clean with exit-0 terminal and author-reported normal/optimized offline tests; a separate Astra/high reviewer is live in the exact detached checkout. See checkpoint for commit/tree, hashes and runner. No independent verdict or merge yet. Current G3-L audit has an expired proposed window and 77 missing identities. No provider request or SHADOW operation: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 baseline replay repair underway — 2026-10-03 17:32 UTC
+
+Exact `986f642` Astra/high review sealed CHANGES_REQUIRED with three reproduced defects and one inherited arithmetic resource risk. A single Sol/high repair worker is live in the original isolated author worktree; retained review and runner bindings are in the checkpoint. The candidate is unmerged pending repair, tests, independent exact re-review and reconciliation. No provider request, eligible capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
