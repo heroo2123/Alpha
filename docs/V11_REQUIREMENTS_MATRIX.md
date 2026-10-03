@@ -4514,3 +4514,6 @@ No acceptance boundary crossed. Eleven old dirty worktrees were inspected and pr
 ## Coordinator current-main reconciliation — 2026-10-03 08:33 UTC
 
 All eight held Gate 3 candidates were probed against clean main `00c4ca4` without merging. Seven are textually compatible; `3411097` conflicts only in the three chronological status documents. The retained `/tmp/alpha-v11-current-main-eight-candidate-merge-probe-20261003.json` is a merge-preparation artifact, not independent review or evidence qualification. Candidate-specific review holds and 77 missing identities remain: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Offline exact-packet verification — 2026-10-03 08:44 UTC
+
+Current eight-candidate local manifest passes the new offline integrity verifier, including HEAD/tree/parent, clean checkout, changed-path scope, and 25 listed blob/length/SHA-256 bindings. Three local tamper probes refuse. This grants no candidate-specific transfer authorization, independent exact PASS, G3-L identity, SHADOW admission, or C/J/E/A credit. Weather repairs `976217d` and `3411097` remain held: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

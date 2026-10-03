@@ -7288,3 +7288,6 @@ Recovered clean main `ebd26f6`, no live specialist, and eleven preserved older d
 ## Coordinator current-main reconciliation — 2026-10-03 08:33 UTC
 
 A non-destructive eight-candidate merge probe against `00c4ca4` found seven clean textual merges and only chronological-document conflicts for `3411097`; report SHA-256 `692096a480baa5dc8316ae54e8665fc5d99c9d3a963c172a7993077a6e55290b`. No candidate was merged or independently approved, no provider request or forward capture occurred, and no C/J/E/A boundary crossed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Offline exact-packet verifier — 2026-10-03 08:44 UTC
+
+Added a local-only verifier for the eight exact-review checkouts and their 25-file manifest. The original packet passes and changed hash, omitted path, and malformed commit probes refuse. This reduces repeated manual packet checks without substituting for authorized independent review. Both current weather repair children remain unmerged, 77 G3-L identities remain missing, and no provider request or forward SHADOW occurred: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
