@@ -96,3 +96,16 @@ Focused verification: `tests/test_v11_r09_gate3_g3l_identity_audit.py` and
 basetemp. No network/provider call, credential, capture, dispatch, financial,
 V10, AxiomTrade or root-authority action was performed. No score crossing:
 **91/200; formal 1/50; NOT_READY_TO_FUND**.
+
+## Subsequent local binding repair
+
+The focused count above describes the original handoff. After independent
+exact review of candidate `3411097`, the local audit verifier was repaired
+again. It now pins observation names to paths, reusable rows to exact code
+dependency `(path, commit)` sets, the reconciliation to commit `027fd7a`,
+and the review bundle to retention commit `52e0356`. It reads each evidence
+file once as a regular file and uses those same bytes for hashing and parsing.
+Artifact commit references must be immutable commit objects ancestral to the
+reviewed reconciliation. The repaired focused suite contains **65 passing
+tests** in normal and optimized Python. This remains an offline review
+candidate; it grants no identity credit or G3-L authority.

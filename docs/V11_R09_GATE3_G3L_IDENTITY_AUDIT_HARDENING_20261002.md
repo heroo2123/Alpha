@@ -34,9 +34,9 @@ schemas). Any match against a `code_byte_observations` entry's `commit_oid`
 pulls that code file's current-byte-freshness check into the row's own ref
 set, so a `REUSABLE_SCOPED_ARTIFACTS` row can only stay `RETAINED` if every
 code file its own evidence actually certifies still matches current bytes.
-This is derived per row from data already in the reconciliation, not from an
-identity-ID allowlist, so it generalizes to any future drifted dependency,
-not just the one this review happened to find.
+At this earlier stage, dependency coverage was derived per row from data
+already in the reconciliation. The later binding repair below pins the
+expected sets, because data-derived coverage could silently shrink.
 
 Verified against the current repo (`docs/V11_R09_GATE3_G3L_RECONCILIATION_20261002.json`):
 **three** identities correlate against the 7 tracked observation commits
@@ -101,8 +101,9 @@ Fix, in `tools/v11_r09_gate3_g3l_identity_audit.py`:
    coverage.
 2. Each observation's `commit_oid`, `sha256`, and `tree_oid` must be
    well-formed (40-hex / 64-hex), `commit_oid` must resolve to a real commit
-   via `git rev-parse --verify <commit>^{tree}`, the resolved tree must equal
-   the recorded `tree_oid`, and the blob at `<commit_oid>:<path>` must hash
+   via `git cat-file -t <commit> == commit` followed by tree resolution;
+   the resolved tree must equal the recorded `tree_oid`, and the blob at
+   `<commit_oid>:<path>` must hash
    to the recorded `sha256` — all before the observation is used at all.
    Any failure raises `ValueError` (fail-closed), never a silent drop.
 3. `_code_observation_refs()` now returns a ref built from the observation's
@@ -198,8 +199,9 @@ proposal only; no date or cohort is approved.
 ## Tests and checks
 
 `tests/test_v11_r09_gate3_g3l_identity_audit.py` and
-`tests/test_v11_r09_gate3_g3l_prep.py`: **37 passed** (20 pre-existing + 7
-from the F1 fix + 10 new R1/R2 regressions), offline, with explicit
+`tests/test_v11_r09_gate3_g3l_prep.py`: **65 passed** after the binding repair
+(including `tests/test_v11_r09_gate3_g3l_binding.py`), in normal mode,
+offline, with explicit
 `--basetemp=/tmp/<bounded>`, `-p no:cacheprovider`, `PYTHONDONTWRITEBYTECODE=1`.
 `python3 -m py_compile` clean on all changed files. `git diff --check` clean.
 No network/provider call, credential, capture, dispatch, financial, V10,
@@ -213,3 +215,26 @@ This candidate is isolated in its own worktree and is unmerged. Review its
 exact commit and the two JSON hashes above independently before treating
 this audit as a handoff. No score crossing: **91/200; formal 1/50;
 NOT_READY_TO_FUND**.
+
+## Binding repair after exact review of `3411097`
+
+The independent `3411097` review required further changes. The verifier now
+pins the seven observation names to their source paths and each reusable
+row's exact expected `(path, observation commit)` dependencies. Mapping
+requires launch V4 at `23c11e0`; slice-3 requires runtime and ledgers at
+`6340cb4`; the five protocol rows require no code dependency. Duplicate
+observation paths are rejected, and refs are keyed by `(commit, path)`.
+
+Reconciliation bytes must match `027fd7a1ed82e403780473757cad1227ecc17115`
+at their path. The verdict, report and terminal must match their paths in
+retention commit `52e0356c8c62910a15ff893e0815e88149071efe`; the terminal
+head and tree are pinned. Each local evidence path is opened once as a regular
+file without following symlinks, and its cached bytes supply both parsing and
+hashing. Artifact `git_commit` values must be lower-case 40-hex commit objects
+that precede the reviewed reconciliation commit. These checks reject the
+rebound, alias, path substitution, FIFO, swap and mutable-ref cases from the
+retained review. The focused 65 tests also pass under `python -O`; the adjacent
+runtime, ledgers and launch V4 suites pass 219 tests in normal mode. The
+category boundary remains 6/1/70/0, G3-L NO-GO and
+credit 0. The machine snapshot above remains a historical output of the
+earlier candidate; it does not claim a new independent review.

@@ -316,7 +316,7 @@ def test_observation_path_substituted_for_another_tracked_path_refuses(monkeypat
     ledgers_path = "tools/v11_r09_gate3_ledgers.py"
     _with_mutated_observation(monkeypatch, "launch_validator",
                                lambda obs: obs.__setitem__("path", ledgers_path))
-    with pytest.raises(ValueError, match="code_byte_observation baseline mismatch"):
+    with pytest.raises(ValueError, match="malformed code_byte_observation"):
         subject.audit(REPO, **ARGS)
 
 
@@ -365,11 +365,8 @@ def test_artifact_rebound_to_newer_commit_does_not_mask_observation_drift(monkey
         return value
 
     monkeypatch.setattr(subject, "_json", changed)
-    result = subject.audit(REPO, **ARGS)
-    row = result["identities"][subject.SLICE3_ID]
-    assert row["category"] == subject.FUTURE
-    drifted = {ref["path"] for ref in row["source_refs"] if not ref["current_matches_reviewed_bytes"]}
-    assert runtime_path in drifted
+    with pytest.raises(ValueError, match="artifact commit is not a reviewed ancestor"):
+        subject.audit(REPO, **ARGS)
 
 
 def test_valid_unchanged_observations_retain_mapping_row():
