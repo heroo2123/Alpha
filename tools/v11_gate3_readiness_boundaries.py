@@ -142,6 +142,8 @@ def _bounded_tree(root):
             for key, item in value.items():
                 if type(key) is not str:
                     _refuse("SCHEMA")
+                if len(key) > MAX_STRING:
+                    _refuse("INPUT_BOUNDS")
                 encoded = key.encode("utf-8")
                 if len(encoded) > MAX_STRING:
                     _refuse("INPUT_BOUNDS")
@@ -152,6 +154,8 @@ def _bounded_tree(root):
                 _refuse("INPUT_BOUNDS")
             stack.extend((item, depth + 1) for item in value)
         elif kind is str:
+            if len(value) > MAX_STRING:
+                _refuse("INPUT_BOUNDS")
             encoded = value.encode("utf-8")
             if len(encoded) > MAX_STRING:
                 _refuse("INPUT_BOUNDS")
@@ -208,6 +212,22 @@ def _reference(value, code="CLOCK_LINKAGE"):
     if decoded.hex() != data or hashlib.sha256(decoded).hexdigest() != digest:
         _refuse(code)
     return decoded
+
+
+def _build_declaration(value, code="BUILD_BINDING"):
+    """Closed, bounded digest/length-only metadata, never loaded-byte proof.
+
+    Unlike `_reference`, this carries no `bytes_hex`, so a caller can declare
+    the real SHA-256 and byte length of a source far larger than the shared
+    string/aggregate ceilings. It is still only an unqualified declaration:
+    the validator never hashes its own loaded bytes to check it.
+    """
+    _keys(value, {"sha256", "byte_length"}, code)
+    digest = value["sha256"]
+    if type(digest) is not str or _SHA.fullmatch(digest) is None:
+        _refuse(code)
+    length = _integer(value["byte_length"], code)
+    return {"sha256": digest, "byte_length": length}
 
 
 def _canonical(value):
@@ -374,8 +394,10 @@ def _clock(value, evaluation):
         _refuse("CLOCK_LINKAGE")
     previous_sequence = -1
     previous_mono = -1
-    previous_utc = None
-    previous_uncertainty = None
+    # Seed with the retained original anchor so the first sample is checked
+    # against it too, not only against later samples.
+    previous_utc = calibration["utc_us"]
+    previous_uncertainty = calibration["uncertainty_us"]
     for sample in samples:
         _keys(sample, {"event_kind", "sequence", "monotonic_us", "utc_us",
                        "uncertainty_us", "calibration_id", "calibration_monotonic_us"},
@@ -398,9 +420,10 @@ def _clock(value, evaluation):
         if (sample["calibration_id"] != calibration["id"] or
                 calibration_mono != calibration["monotonic_us"]):
             _refuse("CLOCK_REBASE")
-        # A wholly backwards UTC interval is a step under every nonnegative
+        # A wholly backwards UTC interval, including one entirely before the
+        # retained original anchor, is a step under every nonnegative
         # monotonic drift envelope. No forward-drift envelope is assumed.
-        if previous_utc is not None and utc + uncertainty < previous_utc - previous_uncertainty:
+        if utc + uncertainty < previous_utc - previous_uncertainty:
             _refuse("CLOCK_STEP")
         previous_utc, previous_uncertainty = utc, uncertainty
         previous_sequence, previous_mono = sequence, mono
@@ -450,8 +473,7 @@ def validate(raw):
         evaluation = _evaluation(request["evaluation"])
         build = request["declared_build_ref"]
         if build is not None:
-            _reference(build, "BUILD_BINDING")
-            build = {"sha256": build["sha256"], "byte_length": build["byte_length"]}
+            build = _build_declaration(build, "BUILD_BINDING")
         if mode == P1:
             if request["capture"] is not None:
                 _refuse("SCHEMA")

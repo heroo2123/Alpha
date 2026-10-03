@@ -3,12 +3,17 @@
 import copy
 import hashlib
 import json
+import os
+import subprocess
+import sys
+import tracemalloc
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
 from tools.v11_gate3_readiness_boundaries import (
-    CAPTURE, P1, SCHEMA, MAX_INT, conservative_stage_fit, validate,
+    CAPTURE, MAX_STRING, P1, SCHEMA, MAX_INT, conservative_stage_fit, validate,
 )
 from tools.v11_r09_gate3_g3l_prep import freeze_checklist, slot_inventory
 from tools.v11_gate3_evidence_preflight_checker import (
@@ -22,9 +27,32 @@ def ref(data=b"synthetic"):
             "byte_length": len(data), "bytes_hex": data.hex()}
 
 
+def declaration(data=b"synthetic"):
+    """Metadata-only build declaration: digest and length, no raw bytes."""
+    return {"sha256": hashlib.sha256(data).hexdigest(), "byte_length": len(data)}
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"),
                       ensure_ascii=False).encode()
+
+
+def dossier(calibration, samples):
+    source = ref(b"source"); build = ref(b"build")
+    calibration_ref = ref(canonical(calibration)); samples_ref = ref(canonical(samples))
+    return {"host_id": "host-A", "boot_id": "boot-A",
+            "recorder_source_ref": source, "recorder_build_ref": build,
+            "method_version": "method-v1", "raw_calibration_ref": calibration_ref,
+            "raw_samples_ref": samples_ref,
+            "review": {"method_ref": ref(b"method"), "custody_ref": ref(b"custody"),
+                       "report_ref": ref(b"PASS"), "terminal_ref": ref(b"PASS"),
+                       "host_id": "host-A", "boot_id": "boot-A",
+                       "validity_domain": "synthetic",
+                       "recorder_source_sha256": source["sha256"],
+                       "recorder_build_sha256": build["sha256"],
+                       "raw_calibration_sha256": calibration_ref["sha256"],
+                       "raw_samples_sha256": samples_ref["sha256"]},
+            "calibration": calibration, "samples": samples}
 
 
 def p1():
@@ -278,8 +306,9 @@ def test_json_bounds_duplicate_keys_hostile_types_and_replay(monkeypatch):
     class SubInt(int): pass
     item = p1(); item["resources"]["snapshot"]["disk_total_bytes"] = SubInt(10)
     assert validate(item)["reasons"] == ["SCHEMA"]
-    item = p1(); item["declared_build_ref"] = ref(b"forged source")
-    assert verdict(item)["declared_build_ref"]["sha256"] == ref(b"forged source")["sha256"]
+    item = p1(); item["declared_build_ref"] = declaration(b"forged source")
+    assert verdict(item)["declared_build_ref"]["sha256"] == declaration(b"forged source")["sha256"]
+    assert "BUILD_UNATTESTED" in verdict(item)["blockers"]
     item["declared_build_ref"] = None
     assert "BUILD_UNATTESTED" in verdict(item)["blockers"]
     import builtins, io, os, socket, subprocess
@@ -331,3 +360,116 @@ def test_optimized_runtime_contract_uses_no_assert_side_effects():
     refused = validate(item)
     if refused["status"] != "PROPOSAL_REFUSED" or refused["reasons"] != ["TIME_ORDER"]:
         raise AssertionError(refused)
+
+
+def test_oversized_builtin_string_value_and_key_refuse_before_large_allocation():
+    item = p1(); item["p1"]["campaign_id"] = "y" * (16 * 1024 * 1024)
+    tracemalloc.start()
+    try:
+        result = validate(item)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert result["reasons"] == ["INPUT_BOUNDS"]
+    assert peak < 1_048_576
+    payload = {"k" * (16 * 1024 * 1024): 1}
+    tracemalloc.start()
+    try:
+        result = validate(payload)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert result["reasons"] == ["INPUT_BOUNDS"]
+    assert peak < 1_048_576
+
+
+def test_multibyte_string_refuses_on_encoded_byte_ceiling_not_character_count():
+    item = p1()
+    value = "é" * 2200  # 2200 code points, 4400 UTF-8 bytes
+    assert len(value) <= MAX_STRING
+    item["p1"]["campaign_id"] = value
+    assert validate(item)["reasons"] == ["INPUT_BOUNDS"]
+
+
+def test_allocation_sensitive_regression_no_memoryerror_under_resource_limit():
+    script = (
+        "import resource\n"
+        "from tools.v11_gate3_readiness_boundaries import validate\n"
+        "resource.setrlimit(resource.RLIMIT_AS, (96 * 1024**2, 96 * 1024**2))\n"
+        "raw = {'x': 'x' * (48 * 1024**2)}\n"
+        "try:\n"
+        "    print(validate(raw)['reasons'])\n"
+        "except MemoryError:\n"
+        "    print('MemoryError escapes validate')\n"
+    )
+    repo_root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=str(repo_root))
+    completed = subprocess.run(
+        [sys.executable, "-B", "-c", script], cwd=str(repo_root),
+        capture_output=True, text=True, timeout=30, env=env,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "['INPUT_BOUNDS']"
+
+
+def test_backward_step_refuses_against_original_calibration_anchor_directly():
+    anchor = {"id": "cal-1", "host_id": "host-A", "boot_id": "boot-A",
+              "monotonic_us": 0, "utc_us": 1_000_000_000, "uncertainty_us": 0}
+    samples = [{"event_kind": "dispatch", "sequence": 1, "monotonic_us": 1_000_000,
+                "utc_us": 0, "uncertainty_us": 0, "calibration_id": "cal-1",
+                "calibration_monotonic_us": 0}]
+    item = p1(); item["clock"] = dossier(anchor, samples)
+    verdict(item, "CLOCK_STEP")
+    # The same refusal must not depend on the caller duplicating the anchor
+    # as an explicit sequence-0 sample.
+    with_anchor_sample = [dict(samples[0], sequence=0, monotonic_us=0,
+                                utc_us=1_000_000_000), samples[0]]
+    item = p1(); item["clock"] = dossier(anchor, with_anchor_sample)
+    verdict(item, "CLOCK_STEP")
+
+
+def test_calibration_anchor_interval_overlap_boundary():
+    anchor = {"id": "cal-1", "host_id": "host-A", "boot_id": "boot-A",
+              "monotonic_us": 0, "utc_us": 10_000_000, "uncertainty_us": 0}
+    touching = [{"event_kind": "dispatch", "sequence": 1, "monotonic_us": 1_000_000,
+                 "utc_us": 10_000_000, "uncertainty_us": 0, "calibration_id": "cal-1",
+                 "calibration_monotonic_us": 0}]
+    item = p1(); item["clock"] = dossier(anchor, touching)
+    verdict(item)
+    gapped = [dict(touching[0], utc_us=touching[0]["utc_us"] - 1)]
+    item = p1(); item["clock"] = dossier(anchor, gapped)
+    verdict(item, "CLOCK_STEP")
+
+
+def test_declared_build_ref_represents_actual_current_source_bytes():
+    source_path = Path(__file__).resolve().parents[1] / "tools" / "v11_gate3_readiness_boundaries.py"
+    source_bytes = source_path.read_bytes()
+    assert len(source_bytes) > 2048
+    item = p1(); item["declared_build_ref"] = declaration(source_bytes)
+    result = verdict(item)
+    assert result["declared_build_ref"] == {
+        "sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "byte_length": len(source_bytes)}
+    assert "BUILD_UNATTESTED" in result["blockers"]
+
+
+def test_declared_build_ref_rejects_legacy_bytes_hex_field():
+    item = p1(); item["declared_build_ref"] = ref(b"legacy reference shape")
+    verdict(item, "BUILD_BINDING")
+
+
+def test_declared_build_ref_forged_metadata_stays_unattested_and_bounds_shape():
+    item = p1(); item["declared_build_ref"] = {"sha256": "0" * 64, "byte_length": 999_999_999}
+    result = verdict(item)
+    assert result["declared_build_ref"] == {"sha256": "0" * 64, "byte_length": 999_999_999}
+    assert "BUILD_UNATTESTED" in result["blockers"]
+    item = p1(); item["declared_build_ref"] = {"sha256": "F" * 64, "byte_length": 1}
+    verdict(item, "BUILD_BINDING")
+    item = p1(); item["declared_build_ref"] = {"sha256": "0" * 63, "byte_length": 1}
+    verdict(item, "BUILD_BINDING")
+    item = p1(); item["declared_build_ref"] = {"sha256": "0" * 64, "byte_length": -1}
+    verdict(item, "BUILD_BINDING")
+    item = p1(); item["declared_build_ref"] = {"sha256": "0" * 64, "byte_length": MAX_INT + 1}
+    verdict(item, "BUILD_BINDING")
+    item = p1(); item["declared_build_ref"] = None
+    assert "BUILD_UNATTESTED" in verdict(item)["blockers"]
