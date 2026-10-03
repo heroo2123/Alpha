@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -42,14 +43,14 @@ def _adjtimex(call_result=0, modes=0):
     return {"call_result": call_result, "errno": 0, "modes": modes, "offset": 12,
             "freq": 34, "maxerror": 56, "esterror": 78, "status": 0, "constant": 1,
             "precision": 1, "tolerance": 32768000, "time_sec": 2000000000,
-            "time_usec": 123, "tick": 10000, "ppsfreq": 0, "jitter": 0, "shift": 0,
+            "time_usec": 123456, "tick": 10000, "ppsfreq": 0, "jitter": 0, "shift": 0,
             "stabil": 0, "jitcnt": 0, "calcnt": 0, "errcnt": 0, "stbcnt": 0, "tai": 0}
 
 
 def _record(**overrides):
     value = {
         "schema": "ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1", "status": "OK",
-        "boot_id_before": "fixture-boot-id-0001", "boot_id_after": "fixture-boot-id-0001",
+        "boot_id_before": "11111111-1111-4111-8111-111111111111", "boot_id_after": "11111111-1111-4111-8111-111111111111",
         "ns_time": "time:[4026531834]", "ns_pid": "pid:[4026531836]",
         # monotonic is the outermost bracket; monotonic_raw and boottime must
         # nest fully inside [m_before, m_after], as the real recorder's
@@ -76,7 +77,7 @@ def _raw(value):
 def test_parse_ok_record_roundtrips():
     parsed = parse_probe_record(_raw(_record()))
     check(parsed["status"] == "OK")
-    check(parsed["boot_id"] == "fixture-boot-id-0001")
+    check(parsed["boot_id"] == "11111111-1111-4111-8111-111111111111")
     check(parsed["m_before"] == 1_000_000_000_000)
     check(parsed["m_after"] == 1_000_000_010_000)
 
@@ -146,7 +147,7 @@ def test_parse_rejects_extra_key():
 
 
 def test_parse_rejects_mismatched_boot_id():
-    value = _record(boot_id_after="different-boot-id")
+    value = _record(boot_id_after="22222222-2222-4222-8222-222222222222")
     try:
         parse_probe_record(_raw(value))
         check(False, "expected Refusal")
@@ -800,6 +801,112 @@ def test_write_session_file_revalidates_hand_built_dict():
             check(False, "expected Refusal")
         except Refusal as error:
             check(error.code == "SCHEMA")
+
+
+def _must_refuse(call, code):
+    try:
+        call()
+    except Refusal as error:
+        check(error.code == code, (error.code, code))
+    else:
+        check(False, f"expected {code} refusal")
+
+
+def test_boot_id_requires_canonical_uuid():
+    for bad in ("x", "11111111-1111-4111-8111-11111111111G",
+                "11111111111141118111111111111111",
+                "11111111-1111-4111-8111-111111111111\n"):
+        _must_refuse(lambda bad=bad: parse_probe_record(_raw(_record(
+            boot_id_before=bad, boot_id_after=bad))), "CLOCK_SOURCE_UNAVAILABLE")
+
+
+def test_adjtimex_fractional_modes_and_ordering_hold():
+    nano = _adjtimex()
+    nano["status"] = 0x2000
+    nano["time_usec"] = 123456000
+    check(parse_probe_record(_raw(_record(adjtimex=nano)))["status"] == "OK")
+    for fraction, status, code in ((1_000_000, 0, "ABI_UNSUPPORTED"),
+                                   (1_000_000_000, 0x2000, "ABI_UNSUPPORTED"),
+                                   (-1, 0, "ABI_UNSUPPORTED"),
+                                   (2**63 - 1, 0, "ABI_UNSUPPORTED")):
+        adj = _adjtimex()
+        adj["time_usec"] = fraction
+        adj["status"] = status
+        _must_refuse(lambda adj=adj: parse_probe_record(_raw(_record(adjtimex=adj))), code)
+    for offset in (-59_876_544_000, 1, 456_000, 60_123_456_000):
+        record = _record()
+        record["realtime"]["value_ns"] += offset
+        _must_refuse(lambda record=record: parse_probe_record(_raw(record)),
+                     "SYNC_OR_TIMESCALE_UNQUALIFIED")
+
+
+def test_adjtimex_success_with_errno_refuses():
+    adj = _adjtimex()
+    adj["errno"] = 38
+    _must_refuse(lambda: parse_probe_record(_raw(_record(adjtimex=adj))),
+                 "CLOCK_SOURCE_UNAVAILABLE")
+
+
+def test_refusal_partial_schema_is_closed_and_typed():
+    base = {"schema": "ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1", "status": "REFUSED",
+            "code": "CLOCK_SOURCE_UNAVAILABLE", "detail_errno": 38, "partial": {}}
+    for partial in ({"invented_success": True},
+                    {"monotonic": {"after_result": 0}},
+                    {"realtime": {"result": 0}},
+                    {"boot_id_before": "x"},
+                    {"adjtimex": {"call_result": 0}},
+                    {"ns_time": []}):
+        record = dict(base, partial=partial)
+        _must_refuse(lambda record=record: parse_probe_record(_raw(record)),
+                     "CLOCK_SOURCE_UNAVAILABLE" if "boot_id_before" in partial else "SCHEMA")
+    good = dict(base, partial={"monotonic": _bracket(10, 20)})
+    check(parse_probe_record(_raw(good))["status"] == "REFUSED")
+
+
+def test_session_strings_require_exact_builtin_type():
+    class Spoof(str):
+        def __eq__(self, other):
+            return True
+        __hash__ = str.__hash__
+
+    raw, _ = _valid_record_and_raw()
+    kwargs = dict(session_nonce="type-spoof", sequence=0, event_kind="SYNTHETIC",
+                  raw_record=raw, calibration_ref=None, method_envelope_ref=None,
+                  prior_head=None, absence_reasons=[])
+    _must_refuse(lambda: build_session(**dict(kwargs, event_kind=Spoof("DISPATCH"))), "SCHEMA")
+    for field, value in (("schema", Spoof("WRONG")),
+                         ("event_kind", Spoof("DISPATCH")),
+                         ("status", Spoof("READY"))):
+        session = build_session(**kwargs)
+        session[field] = value
+        session["session_sha256"] = hashlib.sha256(json.dumps(
+            {key: item for key, item in session.items() if key != "session_sha256"},
+            sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
+            _must_refuse(lambda: write_session_file(root, session), "SCHEMA")
+            check(os.listdir(root) == [])
+
+
+def test_zero_progress_write_cleans_temp_and_allows_retry():
+    raw, _ = _valid_record_and_raw()
+    session = build_session(session_nonce="zero-progress", sequence=0,
+                            event_kind="SYNTHETIC", raw_record=raw,
+                            calibration_ref=None, method_envelope_ref=None,
+                            prior_head=None, absence_reasons=[])
+    with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
+        real_write = os.write
+        calls = 0
+
+        def partial_then_zero(fd, data):
+            nonlocal calls
+            calls += 1
+            return real_write(fd, data[:7]) if calls == 1 else 0
+
+        with patch("tools.v11_gate3_clock_dossier.os.write", side_effect=partial_then_zero):
+            _must_refuse(lambda: write_session_file(root, session), "STORE_WRITE_FAILED")
+        check(calls == 2)
+        check(os.listdir(root) == [])
+        check(os.path.isfile(write_session_file(root, session)))
 
 
 # --------------------------------------------------------------------------

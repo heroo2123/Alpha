@@ -27,6 +27,7 @@ import os
 import re
 import stat
 import types
+import uuid
 
 SCHEMA_RECORD = "ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1"
 SCHEMA_SESSION = "ALPHA_V11_GATE3_CLOCK_SESSION_V1"
@@ -313,6 +314,7 @@ _STA_DEL = 0x0020
 _STA_UNSYNC = 0x0040
 _STA_CLOCKERR = 0x1000
 _BLOCKING_STATUS_BITS = _STA_INS | _STA_DEL | _STA_UNSYNC | _STA_CLOCKERR
+_STA_NANO = 0x2000
 
 
 def _adjtimex(value, code="CLOCK_LINKAGE"):
@@ -322,11 +324,100 @@ def _adjtimex(value, code="CLOCK_LINKAGE"):
         _refuse("ABI_UNSUPPORTED")
     if parsed["call_result"] not in _ADJTIMEX_KNOWN_RESULTS:
         _refuse("CLOCK_SOURCE_UNAVAILABLE")
+    if parsed["call_result"] >= 0 and parsed["errno"] != 0:
+        _refuse("CLOCK_SOURCE_UNAVAILABLE")
     if parsed["call_result"] != 0:
         _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
     if parsed["status"] & _BLOCKING_STATUS_BITS:
         _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
+    fraction_limit = 1_000_000_000 if parsed["status"] & _STA_NANO else 1_000_000
+    if not 0 <= parsed["time_usec"] < fraction_limit or parsed["time_sec"] < 0:
+        _refuse("ABI_UNSUPPORTED")
     return parsed
+
+
+def _boot_uuid(value):
+    value = _bounded_string(value, "CLOCK_LINKAGE")
+    try:
+        valid = str(uuid.UUID(value)) == value
+    except (ValueError, AttributeError):
+        valid = False
+    if not valid:
+        _refuse("CLOCK_SOURCE_UNAVAILABLE")
+    return value
+
+
+_PARTIAL_KEYS = frozenset({"boot_id_before", "boot_id_after", "ns_time", "ns_pid",
+                           *CLOCK_NAMES, "realtime", "adjtimex"})
+_BRACKET_KEYS = {"before_ns", "before_result", "before_errno", "after_ns",
+                 "after_result", "after_errno", "res_sec", "res_nsec",
+                 "res_result", "res_errno"}
+_REALTIME_KEYS = {"value_ns", "result", "errno", "res_sec", "res_nsec",
+                  "res_result", "res_errno"}
+
+
+def _partial_result(value, result_key, errno_key, ns_key=None, *, unattempted=False):
+    result = _integer(value[result_key], "SCHEMA")
+    error = _integer(value[errno_key], "SCHEMA")
+    if (result not in (-1, 0) or (result == 0 and error != 0) or
+            (result == -1 and error == 0 and not unattempted) or error < 0):
+        _refuse("SCHEMA")
+    if ns_key is not None:
+        ns = _nonneg_integer(value[ns_key], "SCHEMA")
+        if result == -1 and ns != 0:
+            _refuse("SCHEMA")
+
+
+def _partial_clock(value, name):
+    expected = _REALTIME_KEYS if name == "realtime" else _BRACKET_KEYS
+    _keys(value, expected)
+    if name == "realtime":
+        _partial_result(value, "result", "errno", "value_ns")
+    else:
+        _partial_result(value, "before_result", "before_errno", "before_ns")
+        _partial_result(value, "after_result", "after_errno", "after_ns",
+                        unattempted=True)
+        if value["before_result"] == -1 and value["after_result"] != -1:
+            _refuse("SCHEMA")
+        if value["before_result"] == value["after_result"] == 0 and value["after_ns"] < value["before_ns"]:
+            _refuse("SCHEMA")
+    _partial_result(value, "res_result", "res_errno")
+    if value["res_result"] != 0:
+        _refuse("SCHEMA")
+    sec = _nonneg_integer(value["res_sec"], "SCHEMA")
+    nsec = _nonneg_integer(value["res_nsec"], "SCHEMA")
+    if value["res_result"] == 0:
+        if sec != 0 or not 0 < nsec < 1_000_000_000:
+            _refuse("SCHEMA")
+    elif sec or nsec:
+        _refuse("SCHEMA")
+
+
+def _partial_record(value):
+    _exact(value, dict)
+    if not value.keys() <= _PARTIAL_KEYS:
+        _refuse("SCHEMA")
+    for key, item in value.items():
+        if key.startswith("boot_id_"):
+            _boot_uuid(item)
+        elif key in ("ns_time", "ns_pid"):
+            if not _bounded_string(item, "CLOCK_LINKAGE"):
+                _refuse("CLOCK_SOURCE_UNAVAILABLE")
+        elif key == "adjtimex":
+            _keys(item, set(_ADJTIMEX_FIELDS) | {"errno"})
+            for field in _ADJTIMEX_FIELDS:
+                _integer(item[field], "SCHEMA")
+            _integer(item["errno"], "SCHEMA")
+            if item["call_result"] not in _ADJTIMEX_KNOWN_RESULTS | {-1} or item["modes"] != 0:
+                _refuse("SCHEMA")
+            if (item["call_result"] >= 0 and item["errno"] != 0) or (item["call_result"] == -1 and item["errno"] <= 0):
+                _refuse("SCHEMA")
+            if item["call_result"] >= 0:
+                limit = 1_000_000_000 if item["status"] & _STA_NANO else 1_000_000
+                if item["time_sec"] < 0 or not 0 <= item["time_usec"] < limit:
+                    _refuse("SCHEMA")
+        else:
+            _partial_clock(item, key)
 
 
 def parse_probe_record(raw: bytes) -> dict:
@@ -348,17 +439,15 @@ def parse_probe_record(raw: bytes) -> dict:
         if type(code) is not str or code not in REFUSAL_CODES:
             _refuse("SCHEMA")
         _integer(value["detail_errno"])
-        _exact(value["partial"], dict, "SCHEMA")
+        _partial_record(value["partial"])
         return {"status": "REFUSED", "code": code}
     if status != "OK":
         _refuse("SCHEMA")
     _keys(value, {"schema", "status", "boot_id_before", "boot_id_after",
                   "ns_time", "ns_pid", "monotonic", "monotonic_raw", "boottime",
                   "realtime", "adjtimex"})
-    boot_before = _bounded_string(value["boot_id_before"], "CLOCK_LINKAGE")
-    boot_after = _bounded_string(value["boot_id_after"], "CLOCK_LINKAGE")
-    if not boot_before or not boot_after:
-        _refuse("CLOCK_SOURCE_UNAVAILABLE")
+    boot_before = _boot_uuid(value["boot_id_before"])
+    boot_after = _boot_uuid(value["boot_id_after"])
     if boot_before != boot_after:
         _refuse("CLOCK_CONTINUITY_LOST")
     ns_time = _bounded_string(value["ns_time"], "CLOCK_LINKAGE")
@@ -380,15 +469,15 @@ def parse_probe_record(raw: bytes) -> dict:
     # rate/bracket tolerance (handoff section 3), so a cross-clock drift check
     # is deferred, not invented here.
     #
-    # The adjtimex kernel-discipline query and the bracketed realtime read are
-    # the same clock domain (CLOCK_REALTIME) sampled microseconds apart within
-    # this one observation, so a coarse, sign-agnostic, whole-second sanity
-    # check between them is a consistency check on this record, not a UTC
-    # accuracy claim: it reuses this codebase's existing frozen 60-second
-    # convention (readiness/attempt sample-age cap) rather than inventing a
-    # new numeric bound.
-    realtime_sec = realtime["value_ns"] // 1_000_000_000
-    if abs(adjtimex["time_sec"] - realtime_sec) > 60:
+    # adjtimex precedes the realtime read inside the monotonic bracket. The
+    # protocol has no reviewed bound for realtime rate, steps, or syscall
+    # latency, so bracket width cannot justify a positive wall-time tolerance.
+    # Accept only exact equality as a narrow structural fixture consistency
+    # check. Genuine advancing host samples will normally refuse; this is an
+    # explicit qualification hold, not evidence of continuity or accuracy.
+    fraction_ns = adjtimex["time_usec"] if adjtimex["status"] & _STA_NANO else adjtimex["time_usec"] * 1000
+    adj_ns = adjtimex["time_sec"] * 1_000_000_000 + fraction_ns
+    if adj_ns > MAX_INT or realtime["value_ns"] != adj_ns:
         _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
     return {"status": "OK", "boot_id": boot_before, "ns_time": ns_time, "ns_pid": ns_pid,
             "monotonic": clocks["monotonic"], "monotonic_raw": clocks["monotonic_raw"],
@@ -541,11 +630,11 @@ def _validate_closed_session(session: dict) -> dict:
     (F2, repros B3/B5/B6).
     """
     _keys(session, _SESSION_KEYS, "SCHEMA")
-    if session["schema"] != SCHEMA_SESSION:
+    if type(session["schema"]) is not str or session["schema"] != SCHEMA_SESSION:
         _refuse("SCHEMA")
     _identifier(session["session_nonce"], "SCHEMA")
     _nonneg_integer(session["sequence"], "SCHEMA")
-    if session["event_kind"] not in ("LOCAL_OBSERVATION", "SYNTHETIC"):
+    if type(session["event_kind"]) is not str or session["event_kind"] not in ("LOCAL_OBSERVATION", "SYNTHETIC"):
         _refuse("SCHEMA")
     prior_head = session["prior_head"]
     if prior_head is not None and (type(prior_head) is not str or _SHA.fullmatch(prior_head) is None):
@@ -563,7 +652,7 @@ def _validate_closed_session(session: dict) -> dict:
     envelope_bytes = _optional_reference(session["method_envelope_ref"])
     expected_status = ("STRUCTURALLY_LINKED_UNQUALIFIED" if envelope_bytes is not None
                        else "RECORDED_UNQUALIFIED")
-    if session["status"] != expected_status:
+    if type(session["status"]) is not str or session["status"] != expected_status:
         _refuse("SCHEMA")
     reasons = session["absence_reasons"]
     _exact(reasons, list, "SCHEMA")
@@ -600,7 +689,7 @@ def build_session(*, session_nonce: str, sequence: int, event_kind: str,
     """
     _identifier(session_nonce, "SCHEMA")
     _nonneg_integer(sequence, "SCHEMA")
-    if event_kind not in ("LOCAL_OBSERVATION", "SYNTHETIC"):
+    if type(event_kind) is not str or event_kind not in ("LOCAL_OBSERVATION", "SYNTHETIC"):
         _refuse("SCHEMA")
     if type(raw_record) is not bytes or len(raw_record) > MAX_RAW_RECORD:
         _refuse("INPUT_BOUNDS")
@@ -683,7 +772,10 @@ def write_session_file(root: str, session: dict) -> str:
         written = 0
         while written < len(encoded):
             try:
-                written += os.write(fd, encoded[written:])
+                progress = os.write(fd, encoded[written:])
+                if progress <= 0 or progress > len(encoded) - written:
+                    _refuse("STORE_WRITE_FAILED")
+                written += progress
             except OSError as error:
                 if error.errno == errno.EINTR:
                     continue

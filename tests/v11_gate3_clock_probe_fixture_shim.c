@@ -55,6 +55,10 @@ int clock_gettime(clockid_t id, struct timespec *tp) {
         errno = ENOSYS;
         return -1;
     }
+    if (streq(sc, "RT_FAIL") && id == CLOCK_REALTIME) {
+        errno = EIO;
+        return -1;
+    }
     /* MONOTONIC, MONOTONIC_RAW and BOOTTIME share a single incrementing call
      * sequence rather than independent per-clock counters: the real probe
      * reads them in a fixed nested order (monotonic before, raw before,
@@ -120,7 +124,11 @@ int adjtimex(struct timex *buf) {
     buf->precision = 1;
     buf->tolerance = 32768000;
     buf->time.tv_sec = 2000000000;
-    buf->time.tv_usec = 123;
+    buf->time.tv_usec = 123456;
+    if (streq(sc, "ADJTIMEX_NANO")) {
+        buf->status = STA_NANO;
+        buf->time.tv_usec = 123456000;
+    }
     buf->tick = 10000;
     if (streq(sc, "ADJTIMEX_ERROR_STATUS")) {
         return TIME_ERROR;
@@ -139,7 +147,11 @@ ssize_t readlink(const char *path, char *buf, size_t bufsz) {
     else if (strstr(path, "/ns/pid") != NULL) value = "pid:[4026531836]";
     if (value == NULL) {
         static ssize_t (*real_readlink)(const char *, char *, size_t) = NULL;
-        if (!real_readlink) real_readlink = dlsym(RTLD_NEXT, "readlink");
+        if (!real_readlink) {
+            void *symbol = dlsym(RTLD_NEXT, "readlink");
+            _Static_assert(sizeof(real_readlink) == sizeof(symbol), "dlsym ABI");
+            memcpy(&real_readlink, &symbol, sizeof(symbol));
+        }
         return real_readlink(path, buf, bufsz);
     }
     size_t n = strlen(value);
@@ -164,10 +176,10 @@ int open(const char *path, int flags, ...) {
             errno = ENOENT;
             return -1;
         }
-        const char *value = "fixture-boot-id-0001\n";
+        const char *value = "11111111-1111-4111-8111-111111111111\n";
         if (streq(sc, "BOOT_ID_MISMATCH")) {
             static int call = 0;
-            value = (call == 0) ? "fixture-boot-id-before\n" : "fixture-boot-id-after\n";
+            value = (call == 0) ? "11111111-1111-4111-8111-111111111111\n" : "22222222-2222-4222-8222-222222222222\n";
             call++;
         }
         if (streq(sc, "OVERLONG_BOOT_ID")) {
@@ -188,6 +200,10 @@ int open(const char *path, int flags, ...) {
         return fd;
     }
     static int (*real_open)(const char *, int, ...) = NULL;
-    if (!real_open) real_open = dlsym(RTLD_NEXT, "open");
+    if (!real_open) {
+        void *symbol = dlsym(RTLD_NEXT, "open");
+        _Static_assert(sizeof(real_open) == sizeof(symbol), "dlsym ABI");
+        memcpy(&real_open, &symbol, sizeof(symbol));
+    }
     return real_open(path, flags, mode);
 }
