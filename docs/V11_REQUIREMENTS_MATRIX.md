@@ -1,3 +1,7 @@
+## V5 IFS exact-review continuity — 2026-10-03 18:58 UTC
+
+Clean repair `7cff90a` remains under live different-model exact review. Current-main merge preflight is conflict-free, but there is no verdict or integration. The V5 evidence contract remains proposed and blocked; G3-L retains 77 missing identities and zero qualification credit. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Exact reviews require offline repairs — 2026-10-03 15:46 UTC
 
 Export `6ca5bb9` and resource model `1fc8b18` each received sealed independent **CHANGES_REQUIRED**, with full findings and repair bindings in the checkpoint. Separate persistent Sol/high and Astra/high repair workers now own their original isolated worktrees. Neither candidate is merged or qualified. Require clean successors, different-model exact review and normal integration gates. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
