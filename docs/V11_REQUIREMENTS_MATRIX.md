@@ -1,3 +1,7 @@
+## Offline export prerequisite in isolated worktree — 2026-10-03 15:21 UTC
+
+A single Sol/high worker is implementing bounded offline supplied-byte validated-plan export preparation from `f769244`; exact review remains future work. Passive-host successor `a6f98ad` continues separate exact review. Neither work grants authenticated pins, production mapping, resource custody or G3-L identity credit. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Export design integrated; passive-host successor under review — 2026-10-03 15:19 UTC
 
 Exact `988f544` documentation-only export design received independent `PASS_IN_SCOPE` and merged locally as `fd7c51a`; reviewed blob preserved. Its nonblocking seven-role wording recommendation does not change production code or admission. Passive host `4fe59ea` review returned CHANGES_REQUIRED; narrow repaired successor `a6f98ad` is in separate exact review, unmerged. Host reservation/custody, clock, provider rights, production mapping and G3-L evidence remain unqualified. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
