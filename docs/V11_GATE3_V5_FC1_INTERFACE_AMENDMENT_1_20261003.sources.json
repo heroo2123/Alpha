@@ -1,0 +1,289 @@
+{
+  "baseline_commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+  "baseline_tree": "8e421386b4f85765573dbf4ff4724cd5cb71156c",
+  "candidate_files": [
+    {
+      "byte_length": 19116,
+      "path": "docs/V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.md",
+      "sha256": "280d182f87cc2f0adde49a3fa878e64b9a61794b370f53591d5647d03f9a1f99"
+    },
+    {
+      "byte_length": 83494,
+      "path": "docs/V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.verification.json",
+      "sha256": "32face6f7c00d5ec109aa2132d490b0b1ecd7d460e3061d8fd2bd1a5adb53836"
+    },
+    {
+      "byte_length": 21544,
+      "path": "docs/V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.schema.json",
+      "sha256": "f40be7f5b447d4f83c02a3a55cf22cb32f3107b4cd32a1bee7888a34668d1426"
+    },
+    {
+      "byte_length": 13657,
+      "path": "tests/verify_v11_fc1_ia1_documents.py",
+      "sha256": "524be95d98e98dbd1154e2c18a822abef78cff901a0fa946f4f9f9ea3b496363"
+    }
+  ],
+  "retained_adjudication": {
+    "authentication": "Local retained adjudication read exactly; hash only, no external review authentication claimed.",
+    "byte_length": 8612,
+    "local_path": "/tmp/alpha-v11-v5-fc1-interface-adjudication.final",
+    "reviewed_commit": "5caf31e1bfe4dcc338a14d63ccb281a9e383eb16",
+    "sha256": "3d5f2f3b4ad43a99ce9b63fd4d2269ef5c98688dc9672803aab909c822dca36c"
+  },
+  "schema": "G3_V5_FC1_IA1_DOCUMENT_SOURCES_1",
+  "source_policy": "Original immutable source pins retained literally; added public Git baseline pins. Digests are not independent authentication. Candidate pins exclude this manifest to avoid self-reference. No private evidence copied.",
+  "sources": [
+    {
+      "byte_length": 33528,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "ab0481f3a51f87038cd59167dae9d3fb23539d89",
+      "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.md",
+      "sha256": "e020882313866ce4bf8cee25cecc742d58be74330a3e4afe874e16cd42fd9bed"
+    },
+    {
+      "byte_length": 23289,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "fcd5736d9b921d4eb5bac5d93ca2484d63ebf875",
+      "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.sources.json",
+      "sha256": "22e103273df5a1626a721e0b3e911d1accfecfdfe6f0fd6104f80a30ae719b3f"
+    },
+    {
+      "byte_length": 40158,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "694e3831a6c8bb928931836343f7856cbcd065bd",
+      "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.verification.json",
+      "sha256": "7c953b039d65f5e665860ffb813ab545be9114c05a9fa6a632ae65aba249ce5f"
+    },
+    {
+      "byte_length": 23579,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "9ed6c0f043b0a2ab5f98c1c6d3bdc589e83c429a",
+      "path": "docs/V11_GATE3_V5_FEASIBILITY_20261003.md",
+      "sha256": "98ca0ccc6ccd1f7459c126aa8a915b1e41353955932a65d0e10b0f5a0d08ff6a"
+    },
+    {
+      "byte_length": 7388,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "c2907db2057ae40a1c33506f308ba6699a13949a",
+      "path": "docs/V11_GATE3_V5_FEASIBILITY_20261003.arithmetic.json",
+      "sha256": "97c7c3880bf336368db4aaa54bdd079db7fd734c3a64ad11bc6434211e943f07"
+    },
+    {
+      "byte_length": 1681072,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "0a134e7e60c4f55bdad0aad5671dcab819567d10",
+      "path": "docs/V11_WORK_CHECKPOINT.md",
+      "sha256": "93a4765e7fe09df3a1e91f0f09890cd0965647ffad1f66b2e34b0210bc642905"
+    },
+    {
+      "byte_length": 20041,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "107f160a1498cd871a2ae5bb6fff076acb3753b3",
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    {
+      "byte_length": 17309,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "6317e4fad097f2c09807a406878a8420b6f95799",
+      "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    {
+      "byte_length": 50535,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "fae21694b3de7996db1227f31a0a35cd55b46088",
+      "path": "docs/V11_GATE3_RESOURCE_RESERVATION_DESIGN_20261003.md",
+      "sha256": "600ff646fd0ab60f912fe0b0d752b3008d24dbc80c5623056b4ced4e244ba6ff"
+    },
+    {
+      "byte_length": 45779,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "37379034aee93365d77b5bb21e2d242c8018de1a",
+      "path": "docs/V11_GATE3_VALIDATED_PLAN_EXPORT_DESIGN_20261003.md",
+      "sha256": "d62af7c0ce34425b43a7f0f1f96b6def95300d52ef0d82c4643b835ba55a9060"
+    },
+    {
+      "byte_length": 29494,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "c0b13e119a27b7bb4c4813c9fac5b6ee866b6525",
+      "path": "docs/V11_GATE3_HOST_RESOURCE_FEASIBILITY_20261003.md",
+      "sha256": "5b65e7c165f54cd63bc45ba76ad96df5707f81e8d195790cae02dbc8ceb72437"
+    },
+    {
+      "byte_length": 6571,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "75094a146f57300413312d53181b7e735ade294b",
+      "path": "docs/V11_BRAIN_IFS_AIFS_NATIVE_ADAPTER_FINDINGS_20261003.md",
+      "sha256": "3c5710f1713df398584dca3856c39f510f74e88122e3de862af18272675b3c0d"
+    },
+    {
+      "byte_length": 2671,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "14b8b453e2f52aaa490ac2e36bab8c9d94b8c749",
+      "path": "config/v11/r09_gate3_observed_message_sizes_20260930.json",
+      "sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb"
+    },
+    {
+      "byte_length": 57812,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "1025a0b5443abe4e04d57012d773bc07c6f4a8fe",
+      "path": "tools/v11_r09_gate3_launch.py",
+      "sha256": "d126744f3905b65b97dd19ccddc787d4bcdd71fca88288c1504966b0fb2681b8"
+    },
+    {
+      "byte_length": 47602,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "14f52ec73b4c8a54ac4506835f1f6d57ca20861f",
+      "path": "tools/v11_r09_gate3_launch_v4.py",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    {
+      "byte_length": 120122,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "d98425bfac504e8b0bdd7560fc6d4d586a54804c",
+      "path": "tools/v11_r09_gate3_runtime.py",
+      "sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c"
+    },
+    {
+      "byte_length": 34393,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "3c6a61567bc7d8fba25b2e9cce0999d404436a31",
+      "path": "tools/v11_r09_gate3_store_v1.py",
+      "sha256": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636"
+    },
+    {
+      "byte_length": 69644,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "5f0195607a3b3b5dca6b04b34e3131c69abb05b8",
+      "path": "tools/v11_r09_gate3_ledgers.py",
+      "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4"
+    },
+    {
+      "byte_length": 17101,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "c184cf6eb54c7541eb1a2fad44ab5a46e429458a",
+      "path": "tools/v11_r09_gate3_a7_decoder.py",
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+    },
+    {
+      "byte_length": 39633,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "360e990a5f384b5c5838c6e284f14ef9445ade61",
+      "path": "tools/v11_r09_gate3_collector.py",
+      "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe"
+    },
+    {
+      "byte_length": 10882,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "9bcd596a121a2f6640ee082e76a6120368b5a032",
+      "path": "tools/v11_gate3_v5_feasibility_arithmetic.py",
+      "sha256": "f578efa6a8d1704996efc67638df5ac6a47e7dcd4d2eba222f17febcbb078c86"
+    },
+    {
+      "byte_length": 16038,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "1d9820e629413f2ce93d7101deb9f387572420bd",
+      "path": "tools/v11_gate3_offline_resource_budget.py",
+      "sha256": "0d0ce9218878a1cd374011316b6f6fd57dadf589796d354a6cbc25bffea011d9"
+    },
+    {
+      "byte_length": 22360,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "c652313549c1f560cceed638dc0d3df5859cef29",
+      "path": "tools/v11_gate3_validated_plan_export_offline.py",
+      "sha256": "312946ee591ae059b5e905b5d8d3b2d84c9b2e358e0ff5b88ddb0007f4d7d187"
+    },
+    {
+      "byte_length": 24385,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "83e4d7e8ff0ccd3880121487e03c10c177cebd86",
+      "path": "tools/v11_r09_gate3_a8_composition.py",
+      "sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f"
+    },
+    {
+      "byte_length": 26766,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "6b54887fc66b9413670883f66585098fbe5839c2",
+      "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
+      "sha256": "6c7245523194ff91ed7a096282b70ba9f023f2c94cf24c2a4a252b7356730a39"
+    },
+    {
+      "byte_length": 13179,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "efa8585ba76952e15017b3e24de239cd80e2daee",
+      "path": "polymarket_scanner/v11/ecmwf_sources.py",
+      "sha256": "d02a298ff96ecaf98de7c3b514047d0b7c457237122217841bdbb9949bc1a523"
+    },
+    {
+      "byte_length": 12889,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "e8249fed2a8020be121f6b34986628d7680faa00",
+      "path": "polymarket_scanner/v11/ecmwf_grib.py",
+      "sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4"
+    },
+    {
+      "byte_length": 16506,
+      "commit": "910b841471050b637c90dddd8443d214a131995d",
+      "git_blob": "11d27cdd91f9e0d29ae7bfa25cb8399ce30d3a02",
+      "path": "polymarket_scanner/v11/gefs_sources.py",
+      "sha256": "7d02d473d17647ece47f79a7ceb29b80e1a031c1cabef6d8eb3640f156e30df5"
+    },
+    {
+      "byte_length": 35650,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "88f3cc0c36109b2875bf923521bb43a7510ee738",
+      "path": "docs/V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.md",
+      "sha256": "b414cfe4f20ccb8acb853f6b6dbdba9392da2979e3c511af39626c176f983638"
+    },
+    {
+      "byte_length": 72503,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "a018aa75262605584012297e2e7aa8560c812098",
+      "path": "docs/V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.verification.json",
+      "sha256": "d56b54aaa7168558f4d745c8e907584a4b5fab570388c92e8538c7a540bbe554"
+    },
+    {
+      "byte_length": 9463,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "b4756d5a74c9065e0a0d6d04a23621dcf178119b",
+      "path": "docs/V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.sources.json",
+      "sha256": "1666141b4a33373fd21739e5be77d072b5643a6fb02ae33f6b64990dd6279e4a"
+    },
+    {
+      "byte_length": 28627,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "0affdfafda1e85dd566c47c479629dbc84b9a5b9",
+      "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+      "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+    },
+    {
+      "byte_length": 46825,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "1d11239aa062687811a24bfd375e30dbe45025a9",
+      "path": "tests/test_v11_r09_gate3_ledgers.py",
+      "sha256": "51b11b506e90f10373236eadd361f4ef08e72d9cb2f7bd88bf50c2951f68ba64"
+    },
+    {
+      "byte_length": 96474,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "19af6d8c03ec01fbb66a2080e478110a0f035cde",
+      "path": "tests/test_v11_r09_gate3_runtime.py",
+      "sha256": "8ef5c9c629dd2ca56e7527190229fedaadf9a5f0efd33c74804c8d368076e466"
+    },
+    {
+      "byte_length": 46838,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "1ad32f28e74a1c79e1ca455860b898abf7d63337",
+      "path": "tests/test_v11_r09_gate3_store_v1.py",
+      "sha256": "4177b27bf24fb61a392684af277c59a7bc6a92b929c4e70b9b71cbcf5616b49b"
+    },
+    {
+      "byte_length": 2464,
+      "commit": "480793cbe4a9832ebf1ffcd95c17d12a1bd333e5",
+      "git_blob": "11deeb70b9f9546f495e0cd8722cc2a717ffb6f2",
+      "path": "tests/conftest.py",
+      "sha256": "3374b7073742c17e0b98bd3a7e299e62a5d5793d851225eafb668d8169b9a949"
+    }
+  ]
+}

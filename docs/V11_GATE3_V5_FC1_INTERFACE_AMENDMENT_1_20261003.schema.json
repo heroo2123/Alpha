@@ -1,0 +1,758 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "amendment": {
+          "const": "G3_V5_FC1_INTERFACE_AMENDMENT_1"
+        },
+        "author_checks": {
+          "additionalProperties": false,
+          "properties": {
+            "document_command": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "document_result": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "future_matrix_executed": {
+              "const": false
+            },
+            "limitations": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "normal_and_optimized_required": {
+              "type": "boolean"
+            },
+            "regression_command": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "regression_result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "future_matrix_executed",
+            "normal_and_optimized_required",
+            "document_command",
+            "regression_command",
+            "document_result",
+            "regression_result",
+            "limitations"
+          ],
+          "type": "object"
+        },
+        "baseline_commit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "candidate_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "byte_length": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "byte_length"
+          ],
+          "type": "object"
+        },
+        "changed_cases": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "future_matrix": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "execution_status": {
+                "const": "FUTURE_NOT_RUN"
+              },
+              "id": {
+                "pattern": "^FC(0[1-9]|1[0-9]|2[0-4])$",
+                "type": "string"
+              },
+              "mutations": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "change": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "expected_outcome": {
+                      "enum": [
+                        "REFUSE_NO_CREDIT",
+                        "HARNESS_CONTAINMENT_FAILURE"
+                      ]
+                    },
+                    "expected_stage": {
+                      "enum": [
+                        "SCHEMA",
+                        "CANONICAL",
+                        "BOUNDS",
+                        "APPLICABILITY",
+                        "PROJECTION",
+                        "BUDGET",
+                        "CLOCK",
+                        "DEPENDENCY",
+                        "SOURCE_PIN",
+                        "CUSTODY",
+                        "RIGHTS_LINEAGE",
+                        "TRUST"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "change",
+                    "expected_stage",
+                    "expected_outcome"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "owner": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "positive_control": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "positive_expected_outcome": {
+                "const": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY"
+              },
+              "preserve_on_refusal": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "scope": {
+                "const": "SYNTHETIC_NONPRODUCTION_ONLY"
+              }
+            },
+            "required": [
+              "id",
+              "execution_status",
+              "mutations",
+              "owner",
+              "positive_control",
+              "positive_expected_outcome",
+              "preserve_on_refusal",
+              "scope"
+            ],
+            "type": "object"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "type": "array"
+        },
+        "inherited_g3l_preservation": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "disposition": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "evidence": {
+                "type": "null"
+              },
+              "identity": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "qualification_credit": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "scope": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "stage": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "successor_obligation": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "disposition",
+              "evidence",
+              "identity",
+              "qualification_credit",
+              "scope",
+              "stage",
+              "successor_obligation"
+            ],
+            "type": "object"
+          },
+          "maxItems": 79,
+          "minItems": 79,
+          "type": "array"
+        },
+        "pacing_witness": {
+          "additionalProperties": false,
+          "properties": {
+            "dispatch_bound_total_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "legacy_close_plus_spacing_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "other_jitter_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "qualification_credit": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slack_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_bound_each_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_bound_total_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start_bound_each_ms",
+            "start_bound_total_ms",
+            "dispatch_bound_total_ms",
+            "other_jitter_ms",
+            "legacy_close_plus_spacing_ms",
+            "slack_ms",
+            "qualification_credit"
+          ],
+          "type": "object"
+        },
+        "qualification_credit": {
+          "const": 0
+        },
+        "read_witness": {
+          "additionalProperties": false,
+          "properties": {
+            "cap_bytes": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "eof_calls": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frozen_k": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "payload_calls": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "qualification_credit": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "read_max_bytes": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "cap_bytes",
+            "read_max_bytes",
+            "payload_calls",
+            "eof_calls",
+            "frozen_k",
+            "qualification_credit"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "const": "G3_V5_FC1_IA1_DOCUMENT_VERIFICATION_1"
+        },
+        "scope": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "PROPOSED_BLOCKED"
+        },
+        "structural_witness": {
+          "additionalProperties": false,
+          "properties": {
+            "abort_allowance_bytes": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "aggregate_objects": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "body_plus_abort_bytes": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "body_reservation_bytes": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "clock_guard_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "deadline_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "decoded_objects": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "elapsed_bound_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "event_links": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "events": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "existing_objects": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fields": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "final_objects": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "finalization_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "import_objects": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "jitter_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "journal_bytes": {
+              "additionalProperties": false,
+              "properties": {
+                "budget": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "denial": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "session": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "store": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "budget",
+                "denial",
+                "session",
+                "store"
+              ],
+              "type": "object"
+            },
+            "journal_events": {
+              "additionalProperties": false,
+              "properties": {
+                "budget": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "denial": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "session": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "store": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "budget",
+                "denial",
+                "session",
+                "store"
+              ],
+              "type": "object"
+            },
+            "kind": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "local_wall_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "overhead_requests": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "peak_objects": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider_caps_bytes": {
+              "additionalProperties": false,
+              "properties": {
+                "AIFS": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "GEFS": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "IFS": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "AIFS",
+                "GEFS",
+                "IFS"
+              ],
+              "type": "object"
+            },
+            "providers": {
+              "additionalProperties": false,
+              "properties": {
+                "AIFS": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "GEFS": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "IFS": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "AIFS",
+                "GEFS",
+                "IFS"
+              ],
+              "type": "object"
+            },
+            "qualification_credit": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "request_count": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "roles": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "spacing_ms": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "unproved": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "abort_allowance_bytes",
+            "aggregate_objects",
+            "body_plus_abort_bytes",
+            "body_reservation_bytes",
+            "clock_guard_ms",
+            "deadline_ms",
+            "decoded_objects",
+            "elapsed_bound_ms",
+            "event_links",
+            "events",
+            "existing_objects",
+            "fields",
+            "final_objects",
+            "finalization_ms",
+            "import_objects",
+            "jitter_ms",
+            "journal_bytes",
+            "journal_events",
+            "kind",
+            "local_wall_ms",
+            "overhead_requests",
+            "peak_objects",
+            "provider_caps_bytes",
+            "providers",
+            "qualification_credit",
+            "request_count",
+            "roles",
+            "spacing_ms",
+            "unproved"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "future_matrix",
+        "inherited_g3l_preservation",
+        "structural_witness",
+        "schema",
+        "amendment",
+        "baseline_commit",
+        "status",
+        "qualification_credit",
+        "scope",
+        "candidate_contract",
+        "changed_cases",
+        "pacing_witness",
+        "read_witness",
+        "author_checks"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "baseline_tree": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "candidate_files": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "byte_length": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "path": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "sha256",
+              "byte_length"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "retained_adjudication": {
+          "additionalProperties": false,
+          "properties": {
+            "authentication": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "byte_length": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "local_path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "reviewed_commit": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "local_path",
+            "sha256",
+            "byte_length",
+            "reviewed_commit",
+            "authentication"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "const": "G3_V5_FC1_IA1_DOCUMENT_SOURCES_1"
+        },
+        "source_policy": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "byte_length": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "commit": {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              "git_blob": {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              "path": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "sha256",
+              "byte_length",
+              "commit",
+              "git_blob"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "baseline_commit",
+        "baseline_tree",
+        "source_policy",
+        "retained_adjudication",
+        "sources",
+        "candidate_files"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "IA1 documentation companions only"
+}
