@@ -13,7 +13,11 @@ import json
 import operator
 import os
 from pathlib import Path
+import selectors
+import signal
+import stat
 import subprocess
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "docs/V11_GATE3_V5_FEASIBILITY_20261003.arithmetic.json"
@@ -47,6 +51,9 @@ MIB = 1024**2
 GIB = 1024**3
 OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
        ast.Pow: operator.pow, ast.FloorDiv: operator.floordiv}
+OBJECT_LIMIT = 8 * MIB
+REPORT_LIMIT = MIB
+GIT_TIMEOUT = 5.0
 
 
 def arithmetic(node, env):
@@ -99,13 +106,53 @@ def git_object(kind, oid):
             c not in "0123456789abcdef" for c in oid):
         raise ValueError("invalid Git object request")
     env = {"PATH": os.defpath, "LC_ALL": "C", "GIT_NO_REPLACE_OBJECTS": "1",
-           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
-    result = subprocess.run(["git", "-C", str(ROOT), "cat-file", kind, oid],
-                            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            check=False)
-    if result.returncode:
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+           "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""}
+    command = ["git", "-c", "protocol.allow=never", "-C", str(ROOT),
+               "cat-file", kind, oid]
+    proc = subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, start_new_session=True)
+    output = bytearray()
+    errors = bytearray()
+    deadline = time.monotonic() + GIT_TIMEOUT
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(proc.stdout, selectors.EVENT_READ, output)
+            selector.register(proc.stderr, selectors.EVENT_READ, errors)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ValueError(f"baseline {kind} object read timed out: {oid}")
+                if not (ready := selector.select(remaining)):
+                    raise ValueError(f"baseline {kind} object read timed out: {oid}")
+                for key, _ in ready:
+                    chunk = os.read(key.fd, 65536)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        continue
+                    key.data.extend(chunk)
+                    if len(key.data) > OBJECT_LIMIT:
+                        raise ValueError(f"baseline {kind} object output too large: {oid}")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError(f"baseline {kind} object read timed out: {oid}")
+        try:
+            proc.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as exc:
+            raise ValueError(f"baseline {kind} object read timed out: {oid}") from exc
+    except BaseException:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        raise
+    finally:
+        proc.stdout.close()
+        proc.stderr.close()
+    if proc.returncode:
         raise ValueError(f"missing or unreadable baseline {kind} object: {oid}")
-    data = result.stdout
+    data = bytes(output)
     digest = hashlib.sha1(f"{kind} {len(data)}\0".encode() + data).hexdigest()
     if digest != oid:
         raise ValueError(f"baseline {kind} object hash mismatch: {oid}")
@@ -160,7 +207,7 @@ def baseline_sources():
 
 def build(raw=None):
     if raw is None:
-        raw = {p: (ROOT / p).read_bytes() for p in SOURCE_PATHS}
+        raw = current_sources(baseline_sources())
     trees = {p: ast.parse(b) for p, b in raw.items() if p.endswith(".py")}
     launch = trees["tools/v11_r09_gate3_launch.py"]
     v4 = trees["tools/v11_r09_gate3_launch_v4.py"]
@@ -260,15 +307,50 @@ def build(raw=None):
     }
 
 
+def read_regular_bytes(path, limit):
+    """Read only a bounded regular file, including when a path is replaced."""
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError(f"non-regular source or report: {path}")
+        data = bytearray()
+        while len(data) <= limit:
+            chunk = os.read(fd, min(65536, limit + 1 - len(data)))
+            if not chunk:
+                return bytes(data)
+            data.extend(chunk)
+        raise ValueError(f"source or report exceeds byte limit: {path}")
+    finally:
+        os.close(fd)
+
+
+def current_sources(baseline):
+    """Reject current drift before parsing or evaluating any current source."""
+    raw = {}
+    for path in SOURCE_PATHS:
+        pinned = baseline[path]
+        try:
+            data = read_regular_bytes(ROOT / path, len(pinned))
+        except (OSError, ValueError) as exc:
+            raise ValueError("source pins or arithmetic report differ; independent review required") from exc
+        if len(data) != len(pinned) or hashlib.sha256(data).digest() != hashlib.sha256(pinned).digest():
+            raise ValueError("source pins or arithmetic report differ; independent review required")
+        raw[path] = data
+    return raw
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--replay-baseline", action="store_true")
     args = parser.parse_args()
-    report = build(baseline_sources() if args.replay_baseline else None)
+    baseline = baseline_sources()
+    if args.check:
+        current_sources(baseline)
+    report = build(baseline)
     encoded = json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n"
-    if REPORT.read_text(encoding="utf-8") != encoded:
+    if read_regular_bytes(REPORT, REPORT_LIMIT) != encoded.encode("utf-8"):
         raise ValueError("source pins or arithmetic report differ; independent review required")
     print(f"PASS: {len(report['checks_passed'])} arithmetic/source checks; "
           f"{len(SOURCE_PATHS)} public source pins; full cohort BLOCKED; no authority")
