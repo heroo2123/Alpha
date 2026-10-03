@@ -540,12 +540,17 @@ class BudgetTracker:
                  min_interval_seconds=2.0, max_elapsed_seconds=3 * 3600.,
                  max_index_bytes=_EXISTING_MAX_INDEX_BYTES, max_field_bytes=_EXISTING_MAX_FIELD_BYTES):
         require(type(max_requests) is int and 0 < max_requests <= 3600, 'BUDGET_MAX_REQUESTS_CEILING')
-        require(0 < max_total_received_bytes <= 1024 ** 3, 'BUDGET_MAX_BYTES_CEILING')
-        require(min_interval_seconds >= 2.0, 'BUDGET_MIN_INTERVAL_CEILING')
-        require(0 < max_elapsed_seconds <= 3 * 3600, 'BUDGET_MAX_ELAPSED_CEILING')
-        require(0 < max_index_bytes <= _EXISTING_MAX_INDEX_BYTES,
+        require(type(max_total_received_bytes) is int and
+                0 < max_total_received_bytes <= 1024 ** 3, 'BUDGET_MAX_BYTES_CEILING')
+        require(type(min_interval_seconds) in (int, float) and
+                math.isfinite(min_interval_seconds) and min_interval_seconds >= 2.0,
+                'BUDGET_MIN_INTERVAL_CEILING')
+        require(type(max_elapsed_seconds) in (int, float) and
+                math.isfinite(max_elapsed_seconds) and 0 < max_elapsed_seconds <= 3 * 3600,
+                'BUDGET_MAX_ELAPSED_CEILING')
+        require(type(max_index_bytes) is int and 0 < max_index_bytes <= _EXISTING_MAX_INDEX_BYTES,
                 'BUDGET_MAX_INDEX_BYTES_CANNOT_LOOSEN_PROTOCOL')
-        require(0 < max_field_bytes <= _EXISTING_MAX_FIELD_BYTES,
+        require(type(max_field_bytes) is int and 0 < max_field_bytes <= _EXISTING_MAX_FIELD_BYTES,
                 'BUDGET_MAX_FIELD_BYTES_CANNOT_LOOSEN_PROTOCOL')
         self.max_requests = max_requests
         self.max_total_received_bytes = max_total_received_bytes
@@ -558,17 +563,31 @@ class BudgetTracker:
         self.window_started_at = None
         self.last_request_started_at = None
         self.in_flight = False
+        self.budget_exhausted = False
 
     def start_window(self, now_monotonic):
         require(self.window_started_at is None, 'BUDGET_WINDOW_ALREADY_STARTED')
+        require(type(now_monotonic) in (int, float) and math.isfinite(now_monotonic),
+                'BUDGET_MONOTONIC_TIME_FINITE')
         self.window_started_at = now_monotonic
 
     def check_before_request(self, *, now_monotonic, provider=None,
                              index_bytes=None, field_bytes=None):
         require(self.window_started_at is not None, 'BUDGET_WINDOW_NOT_STARTED')
+        require(type(now_monotonic) in (int, float) and math.isfinite(now_monotonic),
+                'BUDGET_MONOTONIC_TIME_FINITE')
+        require(now_monotonic >= self.window_started_at and
+                (self.last_request_started_at is None or
+                 now_monotonic >= self.last_request_started_at), 'BUDGET_MONOTONIC_TIME_ORDER')
+        if index_bytes is not None:
+            require(type(index_bytes) is int and index_bytes > 0, 'BUDGET_INDEX_BYTES_TYPE')
+        if field_bytes is not None:
+            require(type(field_bytes) is int and field_bytes > 0, 'BUDGET_FIELD_BYTES_TYPE')
+            require(provider in VALID_PROVIDERS, 'BUDGET_FIELD_PROVIDER_REQUIRED')
         if self.in_flight:
             raise BudgetCeilingExceeded('BUDGET_SINGLE_REQUEST_IN_FLIGHT_VIOLATION')
-        if self.request_count >= self.max_requests:
+        if (self.budget_exhausted or self.total_received_bytes >= self.max_total_received_bytes or
+                self.request_count >= self.max_requests):
             raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
         if now_monotonic - self.window_started_at >= self.max_elapsed_seconds:
             raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
@@ -578,11 +597,13 @@ class BudgetTracker:
         if index_bytes is not None and index_bytes > self.max_index_bytes:
             raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
         if field_bytes is not None:
-            require(provider in VALID_PROVIDERS, 'BUDGET_FIELD_PROVIDER_REQUIRED')
             provider_ceiling = (_GEFS_S3_FULL_FIELD_MAX_BYTES if provider == 'GEFS'
                                 else _EXISTING_MAX_FIELD_BYTES)
             if field_bytes > min(self.max_field_bytes, provider_ceiling):
                 raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
+        if (index_bytes or 0) + (field_bytes or 0) > (
+                self.max_total_received_bytes - self.total_received_bytes):
+            raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
 
     def begin_request(self, now_monotonic, *, provider=None, index_bytes=None,
                       field_bytes=None):
@@ -596,9 +617,11 @@ class BudgetTracker:
         require(self.in_flight, 'BUDGET_NO_REQUEST_IN_FLIGHT')
         require(type(received_bytes) is int and received_bytes >= 0, 'BUDGET_RECEIVED_BYTES_TYPE')
         self.in_flight = False
-        if self.total_received_bytes + received_bytes > self.max_total_received_bytes:
-            raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
         self.total_received_bytes += received_bytes
+        if self.total_received_bytes >= self.max_total_received_bytes:
+            self.budget_exhausted = True
+        if self.total_received_bytes > self.max_total_received_bytes:
+            raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
 
 
 # --------------------------------------------------------------------------- #
@@ -634,15 +657,21 @@ def _fallback_priority(key):
     return provider, member != 0, member, hour
 
 
-def estimate_feasibility(manifest, *, provider_message_size_estimate_bytes, ceiling_bytes=1024 ** 3):
+def estimate_feasibility(manifest, *, provider_message_size_estimate_bytes, ceiling_bytes=None):
     """Dry-run budget estimator (P3-3). Uses REAL OBSERVED per-provider message-size
     estimates the caller supplies (from dossier/historical evidence), not an assumed
     nominal figure, to decide whether the manifest's full raw-message denominator is
-    feasible under the byte ceiling, and to size the prespecified bounded fallback
+    feasible under the frozen manifest and protocol byte ceilings (and any tighter
+    caller ceiling), and to size the prespecified bounded fallback
     the protocol requires when it is not (Section 3: "record a prespecified bounded
     feasibility attempt; do not increase budgets mid-window or reduce the
     denominator"). Performs no I/O and inspects no response content."""
     require(isinstance(manifest, CaptureManifest), 'FEASIBILITY_MANIFEST_TYPE')
+    if ceiling_bytes is not None:
+        require(type(ceiling_bytes) is int and ceiling_bytes > 0,
+                'FEASIBILITY_CEILING_BYTES_POSITIVE_INTEGER')
+    ceiling_bytes = min(manifest.max_total_received_bytes, 1024 ** 3,
+                        ceiling_bytes if ceiling_bytes is not None else 1024 ** 3)
     keys = manifest.expected_raw_message_keys
     require(set(provider_message_size_estimate_bytes) == set(VALID_PROVIDERS),
             'FEASIBILITY_SIZE_ESTIMATE_MUST_COVER_ALL_PROVIDERS')
@@ -703,8 +732,11 @@ def check_index_availability(transport, origin_url, *, now_utc):
     probe = transport.head_or_range_probe(origin_url)
     require(type(probe) is dict and {'index_sidecar_available', 'supports_byte_range_206'} <= set(probe),
             'INDEX_AVAILABILITY_PROBE_SHAPE')
-    return IndexAvailabilityResult(origin_url, bool(probe['index_sidecar_available']),
-                                    bool(probe['supports_byte_range_206']), now_utc)
+    require(type(probe['index_sidecar_available']) is bool and
+            type(probe['supports_byte_range_206']) is bool,
+            'INDEX_AVAILABILITY_PROBE_FLAGS_MUST_BE_EXPLICIT_BOOL')
+    return IndexAvailabilityResult(origin_url, probe['index_sidecar_available'],
+                                    probe['supports_byte_range_206'], now_utc)
 
 
 # --------------------------------------------------------------------------- #

@@ -52,13 +52,20 @@ def _readonly(path):
 
 
 def _stats(values, ceiling):
-    values = sorted(int(v) for v in values)
+    invalid = sum(type(v) is not int or v <= 0 for v in values)
+    values = sorted(v for v in values if type(v) is int and v > 0)
     if not values:
-        return {'count': 0, 'ceiling_bytes': ceiling, 'exceeding_ceiling': 0}
+        result = {'count': 0, 'ceiling_bytes': ceiling, 'exceeding_ceiling': 0}
+        if invalid:
+            result['invalid_observations'] = invalid
+        return result
     pick = lambda q: values[min(len(values) - 1, int(len(values) * q))]  # noqa: E731
-    return {'count': len(values), 'min': values[0], 'p50': pick(0.5), 'p95': pick(0.95),
+    result = {'count': len(values), 'min': values[0], 'p50': pick(0.5), 'p95': pick(0.95),
             'p99': pick(0.99), 'max': values[-1], 'ceiling_bytes': ceiling,
             'exceeding_ceiling': sum(v > ceiling for v in values)}
+    if invalid:
+        result['invalid_observations'] = invalid
+    return result
 
 
 def observe(ecmwf_sqlite, gefs_sqlite):
@@ -89,11 +96,18 @@ def build(ecmwf_sqlite, gefs_sqlite):
     # A feasibility estimate must use the observed maximum, never the mean, so an
     # under-sized ceiling can never be hidden by averaging.
     estimate = {p: providers[p]['field_bytes'].get('max') for p in VALID_PROVIDERS}
-    findings = sorted(
+    findings = [
         f"{p}: {providers[p]['field_bytes']['exceeding_ceiling']} of "
         f"{providers[p]['field_bytes']['count']} observed field messages exceed the "
         f"pinned {providers[p]['field_bytes']['ceiling_bytes']}-byte ceiling"
-        for p in VALID_PROVIDERS if providers[p]['field_bytes']['exceeding_ceiling'])
+        for p in VALID_PROVIDERS if providers[p]['field_bytes']['exceeding_ceiling']]
+    findings.extend(
+        f"{p}: no usable positive integer observed field message sizes"
+        for p in VALID_PROVIDERS if estimate[p] is None)
+    findings.extend(
+        f"{p}: {providers[p]['field_bytes']['invalid_observations']} invalid field byte observations"
+        for p in VALID_PROVIDERS if providers[p]['field_bytes'].get('invalid_observations'))
+    findings.sort()
     return {
         'version': VERSION,
         'evidence_class': 'HISTORICAL_PUBLIC_RETRIEVAL_SIZE_ONLY',
