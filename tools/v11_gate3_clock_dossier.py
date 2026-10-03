@@ -72,6 +72,10 @@ def _exact(value, kind, code="SCHEMA"):
 
 def _keys(value, expected, code="SCHEMA"):
     _exact(value, dict, code)
+    # dict key equality can be supplied by a str subclass. Check the actual
+    # key types before any lookup, comparison, hash or JSON serialization.
+    if any(type(key) is not str for key in value):
+        _refuse(code)
     if value.keys() != expected:
         _refuse(code)
     return value
@@ -246,8 +250,12 @@ def _optional_reference(value, code="CLOCK_LINKAGE"):
 
 def _clock_bracket(value, code="CLOCK_LINKAGE"):
     _keys(value, {"before_ns", "before_result", "before_errno",
-                  "after_ns", "after_result", "after_errno",
-                  "res_sec", "res_nsec", "res_result", "res_errno"}, code)
+                  "before_attempted", "after_ns", "after_result", "after_errno",
+                  "after_attempted", "res_sec", "res_nsec", "res_result",
+                  "res_errno", "res_attempted"}, code)
+    if any(value[key] != 1 or type(value[key]) is not int for key in
+           ("before_attempted", "after_attempted", "res_attempted")):
+        _refuse(code)
     before = _nonneg_integer(value["before_ns"], code)
     after = _nonneg_integer(value["after_ns"], code)
     before_result = _integer(value["before_result"], code)
@@ -276,7 +284,11 @@ def _clock_bracket(value, code="CLOCK_LINKAGE"):
 
 def _realtime_read(value, code="CLOCK_LINKAGE"):
     _keys(value, {"value_ns", "result", "errno",
-                  "res_sec", "res_nsec", "res_result", "res_errno"}, code)
+                  "attempted", "res_sec", "res_nsec", "res_result",
+                  "res_errno", "res_attempted"}, code)
+    if any(value[key] != 1 or type(value[key]) is not int for key in
+           ("attempted", "res_attempted")):
+        _refuse(code)
     result = _integer(value["result"], code)
     res_result = _integer(value["res_result"], code)
     if result != 0 or res_result != 0:
@@ -350,17 +362,21 @@ def _boot_uuid(value):
 _PARTIAL_KEYS = frozenset({"boot_id_before", "boot_id_after", "ns_time", "ns_pid",
                            *CLOCK_NAMES, "realtime", "adjtimex"})
 _BRACKET_KEYS = {"before_ns", "before_result", "before_errno", "after_ns",
-                 "after_result", "after_errno", "res_sec", "res_nsec",
-                 "res_result", "res_errno"}
-_REALTIME_KEYS = {"value_ns", "result", "errno", "res_sec", "res_nsec",
-                  "res_result", "res_errno"}
+                 "before_attempted", "after_result", "after_errno",
+                 "after_attempted", "res_sec", "res_nsec", "res_result",
+                 "res_errno", "res_attempted"}
+_REALTIME_KEYS = {"value_ns", "result", "errno", "attempted", "res_sec",
+                  "res_nsec", "res_result", "res_errno", "res_attempted"}
 
 
-def _partial_result(value, result_key, errno_key, ns_key=None, *, unattempted=False):
+def _partial_result(value, attempted_key, result_key, errno_key, ns_key=None):
+    attempted = _integer(value[attempted_key], "SCHEMA")
     result = _integer(value[result_key], "SCHEMA")
     error = _integer(value[errno_key], "SCHEMA")
-    if (result not in (-1, 0) or (result == 0 and error != 0) or
-            (result == -1 and error == 0 and not unattempted) or error < 0):
+    if (attempted not in (0, 1) or result not in (-1, 0) or
+            (attempted == 0 and (result != -1 or error != 0)) or
+            (attempted == 1 and ((result == 0 and error != 0) or
+                                 (result == -1 and error <= 0)))):
         _refuse("SCHEMA")
     if ns_key is not None:
         ns = _nonneg_integer(value[ns_key], "SCHEMA")
@@ -372,17 +388,27 @@ def _partial_clock(value, name):
     expected = _REALTIME_KEYS if name == "realtime" else _BRACKET_KEYS
     _keys(value, expected)
     if name == "realtime":
-        _partial_result(value, "result", "errno", "value_ns")
+        _partial_result(value, "attempted", "result", "errno", "value_ns")
     else:
-        _partial_result(value, "before_result", "before_errno", "before_ns")
-        _partial_result(value, "after_result", "after_errno", "after_ns",
-                        unattempted=True)
-        if value["before_result"] == -1 and value["after_result"] != -1:
+        _partial_result(value, "before_attempted", "before_result", "before_errno", "before_ns")
+        _partial_result(value, "after_attempted", "after_result", "after_errno", "after_ns")
+        if value["before_attempted"] == 0 and value["after_attempted"] != 0:
             _refuse("SCHEMA")
         if value["before_result"] == value["after_result"] == 0 and value["after_ns"] < value["before_ns"]:
             _refuse("SCHEMA")
-    _partial_result(value, "res_result", "res_errno")
+    _partial_result(value, "res_attempted", "res_result", "res_errno")
+    # A clock is emitted only after its resolution call. No later read can
+    # have run if that call failed; opening-read failure likewise stops the
+    # closing read. Preserve these gaps as explicit unattempted operations.
+    if value["res_attempted"] != 1:
+        _refuse("SCHEMA")
     if value["res_result"] != 0:
+        if name == "realtime" and value["attempted"] != 0:
+            _refuse("SCHEMA")
+        if name != "realtime" and (value["before_attempted"] != 0 or
+                                    value["after_attempted"] != 0):
+            _refuse("SCHEMA")
+    if name != "realtime" and value["before_result"] != 0 and value["after_attempted"] != 0:
         _refuse("SCHEMA")
     sec = _nonneg_integer(value["res_sec"], "SCHEMA")
     nsec = _nonneg_integer(value["res_nsec"], "SCHEMA")
@@ -395,6 +421,8 @@ def _partial_clock(value, name):
 
 def _partial_record(value):
     _exact(value, dict)
+    if any(type(key) is not str for key in value):
+        _refuse("SCHEMA")
     if not value.keys() <= _PARTIAL_KEYS:
         _refuse("SCHEMA")
     for key, item in value.items():

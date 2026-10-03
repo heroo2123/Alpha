@@ -29,6 +29,20 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Test-only target: link fixed observation functions into the executable. */
+#ifdef ALPHA_V11_FIXTURE_ONLY
+extern int fixture_clock_gettime(clockid_t, struct timespec *);
+extern int fixture_clock_getres(clockid_t, struct timespec *);
+extern int fixture_adjtimex(struct timex *);
+extern int fixture_open(const char *, int, ...);
+extern ssize_t fixture_readlink(const char *, char *, size_t);
+#define clock_gettime fixture_clock_gettime
+#define clock_getres fixture_clock_getres
+#define adjtimex fixture_adjtimex
+#define open fixture_open
+#define readlink fixture_readlink
+#endif
+
 #define MAX_OUTPUT 16384
 #define IDENT_BUF 128
 
@@ -39,16 +53,20 @@ typedef struct {
     int64_t before_ns, after_ns;
     int before_result, after_result;
     int before_errno, after_errno;
+    int before_attempted, after_attempted;
     long res_sec, res_nsec;
     int res_result, res_errno;
+    int res_attempted;
     int have;
 } bracket_t;
 
 typedef struct {
     int64_t value_ns;
     int result, err;
+    int attempted;
     long res_sec, res_nsec;
     int res_result, res_errno;
+    int res_attempted;
     int have;
 } realtime_t;
 
@@ -161,10 +179,12 @@ static int read_clock(clockid_t id, bracket_t *out, int which /* 0=before,1=afte
     int64_t ns = 0;
     if (r == 0 && ts_to_ns(&ts, &ns) != 0) { r = -1; saved_errno = errno; }
     if (which == 0) {
+        out->before_attempted = 1;
         out->before_result = r;
         out->before_errno = (r == 0) ? 0 : saved_errno;
         out->before_ns = (r == 0) ? ns : 0;
     } else {
+        out->after_attempted = 1;
         out->after_result = r;
         out->after_errno = (r == 0) ? 0 : saved_errno;
         out->after_ns = (r == 0) ? ns : 0;
@@ -176,6 +196,8 @@ static int read_clock_res(clockid_t id, bracket_t *out) {
     struct timespec ts;
     int r = clock_getres(id, &ts);
     int saved_errno = errno;
+    out->res_attempted = 1;
+    out->have = 1;
     out->res_result = r;
     out->res_errno = (r == 0) ? 0 : saved_errno;
     out->res_sec = (r == 0) ? (long)ts.tv_sec : 0;
@@ -191,13 +213,16 @@ static void emit_bracket(const char *name, const bracket_t *v) {
     out_i64(v->before_ns);
     out_str(",\"before_result\":"); out_i64(v->before_result);
     out_str(",\"before_errno\":"); out_i64(v->before_errno);
+    out_str(",\"before_attempted\":"); out_i64(v->before_attempted);
     out_str(",\"after_ns\":"); out_i64(v->after_ns);
     out_str(",\"after_result\":"); out_i64(v->after_result);
     out_str(",\"after_errno\":"); out_i64(v->after_errno);
+    out_str(",\"after_attempted\":"); out_i64(v->after_attempted);
     out_str(",\"res_sec\":"); out_long(v->res_sec);
     out_str(",\"res_nsec\":"); out_long(v->res_nsec);
     out_str(",\"res_result\":"); out_i64(v->res_result);
     out_str(",\"res_errno\":"); out_i64(v->res_errno);
+    out_str(",\"res_attempted\":"); out_i64(v->res_attempted);
     out_str("}");
 }
 
@@ -247,10 +272,12 @@ static void emit_refused(const char *code, int detail_errno) {
         SEP(); out_str("\"realtime\":{\"value_ns\":"); out_i64(r_realtime.value_ns);
         out_str(",\"result\":"); out_i64(r_realtime.result);
         out_str(",\"errno\":"); out_i64(r_realtime.err);
+        out_str(",\"attempted\":"); out_i64(r_realtime.attempted);
         out_str(",\"res_sec\":"); out_long(r_realtime.res_sec);
         out_str(",\"res_nsec\":"); out_long(r_realtime.res_nsec);
         out_str(",\"res_result\":"); out_i64(r_realtime.res_result);
         out_str(",\"res_errno\":"); out_i64(r_realtime.res_errno);
+        out_str(",\"res_attempted\":"); out_i64(r_realtime.res_attempted);
         out_str("}");
     }
     if (a_adjtimex.have) {
@@ -286,7 +313,9 @@ int main(void) {
      * refusal emitted after the "before" half succeeds but before the
      * "after" half is ever read must not fabricate an after_result of 0,
      * which would read as a successful close of a read that never ran. */
+    b_monotonic.before_result = b_raw.before_result = b_boottime.before_result = -1;
     b_monotonic.after_result = b_raw.after_result = b_boottime.after_result = -1;
+    r_realtime.result = -1;
 
     /* 1. Boot identity before. Unavailable identity reads refuse the method. */
     if (read_boot_id(boot_id_before, sizeof(boot_id_before)) != 0) {
@@ -308,20 +337,27 @@ int main(void) {
     have_ns_pid = 1;
 
     /* 2. Resolutions (static; no ordering requirement against the bracket). */
-    if (read_clock_res(CLOCK_MONOTONIC, &b_monotonic) != 0 ||
-        read_clock_res(CLOCK_MONOTONIC_RAW, &b_raw) != 0 ||
-        read_clock_res(CLOCK_BOOTTIME, &b_boottime) != 0) {
-        emit_refused("CLOCK_SOURCE_UNAVAILABLE", errno);
-        return 1;
+    if (read_clock_res(CLOCK_MONOTONIC, &b_monotonic) != 0) {
+        emit_refused("CLOCK_SOURCE_UNAVAILABLE", b_monotonic.res_errno); return 1;
+    }
+    if (read_clock_res(CLOCK_MONOTONIC_RAW, &b_raw) != 0) {
+        emit_refused("CLOCK_SOURCE_UNAVAILABLE", b_raw.res_errno); return 1;
+    }
+    if (read_clock_res(CLOCK_BOOTTIME, &b_boottime) != 0) {
+        emit_refused("CLOCK_SOURCE_UNAVAILABLE", b_boottime.res_errno); return 1;
     }
     {
         struct timespec ts;
-        if (clock_getres(CLOCK_REALTIME, &ts) != 0) {
-            emit_refused("CLOCK_SOURCE_UNAVAILABLE", errno);
+        int result = clock_getres(CLOCK_REALTIME, &ts);
+        int saved_errno = errno;
+        r_realtime.have = 1;
+        r_realtime.res_attempted = 1;
+        r_realtime.res_result = result;
+        r_realtime.res_errno = result == 0 ? 0 : saved_errno;
+        if (result != 0) {
+            emit_refused("CLOCK_SOURCE_UNAVAILABLE", r_realtime.res_errno);
             return 1;
         }
-        r_realtime.res_result = 0;
-        r_realtime.res_errno = 0;
         r_realtime.res_sec = (long)ts.tv_sec;
         r_realtime.res_nsec = (long)ts.tv_nsec;
     }
@@ -355,6 +391,7 @@ int main(void) {
         int64_t ns = 0;
         if (r == 0 && ts_to_ns(&ts, &ns) != 0) { r = -1; saved_errno = errno; }
         r_realtime.result = r;
+        r_realtime.attempted = 1;
         r_realtime.err = (r == 0) ? 0 : saved_errno;
         r_realtime.value_ns = (r == 0) ? ns : 0;
         r_realtime.have = 1;
@@ -389,10 +426,12 @@ int main(void) {
     out_str(",\"realtime\":{\"value_ns\":"); out_i64(r_realtime.value_ns);
     out_str(",\"result\":"); out_i64(r_realtime.result);
     out_str(",\"errno\":"); out_i64(r_realtime.err);
+    out_str(",\"attempted\":"); out_i64(r_realtime.attempted);
     out_str(",\"res_sec\":"); out_long(r_realtime.res_sec);
     out_str(",\"res_nsec\":"); out_long(r_realtime.res_nsec);
     out_str(",\"res_result\":"); out_i64(r_realtime.res_result);
     out_str(",\"res_errno\":"); out_i64(r_realtime.res_errno);
+    out_str(",\"res_attempted\":"); out_i64(r_realtime.res_attempted);
     out_str("}");
     out_str(",\"adjtimex\":{\"call_result\":"); out_i64(a_adjtimex.call_result);
     out_str(",\"errno\":"); out_i64(a_adjtimex.err);

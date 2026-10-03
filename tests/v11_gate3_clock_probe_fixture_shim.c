@@ -1,13 +1,11 @@
-/* Test-only LD_PRELOAD fixture shim for v11_gate3_clock_probe.
+/* Test-only fixture observation functions for v11_gate3_clock_probe.
  *
  * Intercepts every syscall wrapper the probe calls (clock_gettime,
  * clock_getres, adjtimex, readlink, open for the boot_id path) and returns
  * fixed, environment-selected fixture values instead of the real host
- * state. The probe binary under this preload therefore never samples the
- * real clock, boot_id or namespace -- every one of its external reads is
- * intercepted here. This file is test fixture code only; it is never
- * linked into the production probe and installs no interception when the
- * probe runs normally.
+ * state. The native suite links these functions directly into a test-only
+ * target with ALPHA_V11_FIXTURE_ONLY. Unknown paths fail closed in that
+ * build. The production probe never links this fixture code.
  *
  * Fixture selection: ALPHA_V11_CLOCK_FIXTURE selects a named scenario
  * ("OK", "MONO_FAIL", "ADJTIMEX_FAIL", "ADJTIMEX_ERROR_STATUS",
@@ -29,6 +27,15 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef ALPHA_V11_FIXTURE_ONLY
+/* Direct-link names used by the test-only probe. Unknown paths fail closed. */
+#define clock_gettime fixture_clock_gettime
+#define clock_getres fixture_clock_getres
+#define adjtimex fixture_adjtimex
+#define open fixture_open
+#define readlink fixture_readlink
+#endif
+
 static const char *scenario(void) {
     const char *s = getenv("ALPHA_V11_CLOCK_FIXTURE");
     return s ? s : "OK";
@@ -36,12 +43,8 @@ static const char *scenario(void) {
 
 static int streq(const char *a, const char *b) { return strcmp(a, b) == 0; }
 
-/* Proves to the test harness that this shim actually loaded via LD_PRELOAD
- * before it trusts any output as a safe fixture observation (F6): if the
- * dynamic loader fails to preload this library, it just warns and runs the
- * probe unpreloaded against the real host, and nothing else would detect
- * that silently. A constructor here is the one thing that cannot run unless
- * this exact shared object was actually mapped into the process. */
+/* Post-execution diagnostic only. Safety comes from direct fixture bindings
+ * and executing the same sealed descriptor that was verified beforehand. */
 __attribute__((constructor))
 static void announce_shim_loaded(void) {
     static const char marker[] = "ALPHA_V11_CLOCK_FIXTURE_SHIM_LOADED\n";
@@ -101,7 +104,14 @@ int clock_gettime(clockid_t id, struct timespec *tp) {
 }
 
 int clock_getres(clockid_t id, struct timespec *res) {
-    (void)id;
+    const char *sc = scenario();
+    if ((streq(sc, "MONO_RES_FAIL") && id == CLOCK_MONOTONIC) ||
+        (streq(sc, "RAW_RES_FAIL") && id == CLOCK_MONOTONIC_RAW) ||
+        (streq(sc, "BOOT_RES_FAIL") && id == CLOCK_BOOTTIME) ||
+        (streq(sc, "RT_RES_FAIL") && id == CLOCK_REALTIME)) {
+        errno = ENOSYS;
+        return -1;
+    }
     res->tv_sec = 0;
     res->tv_nsec = 1;
     return 0;
@@ -146,6 +156,10 @@ ssize_t readlink(const char *path, char *buf, size_t bufsz) {
     if (strstr(path, "/ns/time") != NULL) value = "time:[4026531834]";
     else if (strstr(path, "/ns/pid") != NULL) value = "pid:[4026531836]";
     if (value == NULL) {
+#ifdef ALPHA_V11_FIXTURE_ONLY
+        errno = EPERM;
+        return -1;
+#else
         static ssize_t (*real_readlink)(const char *, char *, size_t) = NULL;
         if (!real_readlink) {
             void *symbol = dlsym(RTLD_NEXT, "readlink");
@@ -153,6 +167,7 @@ ssize_t readlink(const char *path, char *buf, size_t bufsz) {
             memcpy(&real_readlink, &symbol, sizeof(symbol));
         }
         return real_readlink(path, buf, bufsz);
+#endif
     }
     size_t n = strlen(value);
     if (n >= bufsz) { errno = ENAMETOOLONG; return -1; }
@@ -199,6 +214,11 @@ int open(const char *path, int flags, ...) {
         fake_boot_id_fd = fd;
         return fd;
     }
+    #ifdef ALPHA_V11_FIXTURE_ONLY
+    (void)mode;
+    errno = EPERM;
+    return -1;
+    #else
     static int (*real_open)(const char *, int, ...) = NULL;
     if (!real_open) {
         void *symbol = dlsym(RTLD_NEXT, "open");
@@ -206,4 +226,5 @@ int open(const char *path, int flags, ...) {
         memcpy(&real_open, &symbol, sizeof(symbol));
     }
     return real_open(path, flags, mode);
+    #endif
 }

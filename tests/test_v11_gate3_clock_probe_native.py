@@ -1,14 +1,8 @@
-"""Synthetic native-recorder tests: compile the probe and a fixture shim,
-then run the probe only under an LD_PRELOAD that intercepts every syscall it
-uses (clock_gettime, clock_getres, adjtimex, readlink, open for boot_id).
-
-This never samples the real host: every external read the probe performs is
-replaced by `v11_gate3_clock_probe_fixture_shim.c` with fixed, deterministic
-fixture values selected by the ALPHA_V11_CLOCK_FIXTURE environment variable.
-No scenario here runs the probe until a harmless separate process has proved
-that the same preload loads and binds all five observation symbols to this
-shim. `_run_probe` then checks the marker and fixture fields after execution
-as additional diagnostics (F6, independent review of f0ca627).
+"""Synthetic native-recorder tests. The fixture target directly links five
+fixed observation functions; it has no imports for the real observation
+wrappers. Before execution its exact bytes are checked, copied to a sealed
+memfd, and inspected there. The same sealed descriptor is executed. A path
+replacement or missing LD_PRELOAD cannot change what the target observes.
 
 No pytest dependency; a __main__ runner. Tests use `check()` (a plain
 if/raise, immune to `-O` statement stripping) rather than bare `assert`.
@@ -18,6 +12,7 @@ failing the whole suite on an environment without a C compiler.
 
 import json
 import hashlib
+import fcntl
 import os
 import shutil
 import subprocess
@@ -33,7 +28,6 @@ from tools.v11_gate3_clock_dossier import Refusal, parse_probe_record  # noqa: E
 
 PROBE_SRC = REPO_ROOT / "tools" / "v11_gate3_clock_probe.c"
 SHIM_SRC = REPO_ROOT / "tests" / "v11_gate3_clock_probe_fixture_shim.c"
-BINDINGS_SRC = REPO_ROOT / "tests" / "v11_gate3_clock_fixture_bindings.c"
 _BUILD_IDENTITIES = {}
 
 
@@ -48,50 +42,35 @@ def check(condition, message=""):
 
 
 def _require_gcc():
-    return shutil.which("gcc") is not None
+    return shutil.which("gcc") is not None and shutil.which("nm") is not None
 
 
 def _build(build_dir: Path):
-    probe_bin = build_dir / "v11_gate3_clock_probe"
-    shim_so = build_dir / "fixture_shim.so"
-    bindings_bin = build_dir / "fixture_bindings"
-    subprocess.run(["gcc", "-std=c11", "-Wall", "-Wextra", "-O2", "-o", str(probe_bin),
-                    str(PROBE_SRC)], check=True, capture_output=True)
-    subprocess.run(["gcc", "-std=gnu11", "-shared", "-fPIC", "-Wall", "-Wextra", "-O2",
-                    "-o", str(shim_so), str(SHIM_SRC), "-ldl"], check=True, capture_output=True)
-    subprocess.run(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wpedantic", "-O2",
-                    "-o", str(bindings_bin), str(BINDINGS_SRC), "-ldl"],
-                   check=True, capture_output=True)
-    _BUILD_IDENTITIES[str(probe_bin.resolve())] = (
-        _digest(probe_bin), _digest(shim_so), _digest(bindings_bin))
-    return probe_bin, shim_so
+    probe_bin = build_dir / "v11_gate3_clock_fixture_target"
+    subprocess.run(["gcc", "-std=gnu11", "-DALPHA_V11_FIXTURE_ONLY", "-Wall",
+                    "-Wextra", "-Wpedantic", "-O2", "-o", str(probe_bin),
+                    str(PROBE_SRC), str(SHIM_SRC)], check=True, capture_output=True)
+    _BUILD_IDENTITIES[str(probe_bin.resolve())] = _digest(probe_bin)
+    return probe_bin
 
 
-# Written by the shim's own LD_PRELOAD constructor on load (F6): proves the
-# shared object was actually mapped into the process, not just requested.
+# Diagnostic marker from the fixture object's constructor; the pre-execution
+# proof below is the sealed target's direct bindings, not this marker.
 _SHIM_MARKER = b"ALPHA_V11_CLOCK_FIXTURE_SHIM_LOADED"
-# Sentinel values the shim fixes for every scenario that reaches them: a real
-# host can essentially never reproduce these exactly, so checking them is a
-# second, independent proof that a given run's output is shim-sourced.
+# Fixed fixture sentinels provide an output sanity check after execution.
 _FIXTURE_NS_TIME = "time:[4026531834]"
 _FIXTURE_NS_PID = "pid:[4026531836]"
 
 
 def _require_shim_marker(stderr_bytes, context):
-    """F6 guard: refuse to trust output from a run that cannot prove the
-    fixture shim actually loaded. If LD_PRELOAD fails (wrong arch, missing
-    file, ...), glibc's loader just warns on stderr and runs the program
-    unpreloaded against the real host; nothing else in the old code detected
-    that until long after the forbidden real observation had already run."""
+    """Require the linked fixture object's diagnostic constructor marker."""
     check(_SHIM_MARKER in stderr_bytes,
           f"{context}: fixture shim load marker missing from stderr; refusing "
           "to trust this run as a safe fixture observation (F6)")
 
 
 def _require_shim_field_provenance(decoded, scenario):
-    """F6 guard, second line of defense: even with the marker present,
-    cross-check that the emitted fields are the fixed fixture sentinels, not
-    real host values (catches e.g. a stale/different shim being preloaded)."""
+    """Check fixed fixture sentinels after execution."""
     partial = decoded.get("partial") if isinstance(decoded, dict) else None
 
     def field(name):
@@ -110,33 +89,64 @@ def _require_shim_field_provenance(decoded, scenario):
               f"{scenario}: ns_pid {ns_pid!r} is not the fixture sentinel (F6)")
 
 
-def _run_probe(probe_bin, shim_so, fixture):
-    # The helper invokes no observation function. Its dlsym/dladdr results
-    # must establish every binding before the probe may execute. Keep a digest
-    # check around preflight so a changed library cannot silently be trusted.
+_OBSERVATION_NAMES = {"clock_gettime", "clock_getres", "adjtimex", "open", "readlink"}
+_FIXTURE_NAMES = {"fixture_" + name for name in _OBSERVATION_NAMES}
+_ALLOWED_UNRESOLVED = {
+    "_ITM_deregisterTMCloneTable", "_ITM_registerTMCloneTable", "__cxa_finalize",
+    "__errno_location", "__gmon_start__", "__libc_start_main", "__snprintf_chk",
+    "__stack_chk_fail", "close", "getenv", "lseek", "memfd_create", "read",
+    "strcmp", "strlen", "strstr", "write",
+}
+
+
+def _verify_fixture_target(fd):
+    """Inspect the very descriptor that will execute, before any probe call."""
+    path = f"/proc/self/fd/{fd}"
+    undefined = subprocess.run(["nm", "-u", path], pass_fds=(fd,),
+                               check=True, capture_output=True).stdout
+    defined = subprocess.run(["nm", "--defined-only", path], pass_fds=(fd,),
+                             check=True, capture_output=True).stdout
+    unresolved = {line.split()[-1].split(b"@", 1)[0].decode("ascii")
+                  for line in undefined.splitlines() if line.split()}
+    symbols = {line.split()[-1].decode("ascii")
+               for line in defined.splitlines() if line.split()}
+    check(unresolved <= _ALLOWED_UNRESOLVED and _FIXTURE_NAMES <= symbols,
+          "F6: sealed target has an unexpected import or lacks a direct fixture binding")
+
+
+def _execute_fixture(fd, fixture):
+    return subprocess.run([f"/proc/self/fd/{fd}"], pass_fds=(fd,),
+                          env={"ALPHA_V11_CLOCK_FIXTURE": fixture},
+                          capture_output=True, timeout=10)
+
+
+def _run_probe(probe_bin, fixture):
     probe_bin = Path(probe_bin).resolve(strict=True)
-    shim_so = Path(shim_so).resolve(strict=True)
-    bindings_bin = Path(probe_bin).parent / "fixture_bindings"
     expected = _BUILD_IDENTITIES.get(str(probe_bin))
-    check(expected is not None and
-          (_digest(probe_bin), _digest(shim_so), _digest(bindings_bin)) == expected,
-          "F6: compiled fixture binaries changed before preflight")
-    env = {"LD_PRELOAD": str(shim_so), "ALPHA_V11_CLOCK_FIXTURE": fixture}
-    preflight = subprocess.run([str(bindings_bin), str(shim_so)], env=env,
-                              capture_output=True, timeout=10)
-    _require_preflight(preflight, expected, probe_bin, shim_so, bindings_bin)
-    result = subprocess.run([str(probe_bin)], env=env, capture_output=True, timeout=10)
+    blob = probe_bin.read_bytes()
+    check(expected is not None and hashlib.sha256(blob).digest() == expected,
+          "F6: compiled fixture target changed before sealing")
+    fd = os.memfd_create("alpha_v11_clock_fixture", os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+    try:
+        offset = 0
+        while offset < len(blob):
+            written = os.write(fd, blob[offset:])
+            check(written > 0, "F6: zero-progress sealed target copy")
+            offset += written
+        seals = fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
+        fcntl.fcntl(fd, fcntl.F_ADD_SEALS, seals)
+        check(fcntl.fcntl(fd, fcntl.F_GET_SEALS) & seals == seals,
+              "F6: target descriptor not sealed")
+        os.lseek(fd, 0, os.SEEK_SET)
+        check(hashlib.sha256(os.read(fd, len(blob) + 1)).digest() == expected,
+              "F6: sealed target bytes changed")
+        _verify_fixture_target(fd)
+        result = _execute_fixture(fd, fixture)
+    finally:
+        os.close(fd)
     _require_shim_marker(result.stderr, fixture)
     _require_shim_field_provenance(json.loads(result.stdout), fixture)
     return result.returncode, result.stdout
-
-
-def _require_preflight(result, expected, probe_bin, shim_so, bindings_bin):
-    check(result.returncode == 0 and
-          result.stdout == b"VERIFIED_ALL_FIVE_SHIM_BINDINGS\n" and
-          _SHIM_MARKER in result.stderr and
-          (_digest(probe_bin), _digest(shim_so), _digest(bindings_bin)) == expected,
-          "F6: preload identity or observation-symbol bindings unverified")
 
 
 _EXPECTED_PARSE_OUTCOME = {
@@ -147,6 +157,10 @@ _EXPECTED_PARSE_OUTCOME = {
     "BOOT_ID_MISMATCH": ("REFUSAL", "CLOCK_CONTINUITY_LOST"),
     "OVERLONG_BOOT_ID": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
     "MONO_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
+    "MONO_RES_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
+    "RAW_RES_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
+    "BOOT_RES_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
+    "RT_RES_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
     "ADJTIMEX_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
     "RT_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
     "NS_FAIL": ("PASSTHROUGH_REFUSED", "CLOCK_SOURCE_UNAVAILABLE"),
@@ -181,85 +195,63 @@ def test_shim_field_provenance_guard_accepts_fixture_values():
         {"ns_time": _FIXTURE_NS_TIME, "ns_pid": _FIXTURE_NS_PID}, "OK")  # must not raise
 
 
-def test_preflight_rejection_prevents_probe_launch():
-    class BadBindings:
-        returncode = 3
-        stdout = b""
-        stderr = _SHIM_MARKER + b"\n"
-
-    class UnexpectedProbe:
-        returncode = 0
-        stdout = b"{}"
-        stderr = _SHIM_MARKER + b"\n"
-
+def test_failed_target_proof_prevents_launch():
+    if not _require_gcc():
+        return
     with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
-        probe = Path(root) / "probe"
-        shim = Path(root) / "fixture_shim.so"
-        bindings = Path(root) / "fixture_bindings"
-        probe.write_bytes(b"probe placeholder; no executable run")
-        shim.write_bytes(b"fixture placeholder; no executable run")
-        bindings.write_bytes(b"checker placeholder; no executable run")
-        with patch.dict(_BUILD_IDENTITIES, {str(probe):
-                       (_digest(probe), _digest(shim), _digest(bindings))}):
-          with patch("subprocess.run", side_effect=[BadBindings(), UnexpectedProbe()]) as launched:
-            try:
-                _run_probe(probe, shim, "OK")
-            except AssertionError:
-                pass
-            else:
-                check(False, "F6: failed binding preflight must reject")
-            check(launched.call_count == 1,
-                  "F6: a probe was launched after failed binding preflight")
-
-
-def test_preflight_guard_rejects_missing_binding_proof():
-    class NoProof:
-        returncode = 0
-        stdout = b""
-        stderr = _SHIM_MARKER
-
-    with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
-        probe = Path(root) / "probe"
-        shim = Path(root) / "shim.so"
-        bindings = Path(root) / "fixture_bindings"
-        probe.write_bytes(b"probe")
-        shim.write_bytes(b"fixture")
-        bindings.write_bytes(b"bindings")
-        try:
-            _require_preflight(NoProof(), (_digest(probe), _digest(shim), _digest(bindings)),
-                               probe, shim, bindings)
-        except AssertionError:
-            pass
-        else:
-            check(False, "F6: missing symbol binding proof must reject")
-
-
-def test_changed_shim_identity_prevents_any_launch():
-    with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
-        probe = Path(root) / "probe"
-        shim = Path(root) / "fixture_shim.so"
-        bindings = Path(root) / "fixture_bindings"
-        for path in (probe, shim, bindings):
-            path.write_bytes(b"original")
-        identity = (_digest(probe), _digest(shim), _digest(bindings))
-        shim.write_bytes(b"changed after build")
-        with patch.dict(_BUILD_IDENTITIES, {str(probe): identity}):
-            with patch("subprocess.run") as launched:
+        probe = _build(Path(root))
+        with patch.object(sys.modules[__name__], "_verify_fixture_target",
+                          side_effect=AssertionError("binding refused")):
+            with patch.object(sys.modules[__name__], "_execute_fixture") as launched:
                 try:
-                    _run_probe(probe, shim, "OK")
+                    _run_probe(probe, "OK")
                 except AssertionError:
                     pass
                 else:
-                    check(False, "F6: changed shim must reject before launch")
+                    check(False, "F6: missing target proof must reject")
                 check(launched.call_count == 0)
 
 
-def _run_all_scenarios(probe_bin, shim_so):
-    outputs = {}
-    for scenario in _EXPECTED_PARSE_OUTCOME:
-        code, raw = _run_probe(probe_bin, shim_so, scenario)
-        outputs[scenario] = (code, raw)
-    return outputs
+def test_changed_target_before_sealing_prevents_launch():
+    if not _require_gcc():
+        return
+    with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
+        probe = _build(Path(root))
+        probe.write_bytes(b"replaced after build")
+        with patch.object(sys.modules[__name__], "_execute_fixture") as launched:
+            try:
+                _run_probe(probe, "OK")
+            except AssertionError:
+                pass
+            else:
+                check(False, "F6: changed target must reject before launch")
+            check(launched.call_count == 0)
+
+
+def test_final_check_to_launch_path_replacement_cannot_change_target():
+    if not _require_gcc():
+        return
+    with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
+        probe = _build(Path(root))
+        original = _digest(probe)
+
+        def mutate_after_proof(fd, fixture):
+            probe.unlink()
+            probe.write_bytes(b"replaced at final boundary")
+            os.lseek(fd, 0, os.SEEK_SET)
+            check(hashlib.sha256(os.read(fd, 1_000_000)).digest() == original)
+            try:
+                os.write(fd, b"change")
+            except OSError:
+                pass
+            else:
+                check(False, "F6: sealed target remained writable")
+            return subprocess.CompletedProcess([], 0, b"{}", _SHIM_MARKER)
+
+        with patch.object(sys.modules[__name__], "_execute_fixture",
+                          side_effect=mutate_after_proof) as launched:
+            check(_run_probe(probe, "OK")[0] == 0)
+            check(launched.call_count == 1)
 
 
 def test_probe_scenarios_match_native_exit_status_and_python_verifier():
@@ -267,9 +259,9 @@ def test_probe_scenarios_match_native_exit_status_and_python_verifier():
         print("SKIP: gcc not available")
         return
     with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as build_dir:
-        probe_bin, shim_so = _build(Path(build_dir))
+        probe_bin = _build(Path(build_dir))
         for scenario, (expect_kind, expect_detail) in _EXPECTED_PARSE_OUTCOME.items():
-            exit_code, raw = _run_probe(probe_bin, shim_so, scenario)
+            exit_code, raw = _run_probe(probe_bin, scenario)
             decoded = json.loads(raw)
             check(decoded["schema"] == "ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1")
             if expect_kind == "OK":
@@ -294,6 +286,26 @@ def test_probe_scenarios_match_native_exit_status_and_python_verifier():
                 check(decoded["code"] == expect_detail)
                 parsed = parse_probe_record(raw)
                 check(parsed == {"status": "REFUSED", "code": expect_detail})
+                if scenario.endswith("_RES_FAIL"):
+                    failed_name = {"MONO_RES_FAIL": "monotonic",
+                                   "RAW_RES_FAIL": "monotonic_raw",
+                                   "BOOT_RES_FAIL": "boottime",
+                                   "RT_RES_FAIL": "realtime"}[scenario]
+                    partial = decoded["partial"]
+                    failed = partial[failed_name]
+                    check(failed["res_attempted"] == 1 and
+                          failed["res_result"] == -1 and failed["res_errno"] == 38)
+                    check(failed["res_sec"] == failed["res_nsec"] == 0)
+                    if failed_name == "realtime":
+                        check(failed["attempted"] == 0 and failed["result"] == -1)
+                    else:
+                        check(failed["before_attempted"] == 0 and
+                              failed["after_attempted"] == 0)
+                    for earlier in ("monotonic", "monotonic_raw", "boottime"):
+                        if earlier == failed_name:
+                            break
+                        check(partial[earlier]["res_attempted"] == 1 and
+                              partial[earlier]["res_result"] == 0)
                 if scenario == "RT_FAIL":
                     partial = decoded["partial"]
                     check(partial["adjtimex"]["call_result"] == 0)
@@ -303,20 +315,14 @@ def test_probe_scenarios_match_native_exit_status_and_python_verifier():
 
 
 def test_probe_output_is_deterministic_under_fixed_fixture():
-    """Two runs of the same fixture must be byte-identical.
-
-    If the probe sampled the real wall clock or boot_id instead of the
-    intercepted fixture, the realtime/boot_id fields would differ run to
-    run; identical bytes are evidence the preload fully replaced every
-    external read for this invocation.
-    """
+    """Two direct-link fixture runs must be byte-identical."""
     if not _require_gcc():
         print("SKIP: gcc not available")
         return
     with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as build_dir:
-        probe_bin, shim_so = _build(Path(build_dir))
-        _, raw1 = _run_probe(probe_bin, shim_so, "OK")
-        _, raw2 = _run_probe(probe_bin, shim_so, "OK")
+        probe_bin = _build(Path(build_dir))
+        _, raw1 = _run_probe(probe_bin, "OK")
+        _, raw2 = _run_probe(probe_bin, "OK")
         check(raw1 == raw2)
 
 
@@ -325,9 +331,9 @@ def test_probe_output_stays_within_bounded_output_cap():
         print("SKIP: gcc not available")
         return
     with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as build_dir:
-        probe_bin, shim_so = _build(Path(build_dir))
+        probe_bin = _build(Path(build_dir))
         for scenario in _EXPECTED_PARSE_OUTCOME:
-            _, raw = _run_probe(probe_bin, shim_so, scenario)
+            _, raw = _run_probe(probe_bin, scenario)
             check(len(raw) <= 16_384 + 1)  # +1 for the trailing newline
 
 

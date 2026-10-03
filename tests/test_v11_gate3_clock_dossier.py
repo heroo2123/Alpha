@@ -35,8 +35,9 @@ def check(condition, message=""):
 
 def _bracket(before_ns, after_ns):
     return {"before_ns": before_ns, "before_result": 0, "before_errno": 0,
-            "after_ns": after_ns, "after_result": 0, "after_errno": 0,
-            "res_sec": 0, "res_nsec": 1, "res_result": 0, "res_errno": 0}
+            "before_attempted": 1, "after_ns": after_ns, "after_result": 0,
+            "after_errno": 0, "after_attempted": 1, "res_sec": 0,
+            "res_nsec": 1, "res_result": 0, "res_errno": 0, "res_attempted": 1}
 
 
 def _adjtimex(call_result=0, modes=0):
@@ -59,7 +60,8 @@ def _record(**overrides):
         "monotonic_raw": _bracket(1_000_000_001_000, 1_000_000_009_000),
         "boottime": _bracket(1_000_000_002_000, 1_000_000_008_000),
         "realtime": {"value_ns": 2_000_000_000_123_456_000, "result": 0, "errno": 0,
-                     "res_sec": 0, "res_nsec": 1, "res_result": 0, "res_errno": 0},
+                     "attempted": 1, "res_sec": 0, "res_nsec": 1,
+                     "res_result": 0, "res_errno": 0, "res_attempted": 1},
         "adjtimex": _adjtimex(),
     }
     value.update(overrides)
@@ -861,6 +863,50 @@ def test_refusal_partial_schema_is_closed_and_typed():
                      "CLOCK_SOURCE_UNAVAILABLE" if "boot_id_before" in partial else "SCHEMA")
     good = dict(base, partial={"monotonic": _bracket(10, 20)})
     check(parse_probe_record(_raw(good))["status"] == "REFUSED")
+
+
+def test_refusal_partial_retains_failed_resolution_and_unattempted_reads():
+    base = {"schema": "ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1", "status": "REFUSED",
+            "code": "CLOCK_SOURCE_UNAVAILABLE", "detail_errno": 38}
+    succeeded = _bracket(10, 20)
+    failed = _bracket(10, 20)
+    for clock in (succeeded, failed):
+        clock.update(before_ns=0, before_result=-1, before_errno=0,
+                     before_attempted=0, after_ns=0, after_result=-1,
+                     after_errno=0, after_attempted=0)
+    failed.update(res_sec=0, res_nsec=0, res_result=-1, res_errno=38)
+    partial = {"monotonic": succeeded, "monotonic_raw": failed}
+    check(parse_probe_record(_raw(dict(base, partial=partial)))["status"] == "REFUSED")
+    for field, value in (("res_attempted", 0), ("res_errno", 0),
+                         ("before_attempted", 1)):
+        bad = copy.deepcopy(partial)
+        bad["monotonic_raw"][field] = value
+        _must_refuse(lambda bad=bad: parse_probe_record(_raw(dict(base, partial=bad))), "SCHEMA")
+
+
+def test_session_key_subclass_cannot_publish_ready_on_disk():
+    class SpoofKey(str):
+        def __hash__(self):
+            return hash("session_nonce")
+
+        def __eq__(self, other):
+            return other == "session_nonce"
+
+        def __ne__(self, other):
+            return not self.__eq__(other)
+
+    raw, _ = _valid_record_and_raw()
+    session = build_session(session_nonce="READY", sequence=0, event_kind="SYNTHETIC",
+                            raw_record=raw, calibration_ref=None,
+                            method_envelope_ref=None, prior_head=None, absence_reasons=[])
+    session.pop("session_nonce")
+    session[SpoofKey("status")] = "READY"
+    session["session_sha256"] = hashlib.sha256(json.dumps(
+        {key: item for key, item in session.items() if key != "session_sha256"},
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    with tempfile.TemporaryDirectory(dir=str(REPO_ROOT)) as root:
+        _must_refuse(lambda: write_session_file(root, session), "SCHEMA")
+        check(os.listdir(root) == [])
 
 
 def test_session_strings_require_exact_builtin_type():
