@@ -1,3 +1,7 @@
+## Fresh-readiness repair integrated after exact PASS — 2026-10-03 10:41 UTC
+
+Different-model Astra/high review of `35728a3` returned **PASS_IN_SCOPE**; local merge `5c24af2` passes 642/642 focused post-merge offline tests. The three reviewed readiness holds remain false, so no executable preflight, clock/resource qualification, provider access, capture, or SHADOW admission follows. Separate clock repair remains live; resource-reservation design `5faedb8` now has one live independent Opus/high exact review with no verdict. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator live Gate 3 reconciliation — 2026-10-03 10:35 UTC
 
 Fresh-readiness `35728a3` has an active independent exact review and a clean current-main merge probe, but no verdict or integration. The separate clock-recorder `5667acb` CHANGES_REQUIRED repair is active in its preserved worktree; its successor does not yet exist. No new clock, resource, provider-rights, G3-L identity, capture, or SHADOW qualification boundary crossed. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
