@@ -7668,3 +7668,6 @@ The sealed different-model review of clean `2fbb807` returned **CHANGES_REQUIRED
 ## V5 IFS second repair exact review active — 2026-10-03 18:51 UTC
 
 Clean `7cff90a` / tree `0713b1045eadc461517d15f198ce67974e0a894a` repairs the two P1 boundary findings; author-reported 388 passed/1 skipped per Python mode with zero socket audit events. Different-model Astra/high exact review is live in detached `/tmp/alpha-v11-gate3-v5-ifs-cadence-review-7cff90a`; no verdict or merge. Disk is above the 2 GiB floor. No provider request, qualification, capture or forward SHADOW: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+## FC1 repair handoff and spare-slot recycling — 2026-10-03 20:11 UTC
+
+Sealed exit-0 read-only repair map at frozen `274b8b4`; launched a separate read-only legacy V1/V4/V5/R09 refusal-regression survey in a detached worktree. The Astra/high IA1 amendment author remains live and uncommitted. No implementation repair, independent IA1 verdict, merge, provider request, G3-L PASS, forward SHADOW or score crossing is claimed. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
