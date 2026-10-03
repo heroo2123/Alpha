@@ -1,3 +1,7 @@
+## G3-L retained-evidence reconciliation active — 2026-10-03 20:20 UTC
+
+The frozen read-only inventory confirms 77 unqualified PRE_REVIEW identities and identifies only six scoped retained rows plus one terminal for offline reconciliation. A separate read-only worker is checking their exact retained bindings while IA1 remains under independent exact review. Neither lane grants evidence credit, provider authority, G3-L PASS or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 IA1 exact review active — 2026-10-03 20:18 UTC
 
 The proposed five-file amendment is frozen at `86662ab` and under independent Sol/high exact review in a separate checkout. Its terminal-before-receipt, actual-start pacing and counted EOF choices remain proposed until that review passes. The G3-L identity inventory continues read-only in parallel. Step-2 freeze and downstream FC1 acceptance remain held; no provider, G3-L or SHADOW credit. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

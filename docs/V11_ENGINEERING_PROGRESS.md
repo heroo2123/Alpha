@@ -1,3 +1,7 @@
+## G3-L inventory sealed; reconciliation lane launched — 2026-10-03 20:20 UTC
+
+The clean exit-0 read-only inventory at `0638fe3` mapped 77 missing identities without granting credit. A separate read-only Sol/medium worker now verifies retained scoped evidence bindings in detached `/tmp/alpha-v11-g3l-retained-reconciliation-20261003`; the Sol/high IA1 exact reviewer remains live in its own checkout. Two active lanes fit current reserve. No independent IA1 verdict, merge, provider request, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 IA1 candidate review dispatched — 2026-10-03 20:18 UTC
 
 Clean `86662ab` / tree `4a29d7e` finished with an exit-0 author terminal and passed whitespace checks. A different-model exact review is live in detached `/tmp/alpha-v11-gate3-v5-fc1-ia1-review-86662ab`; its retained prompt/output/final/terminal bindings are in the checkpoint. The G3-L identity inventory worker remains live separately. No independent verdict, integration, provider request, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
