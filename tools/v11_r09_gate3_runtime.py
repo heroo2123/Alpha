@@ -125,20 +125,85 @@ class Transport(abc.ABC):
 
     @abc.abstractmethod
     def dispatch(self, request: 'AttemptRequest', *, deadline_monotonic: float,
-                 remaining_seconds: float):
+                 remaining_seconds: float) -> 'ResponseStream':
         raise NotImplementedError
 
 
-class SyntheticResponseStream:
+@dataclass(frozen=True)
+class ResponseHead:
+    status: int
+    headers: tuple[tuple[str, str], ...]
+    peer_ip: str
+    tls_verified: bool
+    redirects: int
+
+
+@dataclass(frozen=True)
+class StreamSnapshot:
+    """Cumulative boundary bytes and read progress. Prefetched bytes are part
+    of delivered bytes, including bytes still buffered by the adapter. EOF is
+    affirmative evidence; an absent EOF never proves that the body ended."""
+
+    delivered_bytes: int
+    prefetched_bytes: int
+    read_bytes: int
+    read_count: int
+    known_chunk_count: int | None
+    eof_confirmed: bool
+
+
+class ResponseStream(abc.ABC):
+    """Bounded offline response boundary. An adapter must report every byte
+    delivered to it, including read-ahead, before returning from dispatch or
+    read. The response head is fixed at dispatch. A successful close must
+    prove framing, EOF and transport closure; discarding already charged
+    prefetched bytes is permitted only on an overdelivery hold.
+    A real adapter and its evidence require separate review."""
+
+    @property
+    @abc.abstractmethod
+    def head(self) -> ResponseHead:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def snapshot(self) -> StreamSnapshot:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def read(self, *, maximum_bytes: int, remaining_seconds: float) -> bytes | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def close(self, *, remaining_seconds: float,
+              discard_prefetched: bool = False) -> bool:
+        raise NotImplementedError
+
+
+class SyntheticResponseStream(ResponseStream):
     """One eager fixture boundary. Every chunk is already delivered when the
     fixture is taken; read() exposes it in order, but the complete prefetched
     byte count is available for violation accounting. Closure is explicit and
-    requires checked framing and consumption of every prefetched chunk."""
+    requires checked framing and consumption or charged discard of every
+    prefetched chunk."""
 
     def __init__(self, response):
         self.response = response
         self.index = 0
+        self._read_count = 0
         self.prefetched_bytes = sum(len(chunk) for chunk in response.chunks)
+        self._read_bytes = 0
+
+    @property
+    def head(self):
+        return ResponseHead(self.response.status, self.response.headers,
+                            self.response.peer_ip, self.response.tls_verified,
+                            self.response.redirects)
+
+    def snapshot(self):
+        return StreamSnapshot(self.prefetched_bytes, self.prefetched_bytes,
+                              self._read_bytes, self._read_count,
+                              len(self.response.chunks),
+                              self.index == len(self.response.chunks))
 
     def read(self, *, maximum_bytes, remaining_seconds):
         check(remaining_seconds > 0 and maximum_bytes > 0,
@@ -147,13 +212,76 @@ class SyntheticResponseStream:
             return None
         chunk = self.response.chunks[self.index]
         self.index += 1
+        self._read_count += 1
+        self._read_bytes += len(chunk)
         return chunk
 
-    def close(self, *, remaining_seconds):
+    def close(self, *, remaining_seconds, discard_prefetched=False):
         check(remaining_seconds > 0, 'RUNTIME_CLOSE_DEADLINE')
+        if discard_prefetched:
+            self.index = len(self.response.chunks)
         headers = _bounded_headers(self.response)
         return (self.index == len(self.response.chunks) and
                 headers.get('content-length') == str(self.prefetched_bytes))
+
+
+class _StreamAccounting:
+    """Check cumulative stream reports and track bytes durably charged here."""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.head = stream.head
+        check(type(self.head) is ResponseHead, 'RUNTIME_TRANSPORT_HEAD_REQUIRED')
+        self.charged_bytes = 0
+        self.last = None
+        self.observe()
+
+    def observe(self):
+        state = self.stream.snapshot()
+        check(type(state) is StreamSnapshot and
+              all(type(value) is int and 0 <= value <= 2 ** 63 - 1 for value in
+                  (state.delivered_bytes, state.prefetched_bytes,
+                   state.read_bytes, state.read_count)) and
+              (state.known_chunk_count is None or
+               type(state.known_chunk_count) is int and state.known_chunk_count >= 0) and
+              type(state.eof_confirmed) is bool and
+              state.read_bytes <= state.delivered_bytes and
+              state.prefetched_bytes <= state.delivered_bytes and
+              self.charged_bytes <= state.delivered_bytes,
+              'RUNTIME_STREAM_PROGRESS')
+        if self.last is not None:
+            check(state.delivered_bytes >= self.last.delivered_bytes and
+                  state.prefetched_bytes >= self.last.prefetched_bytes and
+                  state.read_bytes >= self.last.read_bytes and
+                  state.read_count >= self.last.read_count and
+                  (not self.last.eof_confirmed or state.eof_confirmed) and
+                  (self.last.known_chunk_count is None or
+                   state.known_chunk_count == self.last.known_chunk_count),
+                  'RUNTIME_STREAM_PROGRESS')
+        self.last = state
+        return state
+
+    def charge_unread(self, budget, request_id):
+        state = self.observe()
+        outstanding = state.delivered_bytes - self.charged_bytes
+        if outstanding:
+            budget.record_eager_delivery(request_id, outstanding)
+            self.charged_bytes = state.delivered_bytes
+        return state
+
+    def charge_returned_lower_bound(self, budget, request_id, before, chunk):
+        """Preserve accepted delivery when a read return or snapshot is invalid.
+
+        Previously reported prefetch may contain the return value. Extend the
+        accepted bound only for exact nonempty bytes, then charge its increase.
+        """
+        lower_bound = before.delivered_bytes
+        if type(chunk) is bytes and chunk:
+            lower_bound = max(lower_bound, before.read_bytes + len(chunk))
+        outstanding = lower_bound - self.charged_bytes
+        if outstanding > 0:
+            budget.record_eager_delivery(request_id, outstanding)
+            self.charged_bytes = lower_bound
 
 
 class SyntheticTransport(Transport):
@@ -737,7 +865,7 @@ class FrozenPlan:
 
 
 def _bounded_headers(response, *, max_header_bytes=4096):
-    check(type(response) is OfflineResponse and type(response.status) is int and
+    check(type(response) in (OfflineResponse, ResponseHead) and type(response.status) is int and
           type(response.headers) is tuple and len(response.headers) <= 32,
           'RUNTIME_HEADER_SHAPE')
     headers = {}
@@ -1393,7 +1521,7 @@ class GateRuntime:
         return {'request_id': request.request_id, 'outcome': 'REFUSED',
                 'reason': reason, 'reasons': reasons}
 
-    def _account_prefetched_on_deadline(self, request, stream, *, receipt=None,
+    def _account_prefetched_on_deadline(self, request, stream, accounting, *, receipt=None,
                                         denial_recorded=False):
         """Charge eager bytes already returned by an expired dispatch, and
         record any observable denial -- even when header or clock validation
@@ -1413,7 +1541,7 @@ class GateRuntime:
         only the *gate* is inapplicable here, since we are already on an
         error/recovery path by construction.
         """
-        response = stream.response
+        response = accounting.head
         try:
             headers = _bounded_headers(response, max_header_bytes=self.max_header_bytes)
             evidence_missing_cause = None
@@ -1460,16 +1588,11 @@ class GateRuntime:
                     reason=f'RUNTIME_DENIAL_HTTP_{response.status}',
                     shared_denial_event_hash=self.shared.prev)
         finally:
-            remaining = response.chunks[stream.index:]
-            check(all(type(chunk) is bytes and chunk for chunk in remaining),
-                  'RUNTIME_PREFETCH_SHAPE')
-            known_bytes = sum(map(len, remaining))
-            if known_bytes:
-                # One durable aggregate record bounds recovery even when an
-                # eager fixture supplies more than 32 tiny chunks.
-                self.budget.record_eager_delivery(request.request_id, known_bytes)
+            # One durable aggregate record covers every boundary byte not yet
+            # charged, including read-ahead not exposed by read().
+            accounting.charge_unread(self.budget, request.request_id)
 
-    def _postdispatch_monotonic(self, request, stream, *, receipt=None,
+    def _postdispatch_monotonic(self, request, stream, accounting, *, receipt=None,
                                 denial_recorded=False):
         """Preserve already delivered observations if the local clock fails."""
         try:
@@ -1478,7 +1601,7 @@ class GateRuntime:
                   'RUNTIME_MONOTONIC_UNUSABLE')
             return value
         except Exception:
-            self._account_prefetched_on_deadline(request, stream, receipt=receipt,
+            self._account_prefetched_on_deadline(request, stream, accounting, receipt=receipt,
                                                 denial_recorded=denial_recorded)
             raise
 
@@ -1558,18 +1681,18 @@ class GateRuntime:
         stream = self.transport.dispatch(request,
             deadline_monotonic=deadline_mono,
             remaining_seconds=deadline_mono-actual_start)
-        check(type(stream) is SyntheticResponseStream,
+        check(isinstance(stream, ResponseStream),
               'RUNTIME_TRANSPORT_STREAM_REQUIRED')
-        response = stream.response
-        # F7: the eager synthetic boundary never capped how many chunks a
-        # fixture could return; enforce the same fixed worst-case chunk
-        # count the prospective ``CapacityPlan`` preflight assumed, so that
-        # assumption is actually true rather than merely hoped.
-        if len(response.chunks) > MAX_BODY_CHUNKS_PER_REQUEST:
-            self._account_prefetched_on_deadline(request, stream)
+        accounting = _StreamAccounting(stream)
+        response = accounting.head
+        # An eager adapter declares its entire buffered chunk count at
+        # dispatch. Streaming adapters are capped as reads occur below.
+        if (accounting.last.known_chunk_count is not None and
+                accounting.last.known_chunk_count > MAX_BODY_CHUNKS_PER_REQUEST):
+            self._account_prefetched_on_deadline(request, stream, accounting)
             raise LaunchContractError('RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY')
-        if self._postdispatch_monotonic(request, stream) >= deadline_mono:
-            self._account_prefetched_on_deadline(request, stream)
+        if self._postdispatch_monotonic(request, stream, accounting) >= deadline_mono:
+            self._account_prefetched_on_deadline(request, stream, accounting)
             raise LaunchContractError('RUNTIME_DISPATCH_DEADLINE')
         try:
             headers = _bounded_headers(response, max_header_bytes=self.max_header_bytes)
@@ -1578,7 +1701,7 @@ class GateRuntime:
             # denial/already-delivered-bytes observations -- account them
             # (with an explicit missing-evidence cause, since the headers
             # cannot be trusted) before re-raising the original failure.
-            self._account_prefetched_on_deadline(request, stream)
+            self._account_prefetched_on_deadline(request, stream, accounting)
             raise
         try:
             header_receipt = self.clock.evidence('body_receipt')
@@ -1588,20 +1711,20 @@ class GateRuntime:
             # bytes/restriction for any ordinary exception -- the same
             # boundary ``_postdispatch_monotonic`` uses -- not only the
             # previously enumerated LaunchContractError/OSError/RuntimeError.
-            self._account_prefetched_on_deadline(request, stream)
+            self._account_prefetched_on_deadline(request, stream, accounting)
             raise
         try:
             self._enforce_window(header_receipt, body=True)
         except LaunchContractError:
             # F2: any clock-validity/window failure here -- not only the
             # acquisition-end case -- must still account known bytes/denial.
-            self._account_prefetched_on_deadline(request, stream,
+            self._account_prefetched_on_deadline(request, stream, accounting,
                                                 receipt=header_receipt)
             raise
         if (header_receipt.reading.monotonic_seconds > deadline_mono or
-                self._postdispatch_monotonic(request, stream,
+                self._postdispatch_monotonic(request, stream, accounting,
                     receipt=header_receipt) >= deadline_mono):
-            self._account_prefetched_on_deadline(request, stream,
+            self._account_prefetched_on_deadline(request, stream, accounting,
                                                 receipt=header_receipt)
             raise LaunchContractError('RUNTIME_HEADER_DEADLINE')
 
@@ -1620,70 +1743,135 @@ class GateRuntime:
                 self.session.denial(request.request_id, reason=denial_record['reason'],
                                      shared_denial_event_hash=self.shared.prev)
             except (LaunchContractError, OSError, ValueError):
-                self._account_prefetched_on_deadline(request, stream,
+                self._account_prefetched_on_deadline(request, stream, accounting,
                     receipt=header_receipt)
                 raise
             retry_raw = headers.get('retry-after')
             if (retry_raw is not None and retry_raw.isascii() and
                     retry_raw.isdecimal() and
                     denial_record['retry_after_seconds'] is None):
-                self._account_prefetched_on_deadline(request, stream,
+                self._account_prefetched_on_deadline(request, stream, accounting,
                     receipt=header_receipt, denial_recorded=True)
                 raise LaunchContractError('RUNTIME_RETRY_AFTER_UNREPRESENTABLE')
 
-        delivered = 0
         overdelivered = False
-        chunk = b''
-        try:
-            while stream.index < len(response.chunks):
-                allowance = self.budget.next_read_limit(65536)
-                if allowance == 0:
-                    # The eager synthetic boundary has already delivered the
-                    # remaining tuple. Charge it as one violation; do not
-                    # make another transport read merely to discover EOF.
-                    chunk = response.chunks[stream.index]
-                    stream.index = len(response.chunks)
-                    self.budget.consume(request.request_id, chunk,
-                        overdelivery_total_bytes=stream.prefetched_bytes-delivered,
-                        permitted_bytes=0)
-                    raise LaunchContractError('RUNTIME_NO_READ_ALLOWANCE')
-                remaining = deadline_mono-self._postdispatch_monotonic(
-                    request, stream, receipt=header_receipt,
-                    denial_recorded=denial_record is not None)
-                if remaining <= 0:
-                    self._account_prefetched_on_deadline(request, stream,
-                        receipt=header_receipt, denial_recorded=denial_record is not None)
-                    raise LaunchContractError('RUNTIME_BODY_DEADLINE')
+        body_chunks = []
+        while not accounting.observe().eof_confirmed:
+            allowance = self.budget.next_read_limit(65536)
+            if allowance == 0:
+                # The adapter may already hold bytes even though no further
+                # read is permitted. Charge them; absent EOF remains a hold.
+                state = accounting.charge_unread(self.budget, request.request_id)
+                if state.delivered_bytes == accounting.charged_bytes and self.budget.violated:
+                    overdelivered = True
+                    break
+                raise LaunchContractError('RUNTIME_EOF_UNPROVEN')
+            remaining = deadline_mono-self._postdispatch_monotonic(
+                request, stream, accounting, receipt=header_receipt,
+                denial_recorded=denial_record is not None)
+            if remaining <= 0:
+                self._account_prefetched_on_deadline(request, stream, accounting,
+                    receipt=header_receipt, denial_recorded=denial_record is not None)
+                raise LaunchContractError('RUNTIME_BODY_DEADLINE')
+            before = accounting.last
+            try:
                 chunk = stream.read(maximum_bytes=allowance,
                                     remaining_seconds=remaining)
-                self.budget.consume(request.request_id, chunk,
-                    overdelivery_total_bytes=stream.prefetched_bytes-delivered,
-                    permitted_bytes=allowance)
-                delivered += len(chunk)
-        except LaunchContractError as exc:
-            if str(exc) != 'STREAM_ABORT_AT_ALLOWANCE':
+            except Exception:
+                self._account_prefetched_on_deadline(request, stream, accounting,
+                    receipt=header_receipt, denial_recorded=denial_record is not None)
                 raise
-            overdelivered = True
-            delivered = stream.prefetched_bytes
-            stream.index = len(response.chunks)
+            try:
+                state = accounting.observe()
+            except Exception:
+                # The read has already returned bytes. A missing or invalid
+                # snapshot cannot erase that independent lower bound.
+                accounting.charge_returned_lower_bound(
+                    self.budget, request.request_id, before, chunk)
+                raise
+            if chunk is None:
+                if not (state.eof_confirmed and
+                        state.read_bytes == before.read_bytes and
+                        state.read_count == before.read_count):
+                    self._account_prefetched_on_deadline(request, stream, accounting,
+                        receipt=header_receipt, denial_recorded=denial_record is not None)
+                    raise LaunchContractError('RUNTIME_EOF_UNPROVEN')
+                break
+            if not (type(chunk) is bytes and chunk and
+                    state.read_bytes == before.read_bytes + len(chunk) and
+                    state.read_count == before.read_count + 1 and
+                    state.delivered_bytes - accounting.charged_bytes >= len(chunk)):
+                # This snapshot is structurally valid but contradicts the
+                # returned body. Do not charge its cumulative counters.
+                accounting.charge_returned_lower_bound(
+                    self.budget, request.request_id, before, chunk)
+                raise LaunchContractError('RUNTIME_STREAM_PROGRESS')
+            if (state.read_count > MAX_BODY_CHUNKS_PER_REQUEST or
+                    state.known_chunk_count is not None and
+                    state.known_chunk_count > MAX_BODY_CHUNKS_PER_REQUEST):
+                self._account_prefetched_on_deadline(request, stream, accounting,
+                    receipt=header_receipt, denial_recorded=denial_record is not None)
+                raise LaunchContractError('RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY')
+            if state.delivered_bytes - accounting.charged_bytes > MAX_BYTES:
+                # consume's bounded chunk interface cannot represent this
+                # valid cumulative stream counter. Journal the full observed
+                # boundary through the aggregate accounting interface.
+                accounting.charge_unread(self.budget, request.request_id)
+                overdelivered = True
+                break
+            try:
+                self.budget.consume(request.request_id, chunk,
+                    overdelivery_total_bytes=state.delivered_bytes-accounting.charged_bytes,
+                    permitted_bytes=allowance)
+            except LaunchContractError as exc:
+                if str(exc) != 'STREAM_ABORT_AT_ALLOWANCE':
+                    raise
+                accounting.charged_bytes = state.delivered_bytes
+                overdelivered = True
+                break
+            accounting.charged_bytes += len(chunk)
+            body_chunks.append(chunk)
 
-        check(self._postdispatch_monotonic(request, stream,
+        state = accounting.observe()
+        if not overdelivered:
+            if not (state.eof_confirmed and
+                    state.read_bytes == state.delivered_bytes and
+                    accounting.charged_bytes == state.delivered_bytes):
+                self._account_prefetched_on_deadline(request, stream, accounting,
+                    receipt=header_receipt, denial_recorded=denial_record is not None)
+                raise LaunchContractError('RUNTIME_EOF_UNPROVEN')
+        check(self._postdispatch_monotonic(request, stream, accounting,
             receipt=header_receipt, denial_recorded=denial_record is not None) <
             deadline_mono, 'RUNTIME_BODY_DEADLINE')
-        known_closed = stream.close(remaining_seconds=deadline_mono-
-            self._postdispatch_monotonic(request, stream,
-                receipt=header_receipt, denial_recorded=denial_record is not None))
+        try:
+            known_closed = stream.close(remaining_seconds=deadline_mono-
+                self._postdispatch_monotonic(request, stream, accounting,
+                    receipt=header_receipt, denial_recorded=denial_record is not None),
+                discard_prefetched=overdelivered)
+        except Exception:
+            self._account_prefetched_on_deadline(request, stream, accounting,
+                receipt=header_receipt, denial_recorded=denial_record is not None)
+            raise
+        state = accounting.observe()
+        if state.delivered_bytes != accounting.charged_bytes:
+            self._account_prefetched_on_deadline(request, stream, accounting,
+                receipt=header_receipt, denial_recorded=denial_record is not None)
+            raise LaunchContractError('RUNTIME_UNACCOUNTED_CLOSURE_BYTES')
         closure = self.clock.evidence('body_receipt')
         self._enforce_window(closure, body=True)
         check(closure.reading.monotonic_seconds <= deadline_mono,
               'RUNTIME_CLOSE_DEADLINE')
-        check(known_closed, 'RUNTIME_CLOSURE_UNPROVEN')
+        check(known_closed is True and state.eof_confirmed and
+              headers.get('content-length') == str(state.delivered_bytes),
+              'RUNTIME_CLOSURE_UNPROVEN')
+        delivered = state.delivered_bytes
         closure_evidence_raw = canonical({
-            'adapter': 'SyntheticResponseStream', 'known_closed': True,
+            'adapter': type(stream).__name__, 'known_closed': True,
             'status': response.status, 'headers': list(response.headers),
-            'prefetched_bytes': stream.prefetched_bytes,
-            'delivered_bytes': delivered, 'chunks_consumed': stream.index,
-            'chunk_count': len(response.chunks),
+            'prefetched_bytes': state.prefetched_bytes,
+            'delivered_bytes': delivered, 'read_bytes': state.read_bytes,
+            'chunks_consumed': state.read_count,
+            'chunk_count': state.known_chunk_count,
             'deadline_monotonic': deadline_mono,
             'closure_clock_sha256': closure.reading.evidence_sha256})
         check(len(closure_evidence_raw) <= 8192, 'RUNTIME_CLOSURE_EVIDENCE_BOUND')
@@ -1692,7 +1880,10 @@ class GateRuntime:
         verify_error = None
         if denial_record is None and not overdelivered:
             try:
-                verified_body = verify_response(_request_dict(request), response,
+                verified_response = OfflineResponse(response.status, response.headers,
+                    tuple(body_chunks), response.peer_ip, response.tls_verified,
+                    response.redirects)
+                verified_body = verify_response(_request_dict(request), verified_response,
                     allowed_peer_ips=self.allowed_peer_ips, expected_etag=request.expected_etag,
                     expected_object_bytes=request.expected_object_bytes)
             except LaunchContractError as exc:
@@ -1727,7 +1918,7 @@ class GateRuntime:
             self.session.terminal(request.request_id, outcome='FAILED', reason=reason,
                 report_reserved_bytes=self.session.report_reserve_bytes)
             self._capture(request, clocks=(dispatch, header_receipt, closure),
-                          raw=b''.join(response.chunks),
+                          raw=b''.join(body_chunks),
                           dependencies=resolved_dependencies)
             return {'request_id': request.request_id, 'outcome': 'FAILED', 'reason': reason}
 
