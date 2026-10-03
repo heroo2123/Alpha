@@ -1,0 +1,290 @@
+{
+  "schema": "ALPHA_SOURCE_ONLY_DESIGN_BINDING_V1",
+  "baseline_commit": "9c5783cb1f84c3538f1dd4d97263f920b7438632",
+  "baseline_tree": "504a35ae69dfbf31771fa1b98b1f1b732dbfbb34",
+  "design_sha256": "20c5d72dd4ac9f235b8964998ff608420333349f44e428cd29e12901e7583525",
+  "design_byte_length": 17526,
+  "sources": [
+    {
+      "path": "tools/v11_r09_gate3_launch_v4.py",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+      "byte_length": 47602,
+      "anchors": [
+        {
+          "needle": "PURPOSES =",
+          "lines": [
+            48
+          ]
+        },
+        {
+          "needle": "def _check_mapping_spec",
+          "lines": [
+            188
+          ]
+        },
+        {
+          "needle": "def validate_manifest_v4",
+          "lines": [
+            206
+          ]
+        },
+        {
+          "needle": "SOURCE_MAPPING_UNSUPPORTED",
+          "lines": [
+            194,
+            437
+          ]
+        },
+        {
+          "needle": "ENDPOINT_TABLE_COVERAGE",
+          "lines": [
+            560
+          ]
+        },
+        {
+          "needle": "OVERHEAD_REQUEST_SHAPE",
+          "lines": [
+            694
+          ]
+        },
+        {
+          "needle": "FIELD_PREREQUISITES",
+          "lines": [
+            680
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tools/v11_r09_gate3_runtime.py",
+      "sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+      "byte_length": 120122,
+      "anchors": [
+        {
+          "needle": "class AttemptRequest",
+          "lines": [
+            366
+          ]
+        },
+        {
+          "needle": "class FrozenPlan",
+          "lines": [
+            467
+          ]
+        },
+        {
+          "needle": "def verify_validated_projection",
+          "lines": [
+            589
+          ]
+        },
+        {
+          "needle": "RUNTIME_REQUEST_ETAG",
+          "lines": [
+            425
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tools/v11_r09_gate3_g3l_prep.py",
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481",
+      "byte_length": 31205,
+      "anchors": [
+        {
+          "needle": "RUN_SPECIFIC =",
+          "lines": [
+            106
+          ]
+        },
+        {
+          "needle": "PRE_REVIEW_IDS =",
+          "lines": [
+            120
+          ]
+        }
+      ]
+    },
+    {
+      "path": "polymarket_scanner/v11/gefs_sources.py",
+      "sha256": "7d02d473d17647ece47f79a7ceb29b80e1a031c1cabef6d8eb3640f156e30df5",
+      "byte_length": 16506,
+      "anchors": [
+        {
+          "needle": "ENDPOINT =",
+          "lines": [
+            26
+          ]
+        },
+        {
+          "needle": "def validate_params",
+          "lines": [
+            89
+          ]
+        },
+        {
+          "needle": "def field_request",
+          "lines": [
+            106
+          ]
+        }
+      ]
+    },
+    {
+      "path": "polymarket_scanner/v11/ecmwf_sources.py",
+      "sha256": "d02a298ff96ecaf98de7c3b514047d0b7c457237122217841bdbb9949bc1a523",
+      "byte_length": 13179,
+      "anchors": [
+        {
+          "needle": "class ECMWFRequest",
+          "lines": [
+            26
+          ]
+        },
+        {
+          "needle": "def selectors",
+          "lines": [
+            52
+          ]
+        },
+        {
+          "needle": "def url",
+          "lines": [
+            68
+          ]
+        },
+        {
+          "needle": "def plan_ranges",
+          "lines": [
+            116
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+      "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+      "byte_length": 28627,
+      "anchors": [
+        {
+          "needle": "## 2. Origins",
+          "lines": [
+            58
+          ]
+        },
+        {
+          "needle": "| OBJECT_ID |",
+          "lines": [
+            100
+          ]
+        },
+        {
+          "needle": "| METADATA |",
+          "lines": [
+            101
+          ]
+        },
+        {
+          "needle": "| PROBE |",
+          "lines": [
+            102
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+      "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+      "byte_length": 5115,
+      "anchors": [
+        {
+          "needle": "# Exact-commit",
+          "lines": [
+            1
+          ]
+        },
+        {
+          "needle": "no `PROVIDER_REVIEW_REQUIRED` manifest can pass",
+          "lines": [
+            23
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md",
+      "sha256": "ae59812fa58ec41895b87408f0ea175988ae6d20a1f4d5dabcd96a01c2dd3a68",
+      "byte_length": 20274,
+      "anchors": [
+        {
+          "needle": "NOT EXECUTABLE",
+          "lines": [
+            3
+          ]
+        },
+        {
+          "needle": "INDEX_DISCOVERY_ONLY",
+          "lines": [
+            32
+          ]
+        },
+        {
+          "needle": "unqualified proposal",
+          "lines": [
+            36
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/V11_R09_GATE3_BOOTSTRAP_ADJUDICATION_20261002.md",
+      "sha256": "4c28e16704ab62093483033229036f5df8194c0790ed35ac9f61bf5dc2619c02",
+      "byte_length": 11880,
+      "anchors": [
+        {
+          "needle": "## 1. Finding",
+          "lines": [
+            11
+          ]
+        },
+        {
+          "needle": "## 2. Sequence",
+          "lines": [
+            43
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.md",
+      "sha256": "ad3449e5df97b6c2a4db89a63e9731345cfff59f6cb5fcf716e4fcec6ac7b964",
+      "byte_length": 5408,
+      "anchors": [
+        {
+          "needle": "#",
+          "lines": [
+            1,
+            7,
+            13,
+            22
+          ]
+        },
+        {
+          "needle": "503s",
+          "lines": [
+            20
+          ]
+        },
+        {
+          "needle": "PASS_IN_SCOPE",
+          "lines": [
+            3,
+            26
+          ]
+        }
+      ]
+    }
+  ],
+  "authority": false,
+  "independent_review": "PENDING"
+}
