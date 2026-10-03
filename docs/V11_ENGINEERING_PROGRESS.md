@@ -1,3 +1,7 @@
+## Validated-plan export design worker active — 2026-10-03 04:59 UTC
+
+One distinct isolated Astra/high public-source design worker is live at `/tmp/alpha-v11-gate3-validated-plan-export-design-20261003` from `b2129df`; runner/model `2716812`/`2716820`, prompt/runner hashes in the checkpoint. It must define or refuse an immutable validated-plan export handoff, without code or private/provider/runtime actions. Candidate, terminal and different-model review remain pending. The six existing candidates remain unmerged; no G3-L, SHADOW or acceptance crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator frozen-event design intake — 2026-10-03 04:55 UTC
 
 Intook clean isolated public-source design `3d414b3`, staged its matching detached exact checkout, and retained hashes of prompt, runner, log, final and design. The runner terminal is missing despite an exited process; no exit code is inferred. The design requires an independently pinned validated-plan export before any production event coverage claim. Different-model exact review remains pending candidate-specific private transfer authorization; the five prior Gate 3 candidates remain held. No integration, provider request, resource qualification, G3-L PASS, forward SHADOW, or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
