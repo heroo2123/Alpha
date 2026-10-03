@@ -4401,3 +4401,5 @@ At 2026-10-03 05:36 UTC, the current-main read-only 2026-10-04 G3-L proposal scr
 ## Repair verification without acceptance — 2026-10-03 05:46 UTC
 
 Exact `976217d` and `741c6ae` candidate worktrees passed 91/91 and 21/21 focused host-side tests respectively. Both remain unmerged pending their own authorized different-model exact review. This adds no G3-L identities, provider rights, real qualification, capture, or C/J/E/A credit: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+Current 2026-10-03 05:50 UTC audit: eight clean Gate 3 candidates remain exact-review-held and unmerged; the prior authorization for `947bf68` and `c9e3b8d` does not cover their repaired commits. No G3-L identity, provider right, real capture, SHADOW admission, or C/J/E/A boundary changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
