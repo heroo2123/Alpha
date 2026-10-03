@@ -1,3 +1,7 @@
+## V5 IFS exact review intake and repair launch — 2026-10-03 19:05 UTC
+
+The independent Astra/high exact review of `7cff90a` sealed exit 0 with **CHANGES_REQUIRED**: a spoofed V5 request reaches `CandidateRunner` effects through `ObservationBatch` before late refusal. Its four offline reproductions show synthetic ticks/store and, under backward clock, `RESERVED → CANCEL_REQUESTED`; no real provider/account/order action occurred. A single Sol/high repair now runs in the original clean isolated author worktree with retained prompt, runner and terminal bindings in the checkpoint. Candidate remains unmerged; require successor tests, different-model exact PASS, reconciliation and post-merge verification. Disk remains above the 2 GiB floor. No provider request, eligible capture, forward SHADOW or score crossing. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 IFS review and merge preflight — 2026-10-03 18:58 UTC
 
 The independent exact reviewer of clean `7cff90a` is live; no terminal verdict exists. Read-only merge-tree and whitespace checks pass against clean local main `cf0caad`. Integration remains conditional on exact PASS and focused post-merge tests. No provider request, eligible capture, forward SHADOW or score crossing. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

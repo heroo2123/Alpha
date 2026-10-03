@@ -1,3 +1,7 @@
+## V5 IFS outer admission repair — 2026-10-03 19:05 UTC
+
+Exact `7cff90a` review sealed **CHANGES_REQUIRED** for one P1 `CandidateRunner` admission gap with reproduced synthetic runtime/paper effects before V5 refusal. Prior direct ECMWF and pump findings are closed. One isolated Sol/high repair worker is live in the preserved author worktree; require clean successor, different-model exact PASS, reconciliation and post-merge tests before integration. No provider request, G3-L identity credit, qualified capture or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 IFS exact-review continuity — 2026-10-03 18:58 UTC
 
 Clean repair `7cff90a` remains under live different-model exact review. Current-main merge preflight is conflict-free, but there is no verdict or integration. The V5 evidence contract remains proposed and blocked; G3-L retains 77 missing identities and zero qualification credit. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
