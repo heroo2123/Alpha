@@ -1,3 +1,7 @@
+## Validated-plan export design intake — 2026-10-03 05:08 UTC
+
+The original worker completed with exit-0 terminal and clean public-source design commit `988f544`; its one-file patch passes whitespace check. Staged matching detached exact checkout and retained design, prompt, runner, log, final and terminal hashes in [pending exact reviews](V11_GATE3_PENDING_EXACT_REVIEWS_20261003.md). No independent exact review, integration, code, private evidence or production authority is claimed. The six earlier candidates remain held; no provider request, G3-L PASS, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Validated-plan export design worker active — 2026-10-03 04:59 UTC
 
 One distinct isolated Astra/high public-source design worker is live at `/tmp/alpha-v11-gate3-validated-plan-export-design-20261003` from `b2129df`; runner/model `2716812`/`2716820`, prompt/runner hashes in the checkpoint. It must define or refuse an immutable validated-plan export handoff, without code or private/provider/runtime actions. Candidate, terminal and different-model review remain pending. The six existing candidates remain unmerged; no G3-L, SHADOW or acceptance crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
