@@ -2,6 +2,7 @@
 
 import copy
 import socket
+import tracemalloc
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -171,6 +172,32 @@ def test_omitted_event_remains_explicitly_unbound():
         check.assertEqual(result['g3l'], 'NO_GO')
 
 
+def test_oversized_mapping_refuses_before_copying_keys():
+    manifest, plan = fixture()
+    plan.update({f'extra{i}': None for i in range(4096)})
+    tracemalloc.start()
+    try:
+        with unittest.TestCase().assertRaises(ValueError):
+            calculate_offline_resource_budget(manifest, plan)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    # Reject from the length check before creating a set of attacker keys.
+    unittest.TestCase().assertLess(peak, 64 * 1024)
+
+    manifest, plan = fixture()
+    manifest['runtime']['purpose_plan'].update(
+        {f'extra{i}': None for i in range(4096)})
+    tracemalloc.start()
+    try:
+        with unittest.TestCase().assertRaises(ValueError):
+            calculate_offline_resource_budget(manifest, plan)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    unittest.TestCase().assertLess(peak, 64 * 1024)
+
+
 class OfflineResourceBudgetTests(unittest.TestCase):
     def test_parity(self):
         test_arithmetic_parity_and_separate_unknown_budgets()
@@ -186,3 +213,6 @@ class OfflineResourceBudgetTests(unittest.TestCase):
 
     def test_event_binding(self):
         test_omitted_event_remains_explicitly_unbound()
+
+    def test_oversized_mapping(self):
+        test_oversized_mapping_refuses_before_copying_keys()

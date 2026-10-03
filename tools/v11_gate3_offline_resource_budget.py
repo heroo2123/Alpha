@@ -29,7 +29,7 @@ def _number(value, low=0, high=MAX_INT):
 
 
 def _mapping(value, keys):
-    if type(value) is not dict or set(value) != set(keys):
+    if type(value) is not dict or len(value) != len(keys) or set(value) != set(keys):
         raise ValueError('unexpected proposal shape')
     return value
 
@@ -69,7 +69,8 @@ def _calculate(manifest, frozen_plan):
             type(requests) is not list or
             not 0 < len(requests) == len(source_requests) <= MAX_REQUESTS or
             type(events) is not list or len(events) > MAX_EVENTS or
-            type(purpose_plan) is not dict or set(purpose_plan) != set(PURPOSES)):
+            type(purpose_plan) is not dict or len(purpose_plan) != len(PURPOSES) or
+            set(purpose_plan) != set(PURPOSES)):
         raise ValueError('unbounded or mismatched V4 projection')
 
     maximum_requests = _number(limits['max_requests'], 1, MAX_REQUESTS)
