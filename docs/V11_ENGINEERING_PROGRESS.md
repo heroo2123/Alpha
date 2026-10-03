@@ -7326,3 +7326,6 @@ Found and stopped active Claude exact-review processes for private descendants `
 ## Coordinator current child packet preparation — 2026-10-03 09:41 UTC
 
 Stopped two resumed Claude exact-review processes for unapproved private descendants `297ad8f` and `2afef9b`; preserved their prompts, startup-only logs and clean exact checkouts. Rebound the offline exact-review manifest to both clean children and verified all eight current candidate packets with the local integrity checker. This is preparation only; candidate-specific transfer authorization and independent exact PASS remain absent, so both candidates stay unmerged. No provider request, forward capture, SHADOW admission or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator scratch cleanup — 2026-10-03 09:47 UTC
+
+Verified no live process or Git worktree used two recent pytest scratch trees, removed them, and recovered about 316 MiB disk headroom to 4.1 GiB free. The protected master hash still matches. Main and current weather repair children remain clean; neither child has candidate-specific authorized independent exact PASS. No merge, provider request, capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
