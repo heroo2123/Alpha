@@ -1,3 +1,7 @@
+## Current repair merge compatibility — 2026-10-03 06:36 UTC
+
+Current-main `1378187` non-destructive merge probes show held fresh-readiness `976217d` textually compatible and held G3-L child `02dc668` conflicting only in three chronological status documents. Preserve newer entries at any later integration. This is no independent review, provider authorization, identity evidence, or score change: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Exact G3-L child review identity — 2026-10-03 06:27 UTC
 
 The local exact-review manifest now binds current child `02dc668` and its seven-file cumulative diff from `c9e3b8d`; all eight candidate checkouts and 25 blob hashes verify, and the child passes 22 focused offline tests. This grants no independent PASS, identity credit, provider authority or acceptance crossing. The 77 missing identities and G3-L NO-GO remain: **91/200, formal 1/50; NOT_READY_TO_FUND**.

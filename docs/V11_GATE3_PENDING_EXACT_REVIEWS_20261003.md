@@ -8,6 +8,10 @@ Against clean main `d9d121c91dd7d938c0a0584049b3ee2028bf0005`, independently rec
 
 # Gate 3 pending exact reviews — 2026-10-03 03:38 UTC
 
+## Current-main repair reconciliation — 2026-10-03 06:36 UTC
+
+Against clean main `1378187`, non-destructive `git merge-tree --write-tree` returned exit 0 and tree `a9f2b7dc866321fbf43c15930109574889c61045` for current fresh-readiness repair `976217d`. The same probe for current G3-L child `02dc668` returned exit 1 and conflict tree `23ba176b0df852acac78072e5db67de0b019567d`; the only conflicts are the three chronological status documents `V11_WORK_CHECKPOINT.md`, `V11_REQUIREMENTS_MATRIX.md`, and `V11_ENGINEERING_PROGRESS.md`. The seven-file cumulative G3-L repair scope from `c9e3b8d` remains otherwise textually compatible with this main. These are merge preparation facts, not independent review, transfer authorization, integration, or G3-L qualification. Preserve newer main chronology when reconciling after an authorized exact PASS.
+
 ## Current-main non-destructive reconciliation — 2026-10-03 05:42 UTC
 
 Against clean main `f9e38effd3f36bd0d786400d324eaa30f4b4c021`, `git merge-tree --write-tree HEAD <candidate>` succeeded for seven of the eight current candidates: `976217d`, `5667acb`, `5faedb8`, `9d80dd9`, `3d414b3`, `988f544`, and `1dad476`. Candidate `741c6ae` still conflicts in only the three chronological status documents: `V11_WORK_CHECKPOINT.md`, `V11_REQUIREMENTS_MATRIX.md`, and `V11_ENGINEERING_PROGRESS.md`. Preserve all newer history when reconciling it after an authorized independent exact PASS. These probes neither review nor merge a candidate; all eight remain held, and the production V4 mapping and 77 missing G3-L identities are unchanged.

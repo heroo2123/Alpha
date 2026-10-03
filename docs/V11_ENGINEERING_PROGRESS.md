@@ -1,3 +1,7 @@
+## Current repair reconciliation staged — 2026-10-03 06:36 UTC
+
+Probed current clean main `1378187` without integrating held repairs: `976217d` yields clean merge tree `a9f2b7d`; `02dc668` yields conflict tree `23ba176` solely in checkpoint/matrix/progress chronology. Recorded exact results in the pending-review handoff. Both remain unreviewed child candidates without candidate-specific transfer authorization or different-model PASS. No provider request, capture, G3-L PASS, forward SHADOW, or C/J/E/A crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Exact G3-L child manifest updated — 2026-10-03 06:27 UTC
 
 Replaced superseded `741c6ae` in the local review manifest with clean child `02dc668`, preserving direct-parent and cumulative-review-base identities. Verified eight exact checkouts and 25 file hashes; the child passes 22/22 focused offline tests. Candidate-specific review authorization and different-model PASS remain absent, so no integration, provider request, capture, SHADOW or score crossing followed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
