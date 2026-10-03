@@ -7046,3 +7046,7 @@ The original isolated Astra/high clock-method worker is still active with no can
 ## Clock-method exact design review active — 2026-10-03 02:29 UTC
 
 The public-only Astra/high design handoff committed cleanly as `9fbaf8c` after its offline checks. The author final marker exists, but its original runner terminal did not appear; the recovery record explicitly marks process exit unknown. One different-model Sol/high exact-commit reviewer is live in a clean detached checkout, with original review terminal and verdict pending. No design integration or clock qualification is claimed, and the two earlier weather repairs remain review-held. No provider request, G3-L PASS, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Clock-method design F1 repair under exact review — 2026-10-03 02:39 UTC
+
+Recovered the completed `9fbaf8c` review as **CHANGES_REQUIRED**, corrected the frozen collection pre-acquisition metadata-receipt ordering in isolated public design commit `9759ecf`, and launched one independent Astra/high exact review. No design integration, real clock evidence, provider request, G3-L PASS, capture or forward SHADOW. Existing held weather repairs remain separate. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
