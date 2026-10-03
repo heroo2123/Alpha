@@ -1,3 +1,7 @@
+## Real-caller candidate entered independent exact review — 2026-10-03 21:52 UTC
+
+The clean offline real-caller candidate `48194a8` sealed with author-reported 170 focused tests per Python mode and passed whitespace checks. A different-model Astra/high reviewer is live against its frozen exact bytes. Separate transport-stream and FC1 clock-order repair workers remain live; three lanes occupy the current memory reserve. No review verdict, integration, provider request, G3-L PASS, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## FC1 P2 repair recycled from exact review — 2026-10-03 21:50 UTC
 
 Astra/high exact `6ddcd9d` review sealed **CHANGES_REQUIRED** for a reproduced cross-request same-boot clock-order regression; the previous four P2 defects are closed. Retained review/terminal hashes and full counterexample are bound in the checkpoint. Inactive re-creatable test scratch was removed after handle checks to recover disk above 3 GiB. One Sol/high successor repair now runs in the original isolated FC1 author worktree while two separate G3-L real-caller and transport-stream writers continue. Require clean tested candidate, independent exact re-review, reconciliation and post-merge tests. No provider request, G3-L PASS, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
