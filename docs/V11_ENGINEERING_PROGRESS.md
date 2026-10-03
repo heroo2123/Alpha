@@ -7538,3 +7538,7 @@ Current-main read-only October 4 identity screen retained at `/tmp/alpha-v11-g3l
 ## Parallel offline weather repair reviews — 2026-10-03 15:55 UTC
 
 Clean successors `67fa86a` (export input closure) and `3e3ddbf` (resource inode aliases) are under independent Astra/high and Sol/high exact review, respectively. Both author worktrees and retained evidence remain preserved. No verdict, merge, real-host qualification, provider request, eligible capture, forward SHADOW or acceptance crossing is claimed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator offline resource repair integrated — 2026-10-03 15:59 UTC
+
+The `3e3ddbf` resource inode-alias successor received independent **PASS_IN_SCOPE** and merged locally as `2664336`, preserving its reviewed three-file slice. Post-merge focused tests passed 35/35 in both Python modes. This advances only offline refusal semantics; no real custody, provider request, G3-L PASS, eligible capture, forward SHADOW or acceptance crossing occurred. Export successor `67fa86a` remains under independent exact review. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

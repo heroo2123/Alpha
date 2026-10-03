@@ -4805,3 +4805,7 @@ Read-only 2026-10-04 G3-L audit on clean `70f459f` is retained at `/tmp/alpha-v1
 ## Coordinator exact-review queue — 2026-10-03 15:55 UTC
 
 Offline export successor `67fa86a` and resource successor `3e3ddbf` are clean, unmerged, and under separate different-model exact reviews. Author-focused tests and repair diffs are retained in the checkpoint; no independent PASS exists yet. Neither candidate changes the Gate 3 identity boundary: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Offline Gate 3 resource refusal model integrated — 2026-10-03 15:59 UTC
+
+Independent Sol/high exact review of `3e3ddbf` passed in scope, and local merge `2664336` preserved all three reviewed blobs. Post-merge resource tests passed 35/35 in normal and optimized Python. This is supplied-byte synthetic refusal coverage only; real host storage reservation/custody, G3-L identity evidence, provider access and SHADOW admission remain unqualified. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**. Export successor `67fa86a` remains under independent exact review.
