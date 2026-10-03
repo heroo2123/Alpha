@@ -5040,3 +5040,7 @@ Used recovered headroom for one distinct read-only Sol/medium G3-L current-runti
 ## Weather lane disk recovery — 2026-10-03 21:56 UTC
 
 Three distinct weather specialists remain live: exact review of `48194a8`, FC1 clock-order successor author checks at `a06fb90`, and offline transport-stream serial testing. Only inactive, re-creatable pytest scratch was removed after open-handle checks to recover the disk reserve. No review PASS, integration, provider right, real host qualification, G3-L identity, capture or SHADOW evidence was added. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-03 22:01 UTC offline caller boundary
+
+Independent exact review passed clean `48194a8`; conflict-free local merge `3956ca1` imported its two reviewed files, and post-merge focused tests passed 42/42. The new caller composes fresh real-intake guards with synthetic offline attempt transport; no real-path qualification, provider request, capture, G3-L identity or C/J/E/A boundary follows. FC1 author checks and transport-stream writer remain active, with a separate read-only storage/decoder qualification map launched from current main. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
