@@ -1,3 +1,7 @@
+## G3-L row-coverage repair — 2026-10-03 07:36 UTC
+
+The local audit found a false `RETAINED` label with zero source refs after a synthetically omitted artifact list. Isolated child `3411097` fixes the reviewed reusable-row coverage and passes 46/46 focused tests in normal and optimized Python. This is an unreviewed, unmerged candidate; the original hash chain was not bypassed and no G3-L identity or C/J/E/A boundary is credited. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Exact-queue audit — 2026-10-03 07:25 UTC
 
 Current main `878be2f` and the eight unmerged Gate 3 candidates remain clean. The local handoff now identifies `02dc668` as the current G3-L child; it grants no independent review or identity credit. Eleven older dirty worktrees remain preserved. The 77 missing identities and zero qualified slots remain: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

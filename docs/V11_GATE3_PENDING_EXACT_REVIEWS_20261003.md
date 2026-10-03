@@ -1,3 +1,7 @@
+## Current G3-L row-coverage child — 2026-10-03 07:36 UTC
+
+A bounded local in-memory probe against `02dc668` removed all artifact refs from one reusable row and still produced `RETAINED_REVIEWED_LOCAL_SCOPE` with zero source refs. It did not bypass the original immutable source/review hash binding and granted no qualification. Clean isolated child `3411097e702281e223f2ca8a3f9eaaf573cfcadf` (tree `e6e3a3236c77befb455d867c5e05c1ebf0a2c421`) fixes all seven reviewed reusable row-to-artifact sets before classification; 46/46 focused tests pass in normal and optimized Python and `git diff --check` passes. The clean detached exact checkout is `/tmp/alpha-v11-g3l-hardening-review-3411097`. The local seven-file cumulative manifest is rebound to this child. `02dc668` remains preserved as its parent. **`3411097` is now the current G3-L review candidate**, without candidate-specific external-review authorization or different-model PASS. No merge, provider request or G3-L identity credit follows.
+
 ## G3-L commit-object repair child — 2026-10-03 06:21 UTC
 
 A local adversarial probe against `741c6ae` substituted its recorded tree OID for the `launch_validator` observation's `commit_oid`. The audit accepted that Git tree as a commit and kept `code.mapping_exact_commit_review` in `RETAINED_REVIEWED_LOCAL_SCOPE`. In the original isolated author worktree, child `02dc6687cdef45d48eaa82420dae60cd431fbd82` (tree `c2510fb672248aa8da9aff654f440628e5cc0f93`) now requires `git cat-file -t` to return exactly `commit` before resolving its tree. A regression proves a tree OID is refused. Focused tests pass 22/22 in normal and optimized Python; the child diff passes `git diff --check`. The author worktree and detached `/tmp/alpha-v11-g3l-hardening-review-02dc668` are clean. Preserve parent `741c6ae` and its exact checkout for audit. **The child is the current G3-L review candidate**, with no different-model PASS, integration, or candidate-specific transfer authorization. The local 25-file manifest was updated at 06:27 UTC to bind this child and its seven-file cumulative review scope from `c9e3b8d`; this is integrity preparation only.
@@ -29,7 +33,7 @@ retained Alpha evidence.
 | Priority | Candidate commit | Tree | Review purpose |
 | --- | --- | --- | --- |
 | 1 | `976217d94629d808806f9e97ddd86c1992637a4c` | `c75574b1f8f721da8a7ba509500a5726aa27bc54` | Fresh-window F1/F2 repair |
-| 2 | `02dc6687cdef45d48eaa82420dae60cd431fbd82` | `c2510fb672248aa8da9aff654f440628e5cc0f93` | G3-L R1/R2 and commit-object repair; supersedes `741c6ae` for review |
+| 2 | `3411097e702281e223f2ca8a3f9eaaf573cfcadf` | `e6e3a3236c77befb455d867c5e05c1ebf0a2c421` | G3-L R1/R2, commit-object and retained-row coverage repair; supersedes `02dc668` for review |
 | 3 | `5667acb6a0c491a54e7ece810210379f5726addc` | `280fd6fe24fbb1cac8dcab20f8e2682a6685a10b` | Passive clock recorder |
 | 4 | `5faedb81d9e0a862e3eaef673f1e5a5c12a928c5` | `5d70de288817da6ca6fc317b5b00126d5b894530` | Resource reservation design |
 | 5 | `9d80dd988339315b376744e2de8d148b21c08323` | `d12e0daa87e303a02658d7c634db55e7c6caac11` | Conditional offline resource budget; supersedes `0df1a95` for review |

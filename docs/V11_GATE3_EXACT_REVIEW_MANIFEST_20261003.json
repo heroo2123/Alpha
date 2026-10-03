@@ -29,8 +29,8 @@
     },
     {
       "checkout_clean": true,
-      "commit": "02dc6687cdef45d48eaa82420dae60cd431fbd82",
-      "exact_checkout": "/tmp/alpha-v11-g3l-hardening-review-02dc668",
+      "commit": "3411097e702281e223f2ca8a3f9eaaf573cfcadf",
+      "exact_checkout": "/tmp/alpha-v11-g3l-hardening-review-3411097",
       "file_scope": "cumulative changed paths from review_base to commit; parent is the direct Git parent",
       "files": [
         {
@@ -64,21 +64,21 @@
           "sha256": "49d614201f2c9cdf46c6735569aef5c05b14ec2ff172ca958eac29df66b141a9"
         },
         {
-          "blob_oid": "d62a39add308ac82741b956c8309c66175de259d",
-          "bytes": 14598,
+          "blob_oid": "22266135797d66ce845bb7e7a9188b9e2a37a63f",
+          "bytes": 16077,
           "path": "tests/test_v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "cc7d405a94c426e8e1187780416986cf406d4695132b9ee5b239fc8fc5a70434"
+          "sha256": "f6ef8fdfebf5a6ae54d9bed0143d0824300581da572533e0b1e564e5f5f7107e"
         },
         {
-          "blob_oid": "b36d49f73372a56653627aab58eb3a45bad9adf2",
-          "bytes": 17418,
+          "blob_oid": "56be343383771a7be18fef925297190094409d8e",
+          "bytes": 19780,
           "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "f5264cc20970c5f321af9e69f6123927af692136b4465be96af36603219fb7ac"
+          "sha256": "b04634a9910f3e6a501a59ec9893929041ca8a0afdf052ee42e039e4f2594fb7"
         }
       ],
-      "parent": "741c6aea5c33105c6f087603168700bed829dc9b",
+      "parent": "02dc6687cdef45d48eaa82420dae60cd431fbd82",
       "review_base": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
-      "tree": "c2510fb672248aa8da9aff654f440628e5cc0f93"
+      "tree": "e6e3a3236c77befb455d867c5e05c1ebf0a2c421"
     },
     {
       "checkout_clean": true,
@@ -225,7 +225,7 @@
       "tree": "442058a68781c9089ad98262ba77fca2fda10d40"
     }
   ],
-  "generated_utc": "2026-10-03T06:26:04Z",
+  "generated_utc": "2026-10-03T07:36:09Z",
   "schema": "alpha-v11-gate3-local-exact-review-manifest-v1",
   "scope": "local integrity preparation only; no external transfer, review verdict, or launch authority"
 }

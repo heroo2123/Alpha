@@ -1,3 +1,7 @@
+## G3-L retained-row repair candidate — 2026-10-03 07:36 UTC
+
+Reproduced a generic false-retention label in `02dc668` when an in-memory reconciliation row omitted all its artifact refs. Committed isolated fail-closed child `3411097` (tree `e6e3a3236c77befb455d867c5e05c1ebf0a2c421`), preserving the older exact checkout. Focused tests pass 46/46 in both normal and optimized modes; the local manifest now binds the new candidate. It remains review-held and unmerged. No provider request, G3-L PASS, capture, forward SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator exact-queue correction — 2026-10-03 07:25 UTC
 
 Audited all 65 registered worktrees and marked the historical G3-L handoff row superseded and pointed review dispatch to current child `02dc668`. No active specialist, new commissioning artifact, candidate-specific authorized independent PASS, or merge appeared. The protected master hash matches and host headroom remains above the 3 GiB/900 MiB preference. No provider request, capture, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
