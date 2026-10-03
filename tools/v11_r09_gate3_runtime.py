@@ -1251,7 +1251,8 @@ class GateRuntime:
         self.session.observe_clock(monotonic=reading.monotonic_seconds,
             offset_low=offset-reading.uncertainty_seconds,
             offset_high=offset+reading.uncertainty_seconds,
-            raw=evidence.raw, evidence_sha256=reading.evidence_sha256)
+            raw=evidence.raw, evidence_sha256=reading.evidence_sha256,
+            phase=evidence.phase)
         return reading
 
     def _enforce_window(self, evidence, *, body=False):

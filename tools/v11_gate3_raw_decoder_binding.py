@@ -4,9 +4,11 @@ This checks an existing successful Gate-3 attempt. It never dispatches, decodes,
 creates pins, or treats replayed store acknowledgement as current custody.
 """
 from dataclasses import asdict
+from contextlib import ExitStack, contextmanager
 import base64
 import hashlib
 import json
+import os
 
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_a7_decoder import A7Refusal, Pins, source_bytes
@@ -32,6 +34,39 @@ def _heads(journal):
     return hashes
 
 
+def _persisted_heads(journal, hashes):
+    """Compare every bounded durable record to the current cached lineage."""
+    try:
+        _require(len(hashes) == len(journal.events), 'BINDING_JOURNAL_DISK')
+        offset = 0
+        previous = '0' * 64
+        for sequence, (event, head) in enumerate(zip(journal.events, hashes)):
+            record = {'seq': sequence, 'prev': previous, 'event': event, 'hash': head}
+            expected = canonical(record) + b'\n'
+            _require(len(expected) <= 64 * 1024, 'BINDING_JOURNAL_DISK')
+            actual = os.pread(journal.fd, len(expected), offset)
+            _require(actual == expected, 'BINDING_JOURNAL_DISK')
+            offset += len(expected)
+            previous = head
+        _require(offset == journal._journal_bytes == os.fstat(journal.fd).st_size and
+                 offset <= 64 * 1024 ** 2, 'BINDING_JOURNAL_DISK')
+    except RawBindingRefusal:
+        raise
+    except (OSError, TypeError, ValueError) as exc:
+        raise RawBindingRefusal('BINDING_JOURNAL_DISK') from exc
+
+
+@contextmanager
+def _custody_guard(session, shared, budget, store):
+    """Exclude public append/close through the instant of byte handoff."""
+    with ExitStack() as stack:
+        for lock in (session._mutex, shared._mutex, budget._custody_mutex,
+                     store._binding_mutex, store._mutex):
+            _require(lock.acquire(blocking=False), 'BINDING_CUSTODY_BUSY')
+            stack.callback(lock.release)
+        yield
+
+
 def _healthy_journals(session, shared, budget, store):
     """Recheck the live owners and pinned pathnames at each release boundary."""
     try:
@@ -50,7 +85,7 @@ def _one(events, operation, identity, value):
     return matches[0]
 
 
-def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
+def _read_raw_guarded(*, runtime: GateRuntime, request: AttemptRequest,
                     a7_request: dict, pins: Pins) -> bytes:
     """Return verified current-session RAW bytes for a separately pinned A7 call.
 
@@ -89,6 +124,9 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
     session_hashes = _heads(session)
     shared_hashes = _heads(shared)
     budget_hashes = _heads(budget)
+    for journal, hashes in ((session, session_hashes), (shared, shared_hashes),
+                            (budget, budget_hashes)):
+        _persisted_heads(journal, hashes)
     custody_heads = (session.prev, shared.prev, budget.prev, store._head)
     rid = request.request_id
     attempt = session.attempt_history.get(rid)
@@ -147,6 +185,10 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
              'BINDING_CLOSURE')
     headers = {name.lower(): value for name, value in header_pairs}
     _require(len(headers) == len(header_pairs), 'BINDING_CLOSURE')
+    closure_index = next(i for i, (event, _) in enumerate(session_events)
+                         if event is transport_closed)
+    closure_clock = (session_events[closure_index - 1][0]
+                     if closure_index > 0 else None)
     delivered = attempt['total_delivered_bytes']
     accounted_bytes = sum(event['bytes'] for event, _ in budget_events
                           if event.get('key') == rid and
@@ -179,6 +221,7 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
                  f'{request.expected_object_bytes}' and
              headers.get('content-encoding', 'identity').lower() == 'identity' and
              'transfer-encoding' not in headers and
+             'retry-after' not in headers and
              type(closure.get('delivered_bytes')) is int and
              closure['delivered_bytes'] == delivered and
              type(closure.get('prefetched_bytes')) is int and
@@ -188,8 +231,13 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
              closure['chunks_consumed'] == closure['chunk_count'] and
              closure['chunk_count'] > 0 and
              closure.get('deadline_monotonic') == attempt.get('deadline_monotonic') and
-             type(capture.get('clock_evidence_sha256')) is list and
-             closure.get('closure_clock_sha256') in capture['clock_evidence_sha256'] and
+             type(closure_clock) is dict and
+             closure_clock.get('op') == 'clock_observed' and
+             closure_clock.get('phase') == 'body_receipt' and
+             closure_clock.get('evidence_sha256') ==
+                 closure.get('closure_clock_sha256') and
+             closure_clock.get('monotonic') ==
+                 transport_closed.get('closure_monotonic') and
              transport_closed.get('closure_monotonic') == attempt.get('closure_monotonic') and
              transport_closed.get('closure_evidence_sha256') ==
                  attempt.get('closure_evidence_sha256') and
@@ -295,4 +343,16 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
              _heads(shared) == shared_hashes and
              _heads(budget) == budget_hashes,
              'BINDING_CUSTODY_CHANGED')
+    for journal, hashes in ((session, session_hashes), (shared, shared_hashes),
+                            (budget, budget_hashes)):
+        _persisted_heads(journal, hashes)
     return raw
+
+
+def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
+                    a7_request: dict, pins: Pins) -> bytes:
+    _require(type(runtime) is GateRuntime, 'BINDING_SYNTHETIC_ONLY')
+    with _custody_guard(runtime.session, runtime.shared, runtime.budget,
+                        runtime.store):
+        return _read_raw_guarded(runtime=runtime, request=request,
+                                 a7_request=a7_request, pins=pins)

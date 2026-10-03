@@ -323,11 +323,17 @@ class _HashChainJournal:
         self.events.append(event)
 
     def close(self):
-        for name in ('fd', 'lock_fd', 'dir_fd'):
-            fd = getattr(self, name, None)
-            if fd is not None:
-                os.close(fd)
-                setattr(self, name, None)
+        # The RAW handoff holds this same mutex through its final byte release.
+        if not self._mutex.acquire(blocking=False):
+            raise LaunchContractError('LEDGER_REENTRANT_OR_CONCURRENT_USE')
+        try:
+            for name in ('fd', 'lock_fd', 'dir_fd'):
+                fd = getattr(self, name, None)
+                if fd is not None:
+                    os.close(fd)
+                    setattr(self, name, None)
+        finally:
+            self._mutex.release()
 
     def __enter__(self):
         return self
@@ -872,6 +878,10 @@ class SessionLedger(_HashChainJournal):
                       'SESSION_LEDGER_RUNTIME_CONTEXT_REBOUND')
                 self.runtime_context_sha256 = event['sha256']
             elif op == 'clock_observed':
+                if 'phase' in event:
+                    check(event['phase'] in ('request_start', 'body_receipt',
+                          'decode_complete', 'durable_seal'),
+                          'SESSION_LEDGER_CLOCK_PHASE')
                 try:
                     raw = base64.b64decode(event['raw_b64'], validate=True)
                 except (ValueError, TypeError) as exc:
@@ -1200,7 +1210,7 @@ class SessionLedger(_HashChainJournal):
             self._state()
 
     def observe_clock(self, *, monotonic, offset_low, offset_high,
-                      raw, evidence_sha256):
+                      raw, evidence_sha256, phase=None):
         with self._guard():
             self._healthy()
             vals = (monotonic, offset_low, offset_high)
@@ -1214,10 +1224,15 @@ class SessionLedger(_HashChainJournal):
             check(type(raw) is bytes and 0 < len(raw) <= 16384 and
                   hashlib.sha256(raw).hexdigest() == evidence_sha256,
                   'SESSION_LEDGER_CLOCK_EVIDENCE')
-            self._append({'op': 'clock_observed', 'monotonic': monotonic,
+            check(phase is None or phase in ('request_start', 'body_receipt',
+                  'decode_complete', 'durable_seal'), 'SESSION_LEDGER_CLOCK_PHASE')
+            event = {'op': 'clock_observed', 'monotonic': monotonic,
                           'offset_low': offset_low, 'offset_high': offset_high,
                           'raw_b64': base64.b64encode(raw).decode('ascii'),
-                          'evidence_sha256': evidence_sha256})
+                          'evidence_sha256': evidence_sha256}
+            if phase is not None:
+                event['phase'] = phase
+            self._append(event)
             self._state()
 
     def report_completed(self, *, report_sha256):

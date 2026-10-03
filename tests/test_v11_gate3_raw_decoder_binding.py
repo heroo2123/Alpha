@@ -1,8 +1,10 @@
 """Synthetic receipt-to-A7 handoff checks; no decoder or network execution."""
 from dataclasses import replace
+import base64
 import hashlib
 import json
 import os
+import sys
 import threading
 
 import pytest
@@ -14,6 +16,8 @@ from tools.v11_r09_gate3_a7_decoder import Pins, source_bytes
 from tools.v11_r09_gate3_launch import LaunchContractError
 from tools.v11_r09_gate3_offline_io import SyntheticExchange
 from tools.v11_gate3_raw_decoder_binding import RawBindingRefusal, read_raw_for_a7
+import tools.v11_gate3_raw_decoder_binding as binding
+from tools.v11_r09_gate3_runtime import FakeClock
 
 
 BODY = b'0123456789012345678901234567890'
@@ -325,17 +329,18 @@ def test_missing_required_success_flags_refuses(tmp_path):
         _close(acquired)
 
 
-def test_journal_closure_between_validation_and_store_read_refuses(tmp_path,
-                                                                   monkeypatch):
+def test_journal_close_during_store_read_is_refused(tmp_path, monkeypatch):
     acquired, runtime, request = _attempt(tmp_path)
     try:
         assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
         entered = threading.Event()
+        resume = threading.Event()
         result = {}
         real_read = runtime.store.read_receipt
 
         def observed_read(receipt):
             entered.set()
+            assert resume.wait(5)
             return real_read(receipt)
 
         monkeypatch.setattr(runtime.store, 'read_receipt', observed_read)
@@ -346,14 +351,193 @@ def test_journal_closure_between_validation_and_store_read_refuses(tmp_path,
             except BaseException as exc:
                 result['error'] = exc
 
-        with runtime.store._mutex:
-            worker = threading.Thread(target=attempt_read)
-            worker.start()
-            assert entered.wait(3), 'store read was not reached'
+        worker = threading.Thread(target=attempt_read)
+        worker.start()
+        assert entered.wait(3), 'store read was not reached'
+        with pytest.raises(LaunchContractError, match='CONCURRENT_USE'):
             runtime.session.close()
+        resume.set()
         worker.join(3)
         assert not worker.is_alive()
-        assert 'raw' not in result
-        assert isinstance(result.get('error'), RawBindingRefusal)
+        assert result.get('raw') == BODY
+        assert 'error' not in result
     finally:
+        resume.set()
+        _close(acquired)
+
+
+@pytest.mark.parametrize('owner', ['session', 'shared', 'budget'])
+@pytest.mark.parametrize('damage', ['truncate', 'same_size_corruption'])
+def test_persisted_journal_must_match_cached_lineage(tmp_path, owner, damage):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        journal = getattr(runtime, owner)
+        name = 'gate3.jsonl' if owner == 'budget' else journal.JOURNAL_NAME
+        path = journal.path / name
+        before = path.stat()
+        with path.open('r+b') as writer:
+            if damage == 'truncate':
+                writer.truncate(0)
+            else:
+                writer.write(b'!')
+            writer.flush()
+            os.fsync(writer.fileno())
+        assert path.stat().st_ino == before.st_ino
+        journal._healthy()  # The owner identity check alone still succeeds.
+        with pytest.raises(RawBindingRefusal, match='BINDING_JOURNAL_DISK'):
+            _read(runtime, request)
+    finally:
+        _close(acquired)
+
+
+def test_journal_damage_during_genuine_store_read_refuses(tmp_path):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        real_read = runtime.store.read_receipt
+        journal = runtime.session
+
+        def damage_after_read(receipt):
+            raw = real_read(receipt)
+            with (journal.path / journal.JOURNAL_NAME).open('r+b') as writer:
+                writer.write(b'!')
+                writer.flush()
+                os.fsync(writer.fileno())
+            return raw
+
+        runtime.store.read_receipt = damage_after_read
+        with pytest.raises(RawBindingRefusal, match='BINDING_JOURNAL_DISK'):
+            _read(runtime, request)
+    finally:
+        _close(acquired)
+
+
+@pytest.mark.parametrize('value', ['120', '', 'nonsense'])
+def test_durable_retry_after_contradicts_success(tmp_path, value):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        real_close = runtime.session.transport_closed
+
+        def close_with_retry_after(rid, **kwargs):
+            closure = json.loads(kwargs['closure_evidence_raw'])
+            closure['headers'].append(['Retry-After', value])
+            kwargs['closure_evidence_raw'] = json.dumps(
+                closure, sort_keys=True, separators=(',', ':')).encode()
+            return real_close(rid, **kwargs)
+
+        runtime.session.transport_closed = close_with_retry_after
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        with pytest.raises(RawBindingRefusal, match='BINDING_CLOSURE'):
+            _read(runtime, request)
+    finally:
+        _close(acquired)
+
+
+def test_closure_clock_is_exact_adjacent_session_observation(tmp_path):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        runtime.clock = FakeClock('boot-a', utc=10, mono=10,
+                                  evidence_advance_seconds=0.01)
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        events = runtime.session.events
+        closed_at = next(i for i, event in enumerate(events)
+                         if event.get('op') == 'transport_closed')
+        closure = events[closed_at]
+        original_clock = events[closed_at - 1]
+        closure_body = json.loads(base64.b64decode(
+            closure['closure_evidence_raw_b64']))
+        assert original_clock['phase'] == 'body_receipt'
+        assert original_clock['monotonic'] == closure['closure_monotonic']
+        assert original_clock['evidence_sha256'] == closure_body['closure_clock_sha256']
+        assert original_clock['evidence_sha256'] not in [
+            clock.reading.evidence_sha256 for clock in
+            next(iter(runtime.store.receipts.values())).clocks]
+        assert _read(runtime, request) == BODY
+    finally:
+        _close(acquired)
+
+
+def test_substituted_store_phase_clock_cannot_be_closure_clock(tmp_path):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        real_close = runtime.session.transport_closed
+
+        def close_with_other_clock(rid, **kwargs):
+            closure = json.loads(kwargs['closure_evidence_raw'])
+            closure['closure_clock_sha256'] = runtime.clock.evidence(
+                'request_start').reading.evidence_sha256
+            kwargs['closure_evidence_raw'] = json.dumps(
+                closure, sort_keys=True, separators=(',', ':')).encode()
+            return real_close(rid, **kwargs)
+
+        runtime.session.transport_closed = close_with_other_clock
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        with pytest.raises(RawBindingRefusal, match='BINDING_CLOSURE'):
+            _read(runtime, request)
+    finally:
+        _close(acquired)
+
+
+def test_wrong_durable_closure_clock_phase_refuses(tmp_path):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        real_observe = runtime.session.observe_clock
+        body_samples = [0]
+
+        def wrong_phase(**kwargs):
+            if kwargs.get('phase') == 'body_receipt':
+                body_samples[0] += 1
+                if body_samples[0] == 2:
+                    kwargs['phase'] = 'request_start'
+            return real_observe(**kwargs)
+
+        runtime.session.observe_clock = wrong_phase
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        assert body_samples[0] >= 2
+        with pytest.raises(RawBindingRefusal, match='BINDING_CLOSURE'):
+            _read(runtime, request)
+    finally:
+        _close(acquired)
+
+
+@pytest.mark.parametrize('owner', ['session', 'shared', 'budget', 'store'])
+def test_close_attempt_at_final_hash_cannot_overtake_release(tmp_path, owner):
+    acquired, runtime, request = _attempt(tmp_path)
+    entered, resume = threading.Event(), threading.Event()
+    outcome = {}
+    try:
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        calls = [0]
+
+        def trace(frame, event, arg):
+            if event == 'call' and frame.f_code is binding._heads.__code__:
+                calls[0] += 1
+                if calls[0] == 4:
+                    entered.set()
+                    if not resume.wait(5):
+                        raise RuntimeError('trace timeout')
+            return trace
+
+        def reader():
+            sys.settrace(trace)
+            try:
+                outcome['bytes'] = _read(runtime, request)
+            except BaseException as exc:
+                outcome['error'] = exc
+            finally:
+                sys.settrace(None)
+
+        worker = threading.Thread(target=reader)
+        worker.start()
+        assert entered.wait(5)
+        with pytest.raises(LaunchContractError, match='CONCURRENT_USE'):
+            getattr(runtime, owner).close()
+        resume.set()
+        worker.join(5)
+        assert not worker.is_alive()
+        assert outcome == {'bytes': BODY}
+        getattr(runtime, owner).close()
+    finally:
+        resume.set()
         _close(acquired)
