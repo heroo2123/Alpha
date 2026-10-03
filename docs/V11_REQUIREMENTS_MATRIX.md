@@ -4495,3 +4495,6 @@ At clean main `b6a7f1d`, held repair `976217d` merges textually; held repair `02
 ## Exact fresh-readiness local verification — 2026-10-03 08:06 UTC
 
 Detached `976217d` passes 563/563 focused offline fresh-readiness/preflight-checker tests on the host. This does not supply its candidate-specific different-model exact PASS, reviewed G3-L identities, provider rights, or SHADOW evidence. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator current-head reconciliation — 2026-10-03 08:10 UTC
+
+On clean main `5428f1a`, held `976217d` is textually merge-compatible; held `3411097` conflicts only in the three chronological status files. Neither repair has candidate-specific authorized independent exact PASS, so all eight review-held candidates remain unmerged. No new G3-L identity or eligible capture appeared: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
