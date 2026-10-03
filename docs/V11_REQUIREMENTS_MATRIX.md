@@ -1,3 +1,7 @@
+## Passive host assessment reviewed; custody model active — 2026-10-03 15:23 UTC
+
+Exact `a6f98ad` passive assessment passed independent review and merged locally as `de879af` with reviewed blobs intact. Samples are author-recorded and do not qualify actual host resources. Separate offline custody-refusal and validated-plan export workers are active in isolated worktrees; neither is an acceptance gate PASS. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Offline export prerequisite in isolated worktree — 2026-10-03 15:21 UTC
 
 A single Sol/high worker is implementing bounded offline supplied-byte validated-plan export preparation from `f769244`; exact review remains future work. Passive-host successor `a6f98ad` continues separate exact review. Neither work grants authenticated pins, production mapping, resource custody or G3-L identity credit. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
