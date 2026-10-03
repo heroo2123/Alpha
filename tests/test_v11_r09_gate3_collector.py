@@ -358,6 +358,14 @@ def test_budget_cannot_loosen_protocol_index_or_field_ceilings():
         g3i.BudgetTracker(max_field_bytes=17 * 1024 * 1024)
 
 
+@pytest.mark.parametrize('limit_name',
+                         ['max_total_received_bytes', 'max_index_bytes', 'max_field_bytes'])
+@pytest.mark.parametrize('bad', [True, 0.5, float('nan'), -1])
+def test_budget_constructor_requires_positive_exact_integer_byte_limits(limit_name, bad):
+    with pytest.raises(PanelError, match='BUDGET_MAX_'):
+        g3i.BudgetTracker(**{limit_name: bad})
+
+
 def test_budget_field_bytes_cannot_loosen_past_the_real_stricter_bound():
     """Regression for the independent G3-I review's P2-1 finding: the protocol's own
     nominal 16 MiB/field ceiling is looser than the already-reviewed real bound
@@ -417,14 +425,13 @@ def test_budget_gefs_full_field_ceiling_is_per_acquisition_path_not_product_fami
     assert 0 < plan.fallback_denominator < plan.nominal_denominator
     for provider in g3i.VALID_PROVIDERS:
         assert (provider, 0, 0) in plan.fallback_keys
-    # Against a ceiling sized for the real manifest total, the full denominator is
-    # launchable -- proving the earlier False above is the byte ceiling, not a
-    # leftover per-message rejection of real GEFS sizes.
-    plan_unbounded = g3i.estimate_feasibility(
+    # A hypothetical larger ceiling cannot loosen the frozen manifest or protocol.
+    plan_capped = g3i.estimate_feasibility(
         manifest, provider_message_size_estimate_bytes=observed_max_bytes,
         ceiling_bytes=plan.estimated_total_bytes)
-    assert plan_unbounded.launchable_at_full_denominator is True
-    assert plan_unbounded.fallback_denominator == plan_unbounded.nominal_denominator
+    assert plan_capped.launchable_at_full_denominator is False
+    assert plan_capped.ceiling_bytes == manifest.max_total_received_bytes
+    assert plan_capped.fallback_keys == plan.fallback_keys
 
 
 def test_budget_caller_tightening_applies_to_every_provider():
@@ -461,6 +468,85 @@ def test_budget_enforces_total_received_bytes_ceiling():
     tracker.begin_request(0.0)
     with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
         tracker.complete_request(101)
+    assert tracker.total_received_bytes == 101
+    assert tracker.in_flight is False and tracker.budget_exhausted is True
+    with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
+        tracker.begin_request(2.0, provider='GEFS', field_bytes=1)
+    assert tracker.request_count == 1
+
+
+def test_budget_exact_exhaustion_stops_next_request():
+    tracker = g3i.BudgetTracker(max_total_received_bytes=100)
+    tracker.start_window(0.0)
+    tracker.begin_request(0.0, provider='GEFS', field_bytes=100)
+    tracker.complete_request(100)
+    assert tracker.total_received_bytes == 100 and tracker.budget_exhausted is True
+    before = vars(tracker).copy()
+    with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
+        tracker.begin_request(2.0, provider='GEFS', field_bytes=1)
+    assert vars(tracker) == before
+
+
+def test_budget_known_size_must_fit_remaining_capacity_without_mutation():
+    tracker = g3i.BudgetTracker(max_total_received_bytes=100)
+    tracker.start_window(0.0)
+    tracker.begin_request(0.0, provider='GEFS', field_bytes=60)
+    tracker.complete_request(60)
+    before = vars(tracker).copy()
+    for size_arg in ({'field_bytes': 41, 'provider': 'GEFS'}, {'index_bytes': 41}):
+        with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
+            tracker.begin_request(2.0, **size_arg)
+        assert vars(tracker) == before
+    tracker.begin_request(2.0, index_bytes=40)
+    tracker.complete_request(40)
+    assert tracker.total_received_bytes == 100
+
+
+@pytest.mark.parametrize('bad', [float('nan'), -1, True, 0.5, 0, float('inf')])
+@pytest.mark.parametrize('size_name', ['index_bytes', 'field_bytes'])
+def test_budget_rejects_malformed_known_sizes_without_mutation(bad, size_name):
+    tracker = g3i.BudgetTracker()
+    tracker.start_window(0.0)
+    before = vars(tracker).copy()
+    kwargs = {size_name: bad}
+    if size_name == 'field_bytes':
+        kwargs['provider'] = 'GEFS'
+    with pytest.raises(PanelError, match='BUDGET_(INDEX|FIELD)_BYTES_TYPE'):
+        tracker.begin_request(0.0, **kwargs)
+    assert vars(tracker) == before
+
+
+@pytest.mark.parametrize('bad', [float('nan'), float('inf'), True])
+def test_budget_rejects_invalid_window_time_without_mutation(bad):
+    tracker = g3i.BudgetTracker()
+    before = vars(tracker).copy()
+    with pytest.raises(PanelError, match='BUDGET_MONOTONIC_TIME_(FINITE|ORDER)'):
+        tracker.start_window(bad)
+    assert vars(tracker) == before
+
+
+@pytest.mark.parametrize('bad', [float('nan'), float('inf'), True, -1.0])
+def test_budget_rejects_invalid_request_time_without_mutation(bad):
+    tracker = g3i.BudgetTracker()
+    tracker.start_window(0.0)
+    before = vars(tracker).copy()
+    with pytest.raises(PanelError, match='BUDGET_MONOTONIC_TIME_(FINITE|ORDER)'):
+        tracker.begin_request(bad)
+    assert vars(tracker) == before
+
+
+def test_budget_refuses_clock_reversal_and_invalid_completion_without_mutation():
+    tracker = g3i.BudgetTracker()
+    tracker.start_window(0.0)
+    tracker.begin_request(3.0)
+    before = vars(tracker).copy()
+    with pytest.raises(PanelError, match='BUDGET_MONOTONIC_TIME_ORDER'):
+        tracker.check_before_request(now_monotonic=2.0)
+    assert vars(tracker) == before
+    for bad in (float('nan'), -1, True, 0.5):
+        with pytest.raises(PanelError, match='BUDGET_RECEIVED_BYTES_TYPE'):
+            tracker.complete_request(bad)
+        assert vars(tracker) == before
 
 
 def test_budget_refuses_second_request_while_in_flight():
@@ -514,6 +600,19 @@ def test_feasibility_requires_all_providers_covered():
         g3i.estimate_feasibility(manifest, provider_message_size_estimate_bytes=dict(GEFS=1000))
 
 
+def test_feasibility_uses_tighter_frozen_manifest_byte_limit():
+    manifest = g3i.CaptureManifest(**{**make_manifest().__dict__, 'max_total_received_bytes': 1000})
+    sizes = dict.fromkeys(g3i.VALID_PROVIDERS, 1000)
+    plan = g3i.estimate_feasibility(manifest, provider_message_size_estimate_bytes=sizes)
+    assert plan.estimated_total_bytes == 2_713_000
+    assert plan.ceiling_bytes == 1000
+    assert plan.launchable_at_full_denominator is False
+    assert plan.fallback_denominator == 1
+    larger = g3i.estimate_feasibility(
+        manifest, provider_message_size_estimate_bytes=sizes, ceiling_bytes=1024 ** 3)
+    assert larger.ceiling_bytes == 1000 and larger.launchable_at_full_denominator is False
+
+
 # --------------------------------------------------------------------------- #
 # Index availability dry-run (P3-2), synthetic transport only
 # --------------------------------------------------------------------------- #
@@ -537,6 +636,16 @@ def test_check_index_availability_reports_missing_sidecar():
     transport = FakeTransport({'index_sidecar_available': False, 'supports_byte_range_206': True})
     result = g3i.check_index_availability(transport, 'https://example-origin.test/dir/', now_utc=123.0)
     assert result.index_sidecar_available is False
+
+
+@pytest.mark.parametrize('bad', ['false', 'true', 0, 1, None, [], {}])
+def test_check_index_availability_rejects_non_boolean_probe_flags(bad):
+    for flag in ('index_sidecar_available', 'supports_byte_range_206'):
+        response = {'index_sidecar_available': True, 'supports_byte_range_206': True}
+        response[flag] = bad
+        with pytest.raises(PanelError, match='INDEX_AVAILABILITY_PROBE_FLAGS_MUST_BE_EXPLICIT_BOOL'):
+            g3i.check_index_availability(
+                FakeTransport(response), 'https://example-origin.test/dir/', now_utc=123.0)
 
 
 def test_check_index_availability_requires_transport_instance():

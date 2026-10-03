@@ -45,6 +45,27 @@ def test_sizes_over_pinned_ceiling_are_reported_not_hidden(tmp_path):
     assert len(report['ceiling_findings']) == 2 and report['feasibility_input_usable'] is False
 
 
+def test_missing_provider_observations_are_not_usable(tmp_path):
+    ecmwf, gefs = _stores(tmp_path, [], [])
+    with sqlite3.connect(ecmwf) as db:
+        db.execute("DELETE FROM messages WHERE provider='AIFS'")
+    report = sizes.build(ecmwf, gefs)
+    assert report['provider_message_size_estimate_bytes'] == dict.fromkeys(VALID_PROVIDERS)
+    assert report['feasibility_input_usable'] is False
+    assert len(report['ceiling_findings']) == 3
+    assert all('no usable positive integer' in finding for finding in report['ceiling_findings'])
+
+
+def test_nonpositive_or_noninteger_observations_do_not_count_as_evidence(tmp_path):
+    ecmwf, gefs = _stores(tmp_path, [0, -1, 0.5, 'not-a-size'], [1000])
+    report = sizes.build(ecmwf, gefs)
+    assert report['provider_message_size_estimate_bytes']['GEFS'] is None
+    assert report['providers']['GEFS']['field_bytes']['count'] == 0
+    assert report['providers']['GEFS']['field_bytes']['invalid_observations'] == 4
+    assert report['feasibility_input_usable'] is False
+    assert any('GEFS: no usable positive integer' in finding for finding in report['ceiling_findings'])
+
+
 def test_cli_writes_deterministic_json_and_hashes_sources(tmp_path):
     ecmwf, gefs = _stores(tmp_path, [1000], [650000])
     out = tmp_path / 'out.json'
