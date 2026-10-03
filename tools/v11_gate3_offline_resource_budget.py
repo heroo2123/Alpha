@@ -150,7 +150,11 @@ def _calculate(manifest, frozen_plan):
         members = event['field_request_ids']
         if type(members) is not list:
             raise ValueError('frozen event differs from V4 field expansion')
-        members = tuple(members)
+        # Refuse an oversized caller plan before allocating its snapshot.
+        if (len(members) != len(field_ids) or
+                len(members) > MAX_EVENT_LINKS - links):
+            raise ValueError('frozen event differs from V4 field expansion')
+        members = tuple(members[:len(field_ids) + 1])
         if (len(members) != len(field_ids) or
                 len(members) > MAX_EVENT_LINKS - links or
                 any(type(rid) is not str or rid != expected

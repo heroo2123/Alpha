@@ -254,6 +254,19 @@ def test_oversized_mapping_refuses_before_copying_keys():
     unittest.TestCase().assertLess(peak, 64 * 1024)
 
 
+def test_oversized_member_list_refuses_before_snapshot():
+    manifest, plan = fixture()
+    plan['events'][0]['field_request_ids'] = ['field'] * 262_144
+    tracemalloc.start()
+    try:
+        with unittest.TestCase().assertRaises(ValueError):
+            calculate_offline_resource_budget(manifest, plan)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    unittest.TestCase().assertLess(peak, 64 * 1024)
+
+
 def test_subclass_hooks_cannot_shrink_event_capacity():
     check = unittest.TestCase()
     manifest, plan = two_field_fixture()
@@ -304,6 +317,9 @@ class OfflineResourceBudgetTests(unittest.TestCase):
 
     def test_oversized_mapping(self):
         test_oversized_mapping_refuses_before_copying_keys()
+
+    def test_oversized_member_list(self):
+        test_oversized_member_list_refuses_before_snapshot()
 
     def test_subclass_hooks(self):
         test_subclass_hooks_cannot_shrink_event_capacity()

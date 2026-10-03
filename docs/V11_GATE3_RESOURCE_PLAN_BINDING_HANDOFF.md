@@ -46,6 +46,7 @@ G3-L remains NO_GO. No real SHADOW admission follows.
 Focused tests cover one-event and two-event parity with `CapacityPlan`,
 omissions, order and membership mutations, malformed event/cohort shapes,
 bounded oversized mapping refusal, and unchanged no-qualification outputs.
+The member-list bound is checked before allocating a snapshot of caller data.
 Run `python3 -m unittest tests.test_v11_gate3_offline_resource_budget` and
 `python3 -O -m unittest tests.test_v11_gate3_offline_resource_budget`, then
 `git diff --check`. Independent different-model exact review is still required
