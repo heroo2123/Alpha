@@ -4492,3 +4492,6 @@ Clean repair children `976217d` and `02dc668` remain unmerged, with no candidate
 ## Current-head Gate 3 exact-review gate — 2026-10-03 07:21 UTC
 
 At clean main `b6a7f1d`, held repair `976217d` merges textually; held repair `02dc668` conflicts only in checkpoint/matrix/progress chronology. Both still require their own candidate-specific authorized different-model exact PASS before integration. The protected master hash matches; no new bounded capture or G3-L identity appeared. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Exact fresh-readiness local verification — 2026-10-03 08:06 UTC
+
+Detached `976217d` passes 563/563 focused offline fresh-readiness/preflight-checker tests on the host. This does not supply its candidate-specific different-model exact PASS, reviewed G3-L identities, provider rights, or SHADOW evidence. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

@@ -7266,3 +7266,6 @@ Main `79dd054` and both weather repair children are clean. Preserved dirty workt
 ## Coordinator current-head reconciliation — 2026-10-03 07:21 UTC
 
 Verified clean main `b6a7f1d`, clean exact repair children `976217d` and `02dc668`, protected-master integrity, absent protected authority roots, 4.3 GiB free disk and about 1.1 GiB MemAvailable. No separate specialist or recent bounded forward evidence appeared. Current non-destructive merge probes give a clean fresh-readiness tree `436089ed` and only chronological status-document conflicts for G3-L tree `7449b64b`. Exact child reviews remain candidate-specific authorization-held; no merge, provider request, capture, forward SHADOW, or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator local candidate verification — 2026-10-03 08:06 UTC
+
+Recovered clean main `7403063` and verified exact detached fresh-readiness child `976217d` with 563/563 focused offline tests passing. The child remains unmerged pending candidate-specific authorized independent exact review; G3-L child `3411097` is likewise held. No provider request, forward capture, SHADOW admission, or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
