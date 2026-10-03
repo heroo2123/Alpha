@@ -51,6 +51,10 @@ runner must bind actual loaded module/build bytes before any real admission.
 Do not embed a purported self-hash or trust a caller declaration as that binding.
 Require caller-supplied evaluation UTC; do not default to the host clock.
 A caller timestamp supports scenario evaluation only, not freshness attestation.
+Both modes also require an explicit evaluation context: `evaluation_monotonic_us`
+(exact integer in 0..2**63-1), `evaluation_host_id` and `evaluation_boot_id`
+(nonempty bounded strings). These caller declarations are unqualified scenario
+inputs, not acquired observations. No implicit now or guessed boot is allowed.
 
 For P1 proposals require explicit `run_utc`, `start_utc`, `end_utc` and
 `evaluation_utc`. The proposed policy is:
@@ -79,10 +83,14 @@ For P1 proposals require explicit `run_utc`, `start_utc`, `end_utc` and
    a separate reviewed change.
 
 Capture mode continues to derive the existing 14:00/17:00/18:00 schedule and
-00Z run from the explicit target date. Do not apply P1's 3.5-hour window or
-invent a new capture cadence. The same *proposed* next-day horizon may bound
-planning, but cannot replace maximum run age, local-day/DST rules, prerequisite
-receipt/review cutoffs or exact-manifest review. Refer to the existing planner
+00Z run from the explicit target date. For this proposal validator require
+`evaluation_utc < capture_start_utc` and
+`capture_end_utc - evaluation_utc <= 86,400 seconds` (horizon equality allowed;
+start equality refused), where start/end are exactly the derived 14:00/17:00
+values. Require derived run <= evaluation as in P1. Do not apply P1's 3.5-hour
+window or invent a new capture cadence. These *proposed* evaluation predicates
+cannot replace maximum run age, local-day/DST rules, prerequisite receipt/review
+cutoffs or exact-manifest review. Refer to the existing planner
 for the slot denominator; never shrink the denominator when resources are low.
 
 Executable qualification, outside this slice, must additionally use genuinely
@@ -141,7 +149,10 @@ resource calculation, including report/decoder overhead and combined campaign
 accounting; P1 resources cannot stand in for capture resources.
 
 Propose snapshot age <=60 seconds when evaluating actual local observations,
-with age derived on the same host/boot monotonic timeline and no future sample.
+with age computed as `evaluation_monotonic_us - snapshot_monotonic_us`,
+requiring matching evaluation/snapshot host and boot and an age in
+0..60,000,000 microseconds inclusive. Reject missing context and future samples;
+never substitute UTC subtraction. All values remain unqualified declarations.
 This is a **new proposal freshness cap**, not an already accepted resource gate.
 Scenario-only snapshots are always unqualified. Even a fresh real snapshot is
 not reservation/enforcement evidence: storage descriptor/custody, physically
@@ -222,6 +233,9 @@ Focused tests must include:
    neighbors, and full-stage conservative fit equality refusal;
    start==evaluation, inverted interval, expired window, UTC day boundaries,
    00Z mismatch, future run, leap/naive/offset/precision and datetime overflow.
+   Capture must exercise the fixed 14:00/17:00 schedule, evaluation/start
+   equality refusal, horizon equality and one-microsecond excess; missing or
+   mismatched evaluation monotonic/host/boot context must refuse.
 2. Exact disk/memory floor and one-byte deficit, target-only shortfall,
    signed-64 ceiling and overflow sum, bool/subclass/10,000-digit integers,
    available>total, wrong filesystem, stale/future/cross-boot snapshot.
