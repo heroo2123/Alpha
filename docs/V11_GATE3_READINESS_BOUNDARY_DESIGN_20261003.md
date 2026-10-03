@@ -44,7 +44,11 @@ below closes those *proposal* ambiguities without changing frozen enforcement.
 
 Use separate named modes `P1_PREFLIGHT_PROPOSAL` and `CAPTURE_PLAN_PROPOSAL`.
 Neither mode accepts a user-supplied policy object that can widen bounds. Put
-versioned constants in the new module and bind its source hash in every report.
+versioned constants in the new module. Reports carry an externally computed
+`declared_build_ref` (source SHA-256 and byte length) as unqualified metadata.
+A pure validator cannot attest its own executing bytes; a separately reviewed
+runner must bind actual loaded module/build bytes before any real admission.
+Do not embed a purported self-hash or trust a caller declaration as that binding.
 Require caller-supplied evaluation UTC; do not default to the host clock.
 A caller timestamp supports scenario evaluation only, not freshness attestation.
 
@@ -56,9 +60,10 @@ For P1 proposals require explicit `run_utc`, `start_utc`, `end_utc` and
    fractions, invalid dates, overflow and silent normalization. Normalize neither
    the proposal nor its hashes. Integer microseconds drive comparisons.
 2. `evaluation_utc < start_utc < end_utc`. The proposal stage budget must fit:
-   `60 seconds <= end-start <= 12,600 seconds`. The 12,600 upper bound inherits
-   the frozen P1 window's width, not its execution authority; the lower bound
-   reserves the full stage budget. Dispatch still needs strict end exclusion.
+   `60 seconds < end-start <= 12,600 seconds`. The 12,600 upper bound inherits
+   the frozen P1 window's width, not its execution authority; the strict lower bound
+   rejects the execution-infeasible 60-second equality. It leaves nominal room
+   for a stage budget, but does not prove enough uncertainty/drift margin.
 3. `end_utc - evaluation_utc <= 86,400 seconds`. This **new conservative planning
    horizon** bounds the whole proposal to the next day; it is not the capture
    run-age rule and is not asserted to be a provider retention/release policy.
@@ -82,8 +87,12 @@ for the slot denominator; never shrink the denominator when resources are low.
 
 Executable qualification, outside this slice, must additionally use genuinely
 reviewed observations: start lower bound >= approved start; all required upper
-bounds strictly < approved end; full reservation fits remaining time; original
-review completed before the required cutoff. Passing proposal arithmetic cannot
+bounds strictly < approved end. For the full 60-second stage reservation,
+require `dispatch_upper_utc + 60 seconds + qualified_drift_margin < end_utc`,
+where the nonnegative drift margin comes from the independently qualified clock
+method. Unknown margin refuses admission; equality refuses. This conservative
+fit predicate does not replace actual per-event deadline enforcement. Original
+review must have completed before the required cutoff. Passing proposal arithmetic cannot
 satisfy any of these real-time obligations.
 
 ## 3. Resource magnitude and accounting
@@ -208,7 +217,9 @@ contains all fixed false authority flags on every serializable result path.
 
 Focused tests must include:
 
-1. Window 60 s / 12,600 s / 86,400 s equalities and one-microsecond neighbors;
+1. Refuse width 60 s and below; accept nominal width 60 s + 1 microsecond
+   only as a proposal. Test 12,600 s / 86,400 s equalities and one-microsecond
+   neighbors, and full-stage conservative fit equality refusal;
    start==evaluation, inverted interval, expired window, UTC day boundaries,
    00Z mismatch, future run, leap/naive/offset/precision and datetime overflow.
 2. Exact disk/memory floor and one-byte deficit, target-only shortfall,
@@ -221,7 +232,8 @@ Focused tests must include:
    with unqualified origin, boot drift, monotonic reversal, caller-age mismatch,
    1-second/60-second edges, adjacent-compatible cumulative clock drift, copied
    observations and original-anchor failure. All still lack qualification.
-5. Empty/oversized/deep/duplicate-key JSON, hostile mapping/subclasses, bounded
+5. Forged or missing declared build binding cannot attest executing source.
+   Empty/oversized/deep/duplicate-key JSON, hostile mapping/subclasses, bounded
    output/refusal path, repeat replay and caller mutation. Patch socket,
    subprocess and file-opening entry points to raise if the validator calls them.
 6. Assert false authority/G3-L/eligibility and zero credit on every result; retain
