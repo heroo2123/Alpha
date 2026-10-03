@@ -1,5 +1,9 @@
 # Gate 3 pending exact reviews — 2026-10-03 03:38 UTC
 
+## Local exact staging update — 2026-10-03 05:27 UTC
+
+Production-mapping candidate `1dad476cf8df19b9eee7f92578104f133823085d` is now staged at clean detached `/tmp/alpha-v11-gate3-production-mapping-review-1dad476`. Its tree is `442058a68781c9089ad98262ba77fca2fda10d40`, and design SHA-256 is `20c5d72dd4ac9f235b8964998ff608420333349f44e428cd29e12901e7583525`; both match the author packet. The exact patch passes `git diff --check`; current-main V4 tests pass 58/58 using `/home/alphaadmin/AlphaV11_Dev/venv/bin/python`. This is local review preparation only. No candidate-specific external-transfer authorization, independent verdict, acceptance, or integration is inferred.
+
 ## Production mapping architecture candidate added — 2026-10-03 05:23 UTC
 
 Eighth candidate: `1dad476cf8df19b9eee7f92578104f133823085d`, tree `442058a68781c9089ad98262ba77fca2fda10d40`, clean author checkout `/tmp/alpha-v11-gate3-production-mapping-design-20261003`. Files and source/test evidence are bound by the retained author completion record `/tmp/alpha-v11-gate3-production-mapping-design-20261003.author-terminal.json` (SHA-256 `4428dc5b3ba76e52d44283839c6cb12e1d26145a1c7658558e5d6cdf544c79f7`). The design Markdown SHA-256 is `20c5d72dd4ac9f235b8964998ff608420333349f44e428cd29e12901e7583525`. Author verification: 58 focused V4 tests, 15 pure source-derived mapping pairs, ten baseline source hashes and 34 anchors. Documentation-only; no production code change or new runtime authority.

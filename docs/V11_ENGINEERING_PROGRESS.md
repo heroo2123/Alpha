@@ -1,3 +1,7 @@
+## Coordinator exact mapping-design staging — 2026-10-03 05:27 UTC
+
+Prepared a clean detached checkout of source-only `1dad476` and verified its exact commit/tree/design hash and whitespace. The existing Alpha venv passes 58/58 focused V4 tests on current main. Independent different-model exact review and any later protocol acceptance remain pending; no external transfer, integration, provider request, G3-L PASS, capture, forward SHADOW, or acceptance-score crossing occurred: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Routed mapping architecture completed — 2026-10-03 05:23 UTC
 
 Source-only design candidate `1dad476` is complete in an isolated worktree, with 58 focused offline tests passing and ten source/34 clause bindings. It documents all fifteen mapping evidence obligations and proposes a separately reviewed schema boundary for local proof dependencies versus network requests. Current V4 and all safety gates remain unchanged; seven earlier held candidates plus this new candidate remain unmerged. See checkpoint and pending review queue. No provider request, qualification, G3-L PASS, SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.

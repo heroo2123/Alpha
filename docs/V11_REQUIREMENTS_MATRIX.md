@@ -1,3 +1,7 @@
+## Mapping-design exact checkout — 2026-10-03 05:27 UTC
+
+Candidate `1dad476` is staged at a clean detached exact checkout with matching tree/design hash and clean patch; current-main focused V4 tests pass 58/58. It remains unreviewed and unmerged alongside seven other held Gate 3 candidates. No mapping contract, provider right, G3-L identity, SHADOW admission, or C/J/E/A boundary changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Production mapping architecture prerequisite — 2026-10-03 05:23 UTC
 
 Source-only design candidate `1dad476` is complete in an isolated worktree, with 58 focused offline tests passing and ten source/34 clause bindings. It documents all fifteen mapping evidence obligations and proposes a separately reviewed schema boundary for local proof dependencies versus network requests. Current V4 and all safety gates remain unchanged; seven earlier held candidates plus this new candidate remain unmerged. See checkpoint and pending review queue. No provider request, qualification, G3-L PASS, SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
