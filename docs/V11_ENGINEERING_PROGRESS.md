@@ -7280,3 +7280,7 @@ Verified clean main `fe7c165`, exact clean repair checkouts `976217d` and `34110
 ## Coordinator preserved-work reconciliation — 2026-10-03 08:28 UTC
 
 Recovered clean main `ebd26f6`, no live specialist, and eleven preserved older dirty worktrees. A file comparison showed their historical Gate 3 launch/offline-IO bytes precede the newer committed main versions; the old deterministic builder remains untouched. The eight exact candidates still await candidate-specific authorized different-model review, with weather repair children `976217d` and `3411097` first. No provider request, capture, forward SHADOW, or score crossing occurred: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator current-main reconciliation — 2026-10-03 08:33 UTC
+
+A non-destructive eight-candidate merge probe against `00c4ca4` found seven clean textual merges and only chronological-document conflicts for `3411097`; report SHA-256 `692096a480baa5dc8316ae54e8665fc5d99c9d3a963c172a7993077a6e55290b`. No candidate was merged or independently approved, no provider request or forward capture occurred, and no C/J/E/A boundary crossed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

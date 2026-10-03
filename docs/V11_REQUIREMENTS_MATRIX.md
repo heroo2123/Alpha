@@ -4506,3 +4506,7 @@ Clean main `fe7c165`, both exact weather repair checkouts, the protected master 
 ## Coordinator preserved-work reconciliation — 2026-10-03 08:28 UTC
 
 No acceptance boundary crossed. Eleven old dirty worktrees were inspected and preserved; the historical Gate 3 launch/offline-IO files were compared with current main. No live writer or new qualifying evidence emerged. All eight current Gate 3 candidates remain unmerged, including weather repair children `976217d` and `3411097`, whose parent review authorizations and CHANGES_REQUIRED verdicts do not give the children an independent PASS. The 77 PRE_REVIEW identities remain missing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator current-main reconciliation — 2026-10-03 08:33 UTC
+
+All eight held Gate 3 candidates were probed against clean main `00c4ca4` without merging. Seven are textually compatible; `3411097` conflicts only in the three chronological status documents. The retained `/tmp/alpha-v11-current-main-eight-candidate-merge-probe-20261003.json` is a merge-preparation artifact, not independent review or evidence qualification. Candidate-specific review holds and 77 missing identities remain: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
