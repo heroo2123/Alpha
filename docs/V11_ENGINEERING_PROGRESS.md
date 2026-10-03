@@ -1,3 +1,7 @@
+## Coordinator Brain findings intake — 2026-10-03 00:17 UTC
+
+The recovered offline Sonnet worker completed as `dac20a0` with a clean exit-0 terminal. Corrected its documentation-only handoff to distinguish the existing Gate 3 decoder/collector from the missing Gate 4 real feature-capture-to-example bridge and to record the 123 passing focused tests. The corrected `88c4b48` branch merged locally at `5c3560c`; current-main trajectory tests pass 123/123. Real adapter admission remains gated by G3-E captures and independent Gate 4 review. The two weather repair candidates remain separately review-held; no provider request, forward SHADOW, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator detached Brain worker recovery — 2026-10-03 00:11 UTC
 
 Recovered clean main `3b44fea` and clean weather repair commits `976217d` and `741c6ae`. The prior Brain worker had exited with an empty log, no terminal and no worktree change. Resumed the same bounded offline task in its existing isolated worktree via detached runner; PID `2596304` and Sonnet child `2596305` were live. Weather reviews remain held for authorization specific to the new repair commits; no merge, provider request, forward SHADOW, real trajectory admission, or score crossing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
