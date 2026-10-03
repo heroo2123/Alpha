@@ -1,3 +1,7 @@
+## Fresh-readiness exact review in progress — 2026-10-03 10:23 UTC
+
+Clean repair candidate `35728a3` (tree `119b6d57967a72333342887a40a8e3ff8491d25f`) addresses the prior independent `297ad8f` F1; the author reports 642 focused tests in both Python modes. A different-model Astra/high exact review is live, as is the independent Opus/high passive clock-recorder review of `5667acb`. Neither candidate is approved or integrated. The standing three fresh-readiness holds, 77 missing G3-L identities, zero eligible captures, and **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND** remain unchanged.
+
 ## Preserved GEFS test reconciliation — 2026-10-03 08:38 UTC
 
 The older untracked GEFS draft test was inspected and preserved; current main already carries a broader committed 21-case v2 suite for the renamed builder, with newer provenance checks. This resolves no weather Gate 3 identity or review boundary. Eight current Gate 3 candidates remain unmerged; repair children `976217d` and `3411097` still need candidate-specific authorized independent exact PASS. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

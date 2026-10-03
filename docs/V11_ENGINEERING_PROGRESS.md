@@ -1,3 +1,7 @@
+## Parallel Gate-3 candidate review dispatch — 2026-10-03 10:23 UTC
+
+Intook clean `35728a3` fresh-snapshot repair after its terminal exit 0; verified exact tree, clean status and diff hygiene, and staged a clean detached exact checkout. Launched different-model Astra/high review with retained prompt/output/final/terminal paths recorded in the checkpoint. The Opus/high `5667acb` clock-recorder review remains live. No review verdict, merge, clock qualification, provider request, capture, SHADOW admission or score crossing is claimed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Preserved GEFS test reconciliation — 2026-10-03 08:38 UTC
 
 Read-only AST and diff inspection reconciled the older untracked 14-case GEFS builder draft test against main's committed 21-case v2 suite. All older dirty worktrees remain preserved. Clean main `77252a3` and all eight exact Gate 3 candidates remain unmerged; no independent exact PASS, new evidence, provider request, capture, forward SHADOW or score crossing occurred. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
