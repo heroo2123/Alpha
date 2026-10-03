@@ -1,0 +1,214 @@
+{
+  "authority": false,
+  "baseline_commit": "e73fb9b66c0cf2591c0b8017925c764aac6cff1e",
+  "baseline_tree": "8afe7a24c6e437b0b6345a1fadc08e136797a2c1",
+  "checks_passed": [
+    "native provider counts",
+    "source denominator",
+    "receipt ceiling",
+    "full FIELD cap sum",
+    "fanout boundaries",
+    "object limit exact boundary",
+    "store event boundary",
+    "time boundary",
+    "full minimum time",
+    "overhead increases minimum time",
+    "full deadline-30 time",
+    "generic IFS omitted slots",
+    "role cells",
+    "two-event links",
+    "selected one-byte caps still fail time",
+    "selected one-byte caps still fail objects",
+    "byte exact boundary and plus one",
+    "all-max byte reservation refuses",
+    "max-only GEFS exceeds receipt cap",
+    "minimum source serial expression",
+    "source object expression",
+    "historical estimate, not future bound",
+    "source V4 quota expression",
+    "runtime source records, 1 events",
+    "runtime source store_events, 1 events",
+    "runtime source disk, 1 events",
+    "runtime source records, 2 events",
+    "runtime source store_events, 2 events",
+    "runtime source disk, 2 events",
+    "budget journal fresh boundary",
+    "even one-byte reservation journal failure",
+    "session event ceiling fails"
+  ],
+  "qualification_credit": 0,
+  "results": {
+    "A7_default_ECMWF_wall_envelope_seconds": 38760,
+    "FIELD_reservation_bytes": 9753853952,
+    "V4_aggregates": 12,
+    "V4_budget_events": 92243,
+    "V4_objects": 5438,
+    "V4_quota_bytes_excluding_decoded": 32847691776,
+    "V4_session_events": 21705,
+    "V4_store_events": 10853,
+    "common_integer_FIELD_cap_max_without_overhead": 395776,
+    "deadline_30_seconds": 89587,
+    "external_edge_remaining_if_three_distinct_direct_proofs_per_FIELD": 53,
+    "generic_six_hour_IFS_missing_fields": 612,
+    "historical_raw_estimate_bytes_NOT_future_bound": 1469234173,
+    "mandatory_slots": 2713,
+    "minimum_inherited_seconds": 10910,
+    "minimum_one_byte_budget_journal_bytes": 711196672,
+    "provider_FIELD_reservations": {
+      "AIFS": 2780823552,
+      "GEFS": 1625292800,
+      "IFS": 5347737600
+    },
+    "provider_slots": {
+      "AIFS": 663,
+      "GEFS": 775,
+      "IFS": 1275
+    },
+    "receipt_deficit_bytes": 8680112128,
+    "request_headroom": 887,
+    "role_cells": 8139,
+    "runtime_RAW_memory_bytes": 8650752,
+    "runtime_budget_journal_bytes": 6222970880,
+    "runtime_budget_records": 94955,
+    "runtime_cases": [
+      {
+        "aggregate_nodes": 12,
+        "cohort_events": 1,
+        "disk_bytes": 30651322368,
+        "store_events": 8175
+      },
+      {
+        "aggregate_nodes": 24,
+        "cohort_events": 2,
+        "disk_bytes": 30754344960,
+        "store_events": 8211
+      }
+    ],
+    "runtime_denial_events": 10852,
+    "runtime_denial_journal_bytes": 711196672,
+    "runtime_session_events": 54261,
+    "runtime_session_journal_bytes": 3556048896,
+    "two_event_links": 5426,
+    "unknown": [
+      "current native field sizes",
+      "qualified decode bounds",
+      "proof graph closure cost",
+      "host reservation and foreign consumption",
+      "provider rights and authenticated custody"
+    ]
+  },
+  "schema": "G3_V5_FEASIBILITY_ARITHMETIC_1",
+  "source_pins": [
+    {
+      "byte_length": 1667993,
+      "path": "docs/V11_WORK_CHECKPOINT.md",
+      "sha256": "dba4b9cad66040c8d2dd1f1423a8aaca8417d41464ea262174b78909dc78d192"
+    },
+    {
+      "byte_length": 498597,
+      "path": "docs/V11_REQUIREMENTS_MATRIX.md",
+      "sha256": "314cd79ee504e7ab2ef53f8b738caf41856696119c0c6f0305436bac87a792f9"
+    },
+    {
+      "byte_length": 596577,
+      "path": "docs/V11_ENGINEERING_PROGRESS.md",
+      "sha256": "5912e4b8c8a1c48895c0539c1ca5af077dcf833691d872d0572ce4017bbd09b2"
+    },
+    {
+      "byte_length": 33528,
+      "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.md",
+      "sha256": "e020882313866ce4bf8cee25cecc742d58be74330a3e4afe874e16cd42fd9bed"
+    },
+    {
+      "byte_length": 23289,
+      "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.sources.json",
+      "sha256": "22e103273df5a1626a721e0b3e911d1accfecfdfe6f0fd6104f80a30ae719b3f"
+    },
+    {
+      "byte_length": 40158,
+      "path": "docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.verification.json",
+      "sha256": "7c953b039d65f5e665860ffb813ab545be9114c05a9fa6a632ae65aba249ce5f"
+    },
+    {
+      "byte_length": 20041,
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    {
+      "byte_length": 17309,
+      "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    {
+      "byte_length": 29494,
+      "path": "docs/V11_GATE3_HOST_RESOURCE_FEASIBILITY_20261003.md",
+      "sha256": "5b65e7c165f54cd63bc45ba76ad96df5707f81e8d195790cae02dbc8ceb72437"
+    },
+    {
+      "byte_length": 50535,
+      "path": "docs/V11_GATE3_RESOURCE_RESERVATION_DESIGN_20261003.md",
+      "sha256": "600ff646fd0ab60f912fe0b0d752b3008d24dbc80c5623056b4ced4e244ba6ff"
+    },
+    {
+      "byte_length": 6571,
+      "path": "docs/V11_BRAIN_IFS_AIFS_NATIVE_ADAPTER_FINDINGS_20261003.md",
+      "sha256": "3c5710f1713df398584dca3856c39f510f74e88122e3de862af18272675b3c0d"
+    },
+    {
+      "byte_length": 2671,
+      "path": "config/v11/r09_gate3_observed_message_sizes_20260930.json",
+      "sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb"
+    },
+    {
+      "byte_length": 57812,
+      "path": "tools/v11_r09_gate3_launch.py",
+      "sha256": "d126744f3905b65b97dd19ccddc787d4bcdd71fca88288c1504966b0fb2681b8"
+    },
+    {
+      "byte_length": 47602,
+      "path": "tools/v11_r09_gate3_launch_v4.py",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    {
+      "byte_length": 120122,
+      "path": "tools/v11_r09_gate3_runtime.py",
+      "sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c"
+    },
+    {
+      "byte_length": 34393,
+      "path": "tools/v11_r09_gate3_store_v1.py",
+      "sha256": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636"
+    },
+    {
+      "byte_length": 16038,
+      "path": "tools/v11_gate3_offline_resource_budget.py",
+      "sha256": "0d0ce9218878a1cd374011316b6f6fd57dadf589796d354a6cbc25bffea011d9"
+    },
+    {
+      "byte_length": 17101,
+      "path": "tools/v11_r09_gate3_a7_decoder.py",
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+    },
+    {
+      "byte_length": 39633,
+      "path": "tools/v11_r09_gate3_collector.py",
+      "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe"
+    },
+    {
+      "byte_length": 13179,
+      "path": "polymarket_scanner/v11/ecmwf_sources.py",
+      "sha256": "d02a298ff96ecaf98de7c3b514047d0b7c457237122217841bdbb9949bc1a523"
+    },
+    {
+      "byte_length": 12889,
+      "path": "polymarket_scanner/v11/ecmwf_grib.py",
+      "sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4"
+    },
+    {
+      "byte_length": 16506,
+      "path": "polymarket_scanner/v11/gefs_sources.py",
+      "sha256": "7d02d473d17647ece47f79a7ceb29b80e1a031c1cabef6d8eb3640f156e30df5"
+    }
+  ],
+  "verdict": "FULL_COHORT_BLOCKED_UNDER_RETAINED_RESERVATIONS"
+}
