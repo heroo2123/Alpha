@@ -1,3 +1,7 @@
+## Three review lanes filled with Claude failover — 2026-10-03 20:58 UTC
+
+Launched separate exact read-only reviews for G3-I `ef7b470`, FC1 `b1edf2a` and frozen current Gate-3 runtime `cb3236a`. Claude Opus FC1 review exited 1 on weekly allowance before inspection; its evidence is retained, and Codex Astra/high took the same independent review task in the same clean checkout. All three reviews are live; no verdict or integration. V10/V11 units remain inactive, protected master hash matches. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 author and G3-L drift mapper completed — 2026-10-03 20:55 UTC
 
 The FC1 repair sealed clean `b1edf2a` with author-reported 21 FC1, 10 IA1 and 447 inherited checks per Python mode. Read-only G3-L mapping sealed exit 0 and identified current runtime exact-review and real-caller binding gaps; it does not qualify any identity. Both freed lanes are being recycled into independent reviews, while G3-I exact `ef7b470` remains live. No provider request, qualified capture, G3-L PASS, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

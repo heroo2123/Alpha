@@ -1,3 +1,7 @@
+## Parallel exact reviews active — 2026-10-03 20:58 UTC
+
+G3-I `ef7b470`, FC1 `b1edf2a` and the combined current runtime at `cb3236a` are under separate frozen read-only Astra/high reviews. Claude Opus FC1 invocation hit its weekly limit before review; the retained exit-1 terminal is not a verdict, and Codex Astra was launched against the same clean candidate. No code identity or evidence qualification is credited pending verdicts, reconciliation and real evidence. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 successor and current-runtime review gap — 2026-10-03 20:55 UTC
 
 FC1 `b1edf2a` is a clean author candidate with reported offline tests, pending different-model exact review. G3-L read-only drift mapping found no exact independent terminal for the combined current runtime entrypoint; historical scoped approvals cannot qualify that identity. All 77 PRE_REVIEW identities remain unqualified. No provider authority, G3-L PASS, forward SHADOW or score crossing. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
