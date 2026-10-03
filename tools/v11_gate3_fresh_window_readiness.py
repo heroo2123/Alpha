@@ -257,12 +257,12 @@ def _unsafe_reference_candidate(v: Any, keys: frozenset) -> bool:
 
 
 def _unsafe_persistence_reference(v: Any) -> bool:
-    """Only dict-shaped candidates need shielding from frozen ``_is_ref``.
+    """Keep every non-exact or unsafe reference away from frozen ``_is_ref``.
 
-    That checker safely rejects None, missing and scalar values itself, with
-    its usual MISSING_KEY/MISSING_STORAGE_PERSISTENCE_REVIEW diagnostics.
+    In particular, ``isinstance`` may read a caller's ``__class__`` and let
+    a non-dict object reach the checker's unbounded ``set(v.keys())``.
     """
-    return isinstance(v, dict) and _unsafe_reference_candidate(v, REF_KEYS_NO_REPO)
+    return type(v) is not dict or _unsafe_reference_candidate(v, REF_KEYS_NO_REPO)
 
 
 def _has_unsafe_key(obj: Mapping, label: str, reasons: list) -> bool:
@@ -476,7 +476,7 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
         reasons.append("NONMONOTONIC_CLOCK")
         ok = False
     uncertainty_valid = (
-        type(clock.uncertainty_seconds) in (int, float)
+        (type(clock.uncertainty_seconds) is int or type(clock.uncertainty_seconds) is float)
         and _is_finite_nonneg(clock.uncertainty_seconds)
     )
     if not uncertainty_valid:
@@ -486,7 +486,7 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
         reasons.append("EXCESSIVE_CLOCK_UNCERTAINTY")
         ok = False
     if (
-        type(clock.calibration_age_seconds) not in (int, float)
+        (type(clock.calibration_age_seconds) is not int and type(clock.calibration_age_seconds) is not float)
         or not _is_finite_nonneg(clock.calibration_age_seconds)
     ):
         reasons.append("INVALID_CALIBRATION_AGE")
@@ -706,19 +706,20 @@ def evaluate_fresh_window_readiness(
             # set(v.keys()) copy, and which itself only checks
             # isinstance(v, dict) -- a dict subclass that lies about its
             # own length would pass that check trivially. Guard its type
-            # and cardinality and exact leaf types here first, substituting
-            # a cheap sentinel only for unsafe dict-shaped candidates. The
-            # frozen checker receives missing, None and scalar values as-is
-            # so it can report its own precise diagnostics.
+            # and cardinality and exact leaf types here first. A non-exact
+            # value must never reach the checker's isinstance(v, dict),
+            # which can read the caller's __class__ property. Keep missing
+            # and None untouched so the checker retains their diagnostics.
             persistence_review = sq_dict.get("persistence_review")
-            if _unsafe_persistence_reference(persistence_review):
-                label = (
-                    "OVERSIZED_PREREQUISITE_REFERENCE"
-                    if type(persistence_review) is not dict
-                    or len(persistence_review) > len(REF_KEYS_NO_REPO)
-                    else "MALFORMED_PREREQUISITE_REFERENCE"
-                )
-                storage_reasons.append(f"{label}:storage_qualification.persistence_review")
+            if persistence_review is not None and _unsafe_persistence_reference(persistence_review):
+                if issubclass(type(persistence_review), dict):
+                    label = (
+                        "OVERSIZED_PREREQUISITE_REFERENCE"
+                        if type(persistence_review) is not dict
+                        or len(persistence_review) > len(REF_KEYS_NO_REPO)
+                        else "MALFORMED_PREREQUISITE_REFERENCE"
+                    )
+                    storage_reasons.append(f"{label}:storage_qualification.persistence_review")
                 sq_dict["persistence_review"] = None
             _check_storage(
                 {"limits": dict(FROZEN_LIMITS), "storage_qualification": sq_dict},

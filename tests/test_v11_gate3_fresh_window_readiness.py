@@ -1208,10 +1208,102 @@ def test_hostile_now_and_clock_fields_are_rejected_without_protocols():
         assert reason in result.incompleteness_reasons
 
 
+@pytest.mark.parametrize("field,reason", (
+    ("uncertainty_seconds", "INVALID_CLOCK_UNCERTAINTY"),
+    ("calibration_age_seconds", "INVALID_CALIBRATION_AGE"),
+))
+def test_clock_metaclass_equality_cannot_admit_float_subclass(field, reason):
+    class EqualToEveryType(type):
+        def __eq__(cls, other):
+            return True
+
+        __hash__ = type.__hash__
+
+    class HostileFloat(float, metaclass=EqualToEveryType):
+        def __eq__(self, other):
+            raise AssertionError("caller numeric equality invoked")
+
+    result = _call(clock=replace(GOOD_CLOCK, **{field: HostileFloat(0.3)}))
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.clock_ready is False
+    assert reason in result.incompleteness_reasons
+
+
+def test_clock_metaclass_equality_cannot_forge_oversized_uncertainty():
+    class EqualToEveryType(type):
+        def __eq__(cls, other):
+            return True
+
+        __hash__ = type.__hash__
+
+    class LyingFloat(float, metaclass=EqualToEveryType):
+        def __eq__(self, other):
+            raise AssertionError("caller numeric equality invoked")
+
+        def __gt__(self, other):
+            raise AssertionError("caller numeric comparison invoked")
+
+    clock = replace(GOOD_CLOCK, uncertainty_seconds=LyingFloat(1e300))
+    result = _call(clock=clock)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.clock_ready is False
+    assert "INVALID_CLOCK_UNCERTAINTY" in result.incompleteness_reasons
+
+
 @pytest.mark.parametrize("value", (None, "review", 7, []))
 def test_scalar_persistence_review_keeps_checker_diagnostic(value):
     storage = dict(GOOD_STORAGE_QUALIFICATION, persistence_review=value)
     result = _call(storage_qualification=storage)
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+    assert not any("PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in x
+                   for x in result.incompleteness_reasons)
+
+
+@pytest.mark.parametrize("base_type", (object, str))
+def test_persistence_review_raising_class_is_never_inspected(base_type):
+    class RaisingClass(base_type):
+        @property
+        def __class__(self):
+            raise AssertionError("caller __class__ invoked")
+
+    value = RaisingClass() if base_type is object else RaisingClass("private sentinel")
+    result = _call(storage_qualification=dict(GOOD_STORAGE_QUALIFICATION, persistence_review=value))
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+    assert not any("PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in x
+                   for x in result.incompleteness_reasons)
+
+
+@pytest.mark.parametrize("keys_behavior", ("valid", "raise", "many"))
+def test_persistence_review_flipping_class_never_reaches_checker(keys_behavior):
+    class FlippingClass:
+        def __init__(self):
+            self.calls = 0
+            self.protocol_calls = 0
+
+        @property
+        def __class__(self):
+            self.calls += 1
+            return FlippingClass if self.calls == 1 else dict
+
+        def keys(self):
+            self.protocol_calls += 1
+            if keys_behavior == "valid":
+                return GOOD_STORAGE_QUALIFICATION["persistence_review"].keys()
+            if keys_behavior == "many":
+                return iter(range(100_000))
+            raise ValueError("caller keys invoked")
+
+        def get(self, key, default=None):
+            self.protocol_calls += 1
+            return GOOD_STORAGE_QUALIFICATION["persistence_review"].get(key, default)
+
+    value = FlippingClass()
+    result = _call(storage_qualification=dict(GOOD_STORAGE_QUALIFICATION, persistence_review=value))
+    assert value.calls == 0
+    assert value.protocol_calls == 0
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
     assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
     assert not any("PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in x
                    for x in result.incompleteness_reasons)
