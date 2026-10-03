@@ -1,5 +1,9 @@
 # Gate 3 pending exact reviews — 2026-10-03 03:38 UTC
 
+## Current-main non-destructive reconciliation — 2026-10-03 05:42 UTC
+
+Against clean main `f9e38effd3f36bd0d786400d324eaa30f4b4c021`, `git merge-tree --write-tree HEAD <candidate>` succeeded for seven of the eight current candidates: `976217d`, `5667acb`, `5faedb8`, `9d80dd9`, `3d414b3`, `988f544`, and `1dad476`. Candidate `741c6ae` still conflicts in only the three chronological status documents: `V11_WORK_CHECKPOINT.md`, `V11_REQUIREMENTS_MATRIX.md`, and `V11_ENGINEERING_PROGRESS.md`. Preserve all newer history when reconciling it after an authorized independent exact PASS. These probes neither review nor merge a candidate; all eight remain held, and the production V4 mapping and 77 missing G3-L identities are unchanged.
+
 ## Current queue reconciliation — 2026-10-03 05:30 UTC
 
 All eight current candidates below are locally clean and unmerged. Their author

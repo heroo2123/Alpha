@@ -1,3 +1,7 @@
+## Candidate reconciliation — 2026-10-03 05:42 UTC
+
+Seven of eight pending Gate 3 candidates have conflict-free non-destructive merge-tree probes against clean main `f9e38ef`; `741c6ae` conflicts only in three chronological status documents. All still need candidate-specific authorized different-model exact PASS before integration. No provider right, G3-L identity, SHADOW admission or C/J/E/A boundary changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Mapping-design exact checkout — 2026-10-03 05:27 UTC
 
 Candidate `1dad476` is staged at a clean detached exact checkout with matching tree/design hash and clean patch; current-main focused V4 tests pass 58/58. It remains unreviewed and unmerged alongside seven other held Gate 3 candidates. No mapping contract, provider right, G3-L identity, SHADOW admission, or C/J/E/A boundary changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
