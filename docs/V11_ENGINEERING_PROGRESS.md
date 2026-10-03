@@ -1,3 +1,7 @@
+## Routed mapping architecture completed — 2026-10-03 05:23 UTC
+
+Source-only design candidate `1dad476` is complete in an isolated worktree, with 58 focused offline tests passing and ten source/34 clause bindings. It documents all fifteen mapping evidence obligations and proposes a separately reviewed schema boundary for local proof dependencies versus network requests. Current V4 and all safety gates remain unchanged; seven earlier held candidates plus this new candidate remain unmerged. See checkpoint and pending review queue. No provider request, qualification, G3-L PASS, SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator production mapping source audit — 2026-10-03 05:12 UTC
 
 Verified directly against current V4 source that its mandatory 15 provider-purpose pairs cannot pass the current production predicate, which admits only IFS/AIFS FIELD/INDEX. Prepared the public-source architecture handoff to define a reviewed fail-closed path and evidence requirements; existing review-held candidates remain unmerged. No provider request, production mapping approval, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
