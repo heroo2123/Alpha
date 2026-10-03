@@ -1,3 +1,6 @@
+## Parallel weather repairs after exact review — 2026-10-03 15:46 UTC
+
+Both exact reviewers finished exit 0 with **CHANGES_REQUIRED**. Export snapshot validation must enforce unique/type-exact slots, the combined dependency ceiling and stable malformed-input refusal; resource custody must refuse directory/file inode aliases. Two independent isolated repair workers are live with retained terminal markers; details and hashes are in the checkpoint. No merge, operational custody, provider request, G3-L PASS, capture, forward SHADOW or score crossing. Disk free 2.80 GB, MemAvailable about 738 MiB. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
 ## Parallel weather exact reviews — 2026-10-03 15:39 UTC
 
 The resource-custody author finished clean `1fc8b18`, 906 insertions across three files, with author-reported 34/34 tests per Python mode. Its different-model Sol/high exact review is live in a clean detached checkout alongside the `6ca5bb9` Astra/high export review. Retained SHA and runner bindings are in the checkpoint. No verdict, merge, operational resource custody, provider request, capture, forward SHADOW or score crossing. Disk free 2.80 GB, MemAvailable about 806 MiB. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

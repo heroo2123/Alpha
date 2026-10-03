@@ -1,3 +1,6 @@
+## Exact reviews require offline repairs — 2026-10-03 15:46 UTC
+
+Export `6ca5bb9` and resource model `1fc8b18` each received sealed independent **CHANGES_REQUIRED**, with full findings and repair bindings in the checkpoint. Separate persistent Sol/high and Astra/high repair workers now own their original isolated worktrees. Neither candidate is merged or qualified. Require clean successors, different-model exact review and normal integration gates. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
 ## Resource refusal candidate also under exact review — 2026-10-03 15:39 UTC
 
 Clean `1fc8b18` adds an offline supplied-byte resource preparation/custody refusal model; author reports 34 focused tests per Python mode. Different-model Sol/high exact review is live alongside the independent `6ca5bb9` export review. Neither is merged or operationally qualified. Actual allocation, authenticated custody, provider rights, G3-L identities and SHADOW admission remain absent. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
