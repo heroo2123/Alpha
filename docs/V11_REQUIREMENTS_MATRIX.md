@@ -1,3 +1,7 @@
+## Reviewed resource binding integrated; exact-byte validator entrypoint active — 2026-10-03 14:30 UTC
+
+`4273456` received sealed independent Astra/high **PASS_IN_SCOPE** and was integrated locally as `6bea4c5` with all reviewed blobs unchanged. Post-merge 9/9 focused tests pass in normal and optimized Python. Its capacity coverage still depends on external exact V4 manifest validation. One isolated Sol/high worker is implementing an offline validated-byte entrypoint; no candidate or review exists yet. No host reservation, clock qualification, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Resource-plan member bound repair under independent review — 2026-10-03 14:22 UTC
 
 Independent `4165945` review returned **CHANGES_REQUIRED** for an oversized caller member-list allocation before refusal. Clean isolated successor `4273456` bounds before snapshot and passes 9/9 focused tests in both Python modes; one different-model exact review is live. No successor PASS, merge, operational qualification, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

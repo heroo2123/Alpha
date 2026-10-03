@@ -1,3 +1,7 @@
+## Offline resource binding integrated; validated-byte follow-up active — 2026-10-03 14:30 UTC
+
+The clean `4273456` resource-binding successor passed independent exact Astra/high review and merged locally as `6bea4c5`; imported blobs match the reviewed candidate and 9/9 post-merge tests pass in each Python mode. One persistent isolated Sol/high worker is building a fail-closed offline entrypoint that validates exact V4 manifest bytes before capacity comparison. Its worktree and retained terminal are recorded in the checkpoint. No new candidate, provider request, host qualification, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Resource-plan boundedness repair under exact review — 2026-10-03 14:22 UTC
 
 Intook sealed `4165945` **CHANGES_REQUIRED** review, reproduced its unbounded member-list copy, and committed clean isolated repair `4273456` with a memory regression. Focused tests pass 9/9 normal and optimized; whitespace check passes. One independent Astra/high exact reviewer is live with retained terminal paths in the checkpoint. No PASS, local integration, host qualification, provider request, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
