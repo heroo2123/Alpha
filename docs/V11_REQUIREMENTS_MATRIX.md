@@ -4870,3 +4870,7 @@ Offline IFS candidate `53163d7` remains under live independent exact review; the
 ## V5 offline weather review continuity — 2026-10-03 18:20 UTC
 
 Exact IFS three-hour candidate `53163d7` received **CHANGES_REQUIRED** for V5 generic dispatch bypass and timestamp refusal. An isolated repair is active; no IFS admission credit. Clean documentation-only full-cohort contract `36482c0` is under independent exact review. Neither candidate is integrated. **91/200, formal 1/50; 77 missing G3-L identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 IFS second repair active — 2026-10-03 18:42 UTC
+
+Independent Astra/high exact review of `2fbb807` sealed **CHANGES_REQUIRED**: ECMWF proxy admission can reach a mock GET, and outer `ObservationPump` can cause synthetic paper-runtime effects before V5 refusal. One isolated Sol/high offline repair is active; candidate is unmerged. Require successor tests, independent exact PASS, reconciliation and post-merge checks. No provider request, qualification or forward SHADOW; 77 G3-L identities remain missing. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
