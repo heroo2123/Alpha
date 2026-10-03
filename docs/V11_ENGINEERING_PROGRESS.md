@@ -7552,3 +7552,7 @@ Verified clean main `a1ae1a8`, one live isolated V5 evidence-contract author wit
 ## Reviewed V5 evidence-role proposal integrated — 2026-10-03 16:42 UTC
 
 Clean documentation candidate `1c0e2d0` received independent Sol/high `PASS_IN_SCOPE` with no actionable findings and merged locally as `03c1055` after conflict-free reconciliation. All three imported blobs equal reviewed bytes; JSON parsing, whitespace and main status checks pass. This advances a source-bound design only. Full per-field caps imply about 9.08 GiB before overhead versus the retained 1 GiB receipt cap; no production V5 implementation, accepted mapping, host qualification, provider request, capture, forward SHADOW or acceptance crossing follows. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 resource-feasibility worker active — 2026-10-03 16:42 UTC
+
+One Codex Astra/high worker is live in isolated `/tmp/alpha-v11-gate3-v5-feasibility-20261003` with a terminal marker path and no duplicate writer. It is deriving the full 2,713-slot resource bounds and either a safe versioned architecture or an explicit blocked disposition. It has no provider, private-evidence, V10, Axiom, authority, financial or operational scope. Independent exact review is required for any clean candidate. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
