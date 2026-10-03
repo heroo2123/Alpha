@@ -1,3 +1,7 @@
+## Resource-plan binding repair under independent review — 2026-10-03 14:13 UTC
+
+The exact `32de1f8` Astra/high review returned **CHANGES_REQUIRED**: a mutable string-subclass key could undercount a cohort event while falsely claiming capacity coverage. The preserved isolated author worktree now has tested clean successor `4165945` (8/8 focused cases in each Python mode), under one different-model exact review. No successor PASS, merge, real-host resource qualification, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Resource-plan binding candidate in independent review — 2026-10-03 14:02 UTC
 
 Clean `32de1f8` passed 7/7 focused host tests in normal and optimized Python and entered different-model Astra/high exact review. Its caller-supplied V4 event expansion comparison remains unmerged and unqualified pending verdict. No operational resource reservation, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
