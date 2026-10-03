@@ -1,3 +1,11 @@
+## FC1 successor and current-runtime review gap — 2026-10-03 20:55 UTC
+
+FC1 `b1edf2a` is a clean author candidate with reported offline tests, pending different-model exact review. G3-L read-only drift mapping found no exact independent terminal for the combined current runtime entrypoint; historical scoped approvals cannot qualify that identity. All 77 PRE_REVIEW identities remain unqualified. No provider authority, G3-L PASS, forward SHADOW or score crossing. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-I offline repair under exact review — 2026-10-03 20:54 UTC
+
+Clean successor `ef7b470` addresses five current-collector/sizing review findings but remains under independent Astra/high exact review. Author-reported 219 focused tests per Python mode and a clean diff do not grant acceptance. FC1 successor `a51c7d4` has no sealed writer terminal yet; G3-L drift mapping continues. The 77 identities remain unqualified, and provider rights, resource/clock qualification, G3-L and genuine forward SHADOW remain open. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-I terminal gap and current-closure review — 2026-10-03 20:34 UTC
 
 Read-only reconciliation confirms seven historically scoped links, but all 77 G3-L PRE_REVIEW identities remain unqualified. No original completed terminal was recovered for the collector, GEFS-ceiling or provider-bound G3-I historical review; the 64 KiB CGI bound is superseded for S3 full fields. A fresh independent exact current-collector review is live at frozen `f04aeed`; it cannot backdate those terminals or grant G3-L credit. FC1 step-2 IA1 repair remains in a separate live worktree. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

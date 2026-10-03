@@ -1,3 +1,11 @@
+## FC1 author and G3-L drift mapper completed — 2026-10-03 20:55 UTC
+
+The FC1 repair sealed clean `b1edf2a` with author-reported 21 FC1, 10 IA1 and 447 inherited checks per Python mode. Read-only G3-L mapping sealed exit 0 and identified current runtime exact-review and real-caller binding gaps; it does not qualify any identity. Both freed lanes are being recycled into independent reviews, while G3-I exact `ef7b470` remains live. No provider request, qualified capture, G3-L PASS, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
+## G3-I exact review started after clean repair terminal — 2026-10-03 20:54 UTC
+
+The isolated G3-I Sol/high repair sealed exit 0 at `ef7b470` / tree `d79733c`; a different-model Astra/high reviewer is live against those frozen bytes with retained prompt, output, final and terminal paths. Author reports 219 offline focused tests per Python mode; independent verdict and local integration remain pending. Separate FC1 and G3-L workers are live; FC1 has committed a successor but not sealed its terminal. No provider request, G3-L PASS, capture, genuine forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L reconciliation and current G3-I review — 2026-10-03 20:34 UTC
 
 Sealed read-only reconciliation found seven bounded historical evidence links and zero qualified G3-L entries; a follow-up search found no original completed terminals for three G3-I review identities. Launched an independent read-only Astra/high exact review of current collector/GEFS-ceiling bytes in a frozen isolated checkout while the FC1 step-2 IA1 repair writer continues separately. No verdict or merge follows yet. Disk and memory support two current specialist lanes. No provider request, G3-L PASS, eligible capture, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
