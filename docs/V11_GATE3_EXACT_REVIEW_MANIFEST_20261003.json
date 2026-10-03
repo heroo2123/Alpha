@@ -2,8 +2,8 @@
   "candidates": [
     {
       "checkout_clean": true,
-      "commit": "5419a4e943a0106beb0f1920c5961b23fb0e880a",
-      "exact_checkout": "/tmp/alpha-v11-gate3-fresh-readiness-review-5419a4e",
+      "commit": "297ad8ff26e29c2b7d80af55ccae5676a08ea29b",
+      "exact_checkout": "/tmp/alpha-v11-review-297ad8f",
       "file_scope": "cumulative changed paths from review_base to commit; parent is the direct Git parent",
       "files": [
         {
@@ -13,26 +13,26 @@
           "sha256": "b06ca6804c2dfad51ec9e3a7c7a685347758ef1e7c699701d6337deab8ac084d"
         },
         {
-          "blob_oid": "50ee9d16323619c3b792c85643aafcd97bcb3471",
-          "bytes": 57006,
+          "blob_oid": "b20e5c7a8ef5f5aafc695f1afc994eab0431452f",
+          "bytes": 60618,
           "path": "tests/test_v11_gate3_fresh_window_readiness.py",
-          "sha256": "621759ba5201f2c8d493920dc25d831a1f98061e322f569675622d47dd7635bb"
+          "sha256": "34bdc54fb484d271ed7be353b14de55b4e353d467e0bcda0a65d4694544bcb1f"
         },
         {
-          "blob_oid": "8879f4399ac933e3ef61c78202658131d2449e25",
-          "bytes": 39688,
+          "blob_oid": "857caa933dec3dcbcac0e4159e751cc5afb74c3b",
+          "bytes": 39905,
           "path": "tools/v11_gate3_fresh_window_readiness.py",
-          "sha256": "a74238f3546149de4d9808ef107884fec0746c3d228815045449ba7f26402939"
+          "sha256": "6b11f9393e636f9c10f2b450206be6caf8553fec8cf80ac44d772a9a49cb8499"
         }
       ],
-      "parent": "976217d94629d808806f9e97ddd86c1992637a4c",
+      "parent": "5419a4e943a0106beb0f1920c5961b23fb0e880a",
       "review_base": "947bf687822d0a42e9992adc3049091e677a41ed",
-      "tree": "fd1dbf9622c758ce433019bf42d6010df4779d88"
+      "tree": "99a0130a9234d93edfac9a528585f04854b6d911"
     },
     {
       "checkout_clean": true,
-      "commit": "84849e4d64eaab987ba224823fe1c1437c8a7a68",
-      "exact_checkout": "/tmp/alpha-v11-g3l-binding-review-84849e4",
+      "commit": "2afef9bfc0776b1d11c2e30095495da70f353b01",
+      "exact_checkout": "/tmp/alpha-v11-review-2afef9b",
       "file_scope": "cumulative changed paths from review_base to commit; parent is the direct Git parent",
       "files": [
         {
@@ -54,10 +54,10 @@
           "sha256": "2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4"
         },
         {
-          "blob_oid": "7f0829f4871ef6c2d1cfea6e2e624b37fa744fbd",
-          "bytes": 14400,
+          "blob_oid": "901004d4806ba9db140cb36b9539f8035d464183",
+          "bytes": 15173,
           "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.md",
-          "sha256": "712f9fb3096c7d46a09f0031fcaa26bc4209916f6ac8ebff04ef138716d53511"
+          "sha256": "6d78052f51e26640ed02184fcf22f6f3b78807c64dab6d1e5037ee7f0202bb13"
         },
         {
           "blob_oid": "239b2ed656c582b5f72dd732dfcd57295d8427a1",
@@ -72,10 +72,10 @@
           "sha256": "49d614201f2c9cdf46c6735569aef5c05b14ec2ff172ca958eac29df66b141a9"
         },
         {
-          "blob_oid": "822e77becee81e187ff6ac1141e78ef1fa1af906",
-          "bytes": 8004,
+          "blob_oid": "507065346c3c5debaa80bba5a7729a6e4cc737e6",
+          "bytes": 12088,
           "path": "tests/test_v11_r09_gate3_g3l_binding.py",
-          "sha256": "978abc6267bcb1e33f0a3cda681bccf37413229071ef4450278b97da0f26af6f"
+          "sha256": "3c1720eec649e6658ee90ab4368a78946d6593a75a89713e7310d46895d16868"
         },
         {
           "blob_oid": "c9cd3e90a2d75bc17bf546904ca51850309102d4",
@@ -84,15 +84,15 @@
           "sha256": "f6494288475ddbe1054a04913d9677a32c1f4037ea97313544e5050e77155d27"
         },
         {
-          "blob_oid": "ec5e4eb338f920b1de5012f8732b77b6aafb5f98",
-          "bytes": 25726,
+          "blob_oid": "6b54887fc66b9413670883f66585098fbe5839c2",
+          "bytes": 26766,
           "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "52178827ecc7a0808e9c45033d8b75f8e7e43690e28009de2635ad322b6c7b4e"
+          "sha256": "6c7245523194ff91ed7a096282b70ba9f023f2c94cf24c2a4a252b7356730a39"
         }
       ],
-      "parent": "3411097e702281e223f2ca8a3f9eaaf573cfcadf",
+      "parent": "84849e4d64eaab987ba224823fe1c1437c8a7a68",
       "review_base": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
-      "tree": "489b6108f9fdac58f2f9035d8c6a09ce8e16f9c0"
+      "tree": "d5325556b698fe38d26e198127165eb02812de86"
     },
     {
       "checkout_clean": true,

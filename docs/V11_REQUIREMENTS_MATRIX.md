@@ -4548,3 +4548,7 @@ Clean G3-L child `2afef9b` is staged for exact review; host-focused tests pass *
 ## Coordinator child-review authorization hold — 2026-10-03 09:38 UTC
 
 Stopped two exact-review processes for new descendants `297ad8f` and `2afef9b` because the recorded owner transfer authorization names only ancestor commits. Partial logs have no verdict; both clean candidates remain staged and unmerged pending destination-specific authorization and independent PASS. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Current repair packet and review authorization hold — 2026-10-03 09:41 UTC
+
+The local eight-candidate exact packet now binds clean current children `297ad8f` and `2afef9b` and passes offline blob/tree/checkout integrity verification. Two externally resumed reviews of those private descendants were stopped because the recorded destination-specific owner authorization covers only ancestors. Neither has an authorized different-model PASS or merge. No evidence or C/J/E/A boundary changed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
