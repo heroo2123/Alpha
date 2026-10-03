@@ -5058,3 +5058,6 @@ Clean `7fc9223` RAW receipt-to-A7 handoff entered different-model Astra/high exa
 ## Reviewed FC1 step-2 code integrated — 2026-10-03 22:29 UTC
 
 Exact `a06fb90` received independent PASS_IN_SCOPE and merged as `9eb650c`; all five imported blobs equal reviewed bytes. Merged main passes 22 focused FC1 and 10 IA1 document checks in normal and optimized Python. This closes an offline code/review boundary only. FC1 operational qualification, real evidence, provider rights, all 77 G3-L identities, capture and SHADOW admission remain open. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Transport successor under exact re-review — 2026-10-03 22:32 UTC
+
+Exact `9d0e9a1` review required four reproduced accounting/closure repairs; clean successor `60ac120` is under different-model exact re-review. The separate RAW decoder `7fc9223` is also under exact review. Neither is integrated or grants transport/storage/decoder qualification, provider right, G3-L identity, capture or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

@@ -7793,3 +7793,6 @@ The sealed Sol/high offline RAW decoder binding `7fc9223` is under independent A
 ## FC1 exact PASS merged and checked on main — 2026-10-03 22:29 UTC
 
 Different-model exact `a06fb90` review sealed PASS_IN_SCOPE. Conflict-free local merge `9eb650c` imported all five reviewed blobs exactly; post-merge focused FC1 tests passed 22/22 per Python mode and IA1 document checks passed 10/10 per mode. The transport-stream CHANGES_REQUIRED successor repair and independent RAW decoder exact review remain live in separate worktrees. No provider request, G3-L PASS, qualified capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+## Transport repair sealed; exact re-review active — 2026-10-03 22:32 UTC
+
+Independent `9d0e9a1` review sealed CHANGES_REQUIRED for four reproduced fail-closed stream defects. The isolated Sol/high successor `60ac120` is clean with author-reported offline normal/optimized tests; a different-model Astra/high exact reviewer now runs in a frozen checkout. The RAW decoder candidate is under separate exact review. No verdict or merge for either lane, provider request, G3-L PASS, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
