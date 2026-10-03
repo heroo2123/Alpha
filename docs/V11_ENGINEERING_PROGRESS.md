@@ -1,3 +1,7 @@
+## Coordinator exact resource-child verification — 2026-10-03 04:45 UTC
+
+Verified current offline resource-budget child `9d80dd9` and its detached exact checkout are clean at the same commit/tree. Five focused synthetic tests pass under normal and optimized Python, and the child diff passes `git diff --check`. Updated the exact-review queue to preserve parent `0df1a95` while naming the child as the current candidate. Four other Gate 3 candidates remain review-held; no candidate-specific authorized different-model PASS, merge, provider request, genuine evidence, or acceptance crossing followed. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Offline readiness-boundary design accepted in scope — 2026-10-03 00:52 UTC
 
 Resolved the routed public-byte architecture task, repaired independent findings, and integrated the exact `13a9f78` proposed offline design plus its Sol/high review as documentation-only `faca37b`. All five source bindings and reviewed design hash match after integration. Started one isolated normal-mode Codex Sol/high validator author (runner/child 2606088/2606096), with retained [launch metadata](V11_GATE3_READINESS_BOUNDARY_IMPLEMENTATION_LAUNCH_20261003.json) and completion terminal pending. No held repair/private evidence transfer, runtime integration, provider request, real observation qualification or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
