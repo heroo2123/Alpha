@@ -1,3 +1,7 @@
+## V5 IFS reviewed integration and FC1 downstream preparation — 2026-10-03 19:46 UTC
+
+Independent exact `610ee4a` PASS_IN_SCOPE is integrated at `24c8251`; all nine merged blobs match the reviewed candidate and focused post-merge tests pass 115/115 in each Python mode with zero socket events. The reviewer retained one optimized concurrent timing failure that passed alone, so no clean full-suite claim is made. FC1 step-2 schema authoring remains unfinished; step-3 store handoff is read-only and complete; separate read-only step-4 ledger and step-5 scheduler preparation lanes are live. None supplies production V5 acceptance, provider rights, the 77 missing G3-L identities, or forward SHADOW admission: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 adaptive parallel preparation — 2026-10-03 19:39 UTC
 
 Three distinct live weather lanes: `610ee4a` independent exact review, FC1 step-2 schema author, and read-only FC1 step-3 store/lifecycle implementation mapping in a separate checkout. The third lane is preparation only and cannot accept unfinished step-2 bytes. No verdict, integration, provider authority, G3-L identity credit, capture or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
