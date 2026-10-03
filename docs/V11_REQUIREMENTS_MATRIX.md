@@ -4852,3 +4852,7 @@ Independent exact review of `986f642` returned **CHANGES_REQUIRED** for Git help
 ## V5 replay repair exact review active — 2026-10-03 17:46 UTC
 
 Clean successor `13324e6` addresses the prior review findings and is under different-model Astra/high exact review in a detached checkout. Author tests are not an independent PASS; no merge or operational qualification is claimed. V5 remains **PROPOSED_BLOCKED** with a full-cohort resource contradiction. The proposed Gate-3 date expired and 77 G3-L identities remain missing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 historical replay repair integrated — 2026-10-03 17:59 UTC
+
+Independent Astra/high exact review of `13324e6` sealed **PASS_IN_SCOPE** for bounded offline historical replay; exact reviewed blobs merged locally as `7d73277`. Post-merge focused tests pass 12/12 and baseline replay passes 32 checks/22 pins in normal and optimized Python. Current-pin `--check` still correctly refuses advancing status documents. The separate full-cohort contract and three-hour IFS cadence weather workers are active in isolated worktrees and remain unreviewed. This integration does not resolve V5's capacity contradictions, the expired Gate-3 proposal, 77 missing G3-L identities, provider rights, host qualification or SHADOW admission. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
