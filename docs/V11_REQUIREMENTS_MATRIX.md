@@ -1,3 +1,11 @@
+## FC1 repair-preparation continuity — 2026-10-03 20:07 UTC
+
+A read-only isolated worker maps successor tests and code locations after the sealed `274b8b4` CHANGES_REQUIRED verdict. The separate amendment author remains active; no amendment or step-2 acceptance exists. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## FC1 step-2 review hold — 2026-10-03 20:05 UTC
+
+Exact `274b8b4` returned **CHANGES_REQUIRED** for receipt/terminal custody, start-spacing proof, and counted EOF/overdelivery at the 64-read cap. The separate versioned amendment is still uncommitted and unreviewed. Step-2 freeze and downstream FC1 acceptance remain held; passing offline tests grant no G3-L or SHADOW credit. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 live merge preflight — 2026-10-03 20:04 UTC
 
 Exact `274b8b4` remains under independent Sol/high review, while a separate Astra/high author prepares the proposed interface amendment. The candidate diff passes whitespace and read-only current-main merge-tree checks; neither review verdict nor amendment candidate exists. No FC1, G3-L, provider, capture or SHADOW acceptance credit: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

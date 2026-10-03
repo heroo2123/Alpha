@@ -1,3 +1,11 @@
+## FC1 repair map lane launched — 2026-10-03 20:07 UTC
+
+Recycled the finished exact-review slot to a separate read-only Sol/medium worker at frozen `274b8b4`. The Astra/high proposed interface-amendment author continues in its own worktree. Neither lane may grant acceptance; no review PASS, merge, provider request, G3-L PASS, forward SHADOW or score crossing. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## FC1 step-2 exact review intake — 2026-10-03 20:05 UTC
+
+Sealed exit-0 Sol/high independent review of `274b8b4` returned **CHANGES_REQUIRED** on three inherited-interface conflicts despite 18 focused tests per Python mode, 19 adverse probes and 28 source pins passing. Separate Astra/high versioned-amendment author remains live with uncommitted work. Preserve the step-2 candidate and review artifacts; repair only after reviewed amendment, then obtain a new different-model exact verdict. No merge, provider request, G3-L PASS, genuine forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 active review and amendment preflight — 2026-10-03 20:04 UTC
 
 Two persistent specialists remain live in distinct clean worktrees. Exact `274b8b4` has a conflict-free read-only merge-tree probe and passing whitespace check, but no sealed independent verdict; the versioned interface amendment has no candidate yet. Their terminal-marker runners are present. V10/V11 units are inactive, protected master hash matches, disk free is 5,758 MiB, and MemAvailable 780,760 KiB keeps the adaptive target at two lanes. No merge, provider request, G3-L PASS, genuine forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
