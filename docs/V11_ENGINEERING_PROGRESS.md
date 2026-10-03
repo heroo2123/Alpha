@@ -1,3 +1,7 @@
+## Three live exact reviews; current-main preflight complete — 2026-10-03 21:00 UTC
+
+The G3-I, FC1 IA1 and current-runtime reviewers remain active in separate frozen checkouts with no sealed verdict. G3-I and FC1 candidate diffs pass whitespace checks and both reconcile cleanly to main in offline merge-tree probes. Available memory currently supports these three specialists only. Next action is immediate verdict intake, any required repair/re-review, and safe local integration after PASS. No provider request, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Three review lanes filled with Claude failover — 2026-10-03 20:58 UTC
 
 Launched separate exact read-only reviews for G3-I `ef7b470`, FC1 `b1edf2a` and frozen current Gate-3 runtime `cb3236a`. Claude Opus FC1 review exited 1 on weekly allowance before inspection; its evidence is retained, and Codex Astra/high took the same independent review task in the same clean checkout. All three reviews are live; no verdict or integration. V10/V11 units remain inactive, protected master hash matches. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
