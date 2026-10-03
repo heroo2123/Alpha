@@ -1,3 +1,7 @@
+## Transport F4 clean successor under independent exact review — 2026-10-03 22:52 UTC
+
+Clean `f1e85ba` addresses the prior returned-byte F4 finding and has author-reported offline tests, but is under separate Astra/high exact review. No PASS or merge follows from author tests. RAW binding repair, offline allocation model and read-only G3-L identity mapping continue. No provider request, physical qualification, G3-L identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Transport F4 second review requires repair; G3-L physical evidence absent — 2026-10-03 22:50 UTC
 
 Independent exact review of transport `60ac120` returned **CHANGES_REQUIRED** for residual returned-byte loss; an isolated successor repair is live. RAW decoder binding repair and a separate offline allocation/lifetime model writer are also live. A read-only frozen-main G3-L identity/evidence mapper now uses the fourth safe slot. The physical-proof verifier confirmed no selected-host storage qualification. No provider request, G3-L identity credit, capture or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

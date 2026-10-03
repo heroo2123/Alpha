@@ -1,3 +1,7 @@
+## Transport F4 candidate entered exact re-review — 2026-10-03 22:52 UTC
+
+Clean Sol/high `f1e85ba` sealed exit 0, passed whitespace checks and author-reported 13 adverse plus 129 runtime tests per Python mode. A separate Astra/high exact read-only reviewer is live against that frozen commit. Three other distinct Gate-3 lanes remain live: RAW binding repair, offline allocation model and G3-L identity mapping. Require reviewer PASS, newer-main reconciliation and focused post-merge tests before integration. No provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Four independent Gate-3 lanes active — 2026-10-03 22:50 UTC
 
 Transport `60ac120` exact review sealed **CHANGES_REQUIRED** for residual F4 byte loss and its sole isolated successor repair is live. RAW binding repair continues after its prior P2 review. The read-only physical-proof verifier sealed with no host qualification, and its slot moved to a distinct offline allocation/lifetime model writer. A fourth isolated read-only G3-L identity/evidence next-step mapper was launched at clean `1194ed8` under current safe headroom. Preserve each unfinished worktree; launch exact reviews only for sealed clean candidates, then reconcile against newer main. No provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
