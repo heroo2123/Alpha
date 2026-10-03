@@ -1,3 +1,7 @@
+## FC1 step-2 exact review remains blocked — 2026-10-03 21:16 UTC
+
+Different-model exact review of `b1edf2a` sealed **CHANGES_REQUIRED** on four reproduced P2 clock/custody/uncertainty defects despite 21 FC1, 10 IA1 and 447 inherited tests passing per Python mode. One isolated successor repair writer is active; no FC1 step-2 acceptance or merge credit follows until exact re-review PASS and reconciliation. The separate G3-L intake repair remains active. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Current-runtime admission finding and repair lane — 2026-10-03 21:13 UTC
 
 Exact current-runtime review at `cb3236a` sealed **CHANGES_REQUIRED**: direct intake-record construction can present `satisfied=True` with a refusal/arbitrary outcome and reach synthetic dispatch. No `code.runtime_entrypoint_review` or `code.slice3_exact_commit_review` credit follows. An isolated offline repair is active and must pass independent different-model exact review before integration. All 77 G3-L PRE_REVIEW identities remain unqualified; **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
