@@ -7058,3 +7058,7 @@ Independent Astra/high exact `9759ecf` PASS_IN_SCOPE_PROPOSED_OFFLINE_DESIGN is 
 ## Passive clock recorder implementation active — 2026-10-03 02:48 UTC
 
 One isolated Sonnet/high worker is live in `/tmp/alpha-v11-gate3-clock-recorder-20261003` from clean main `e5073a4`, implementing only the reviewed public passive recorder/dossier slice with synthetic checks and no real sampling. Candidate, terminal and independent exact review are pending. Held Gate 3 repairs remain separate and unmerged. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Clock recorder candidate held for exact-review authorization — 2026-10-03 03:07 UTC
+
+Recovered clean exit-0 `5667acb` from the isolated Sonnet worker; 50 focused offline tests pass in normal and optimized modes. Staged a clean exact detached review checkout, but automatic approval review rejected transmitting this new private-repository candidate to Codex without its own destination-specific authorization, so no reviewer ran. Preserve the candidate and staged review; do not merge or run a real host observation before an authorized different-model exact PASS and subsequent gates. No provider request, G3-L PASS, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
