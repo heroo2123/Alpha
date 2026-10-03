@@ -1,3 +1,7 @@
+## Export design integrated; passive-host successor under review — 2026-10-03 15:19 UTC
+
+Exact `988f544` documentation-only export design received independent `PASS_IN_SCOPE` and merged locally as `fd7c51a`; reviewed blob preserved. Its nonblocking seven-role wording recommendation does not change production code or admission. Passive host `4fe59ea` review returned CHANGES_REQUIRED; narrow repaired successor `a6f98ad` is in separate exact review, unmerged. Host reservation/custody, clock, provider rights, production mapping and G3-L evidence remain unqualified. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Validated-plan export design under exact review — 2026-10-03 15:12 UTC
 
 Clean `988f544` documentation-only export/provenance candidate entered different-model exact review while passive host-feasibility `4fe59ea` review continues. Neither creates a production export, host qualification or admission authority. With MemAvailable below 900 MiB, no third heavy specialist starts. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
