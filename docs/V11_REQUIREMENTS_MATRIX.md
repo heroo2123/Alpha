@@ -1,3 +1,7 @@
+## Resource refusal candidate also under exact review — 2026-10-03 15:39 UTC
+
+Clean `1fc8b18` adds an offline supplied-byte resource preparation/custody refusal model; author reports 34 focused tests per Python mode. Different-model Sol/high exact review is live alongside the independent `6ca5bb9` export review. Neither is merged or operationally qualified. Actual allocation, authenticated custody, provider rights, G3-L identities and SHADOW admission remain absent. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Offline export candidate under independent exact review — 2026-10-03 15:37 UTC
 
 Clean `6ca5bb9` adds only an untrusted seven-role supplied-byte export input and fail-closed consumer prerequisite. Author tests report 96/96 per Python mode; different-model Astra/high exact review is active. The separate resource-custody refusal-model worker remains live. Neither grants authenticated production pins, actual resource/clock qualification, provider authority, identity credit or SHADOW admission. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
