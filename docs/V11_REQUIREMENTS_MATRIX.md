@@ -4498,3 +4498,7 @@ Detached `976217d` passes 563/563 focused offline fresh-readiness/preflight-chec
 ## Coordinator current-head reconciliation — 2026-10-03 08:10 UTC
 
 On clean main `5428f1a`, held `976217d` is textually merge-compatible; held `3411097` conflicts only in the three chronological status files. Neither repair has candidate-specific authorized independent exact PASS, so all eight review-held candidates remain unmerged. No new G3-L identity or eligible capture appeared: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator exact-review recovery — 2026-10-03 08:22 UTC
+
+Clean main `fe7c165`, both exact weather repair checkouts, the protected master hash, execution-unit inactivity, and host resource floors were reverified. Eight current candidates remain review-held; no candidate-specific independent PASS, G3-L identity, eligible G3-E capture, or C/J/E/A boundary appeared. The 77 PRE_REVIEW identities remain missing and the score stays **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
