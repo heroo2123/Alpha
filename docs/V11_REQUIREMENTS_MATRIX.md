@@ -1,3 +1,7 @@
+## Exact-queue audit — 2026-10-03 07:25 UTC
+
+Current main `878be2f` and the eight unmerged Gate 3 candidates remain clean. The local handoff now identifies `02dc668` as the current G3-L child; it grants no independent review or identity credit. Eleven older dirty worktrees remain preserved. The 77 missing identities and zero qualified slots remain: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L repair counterexample replay — 2026-10-03 07:03 UTC
 
 The retained 53-case parent-review harness exited 0 against clean unmerged `02dc668`. The original malformed/incomplete observation cases refuse, and a newer artifact baseline cannot promote the drifted slice-3 row: it remains FUTURE with zero qualification. Result SHA-256 `426e35539ed13cdf2de686acb29c679c4cce0308705b7606f12d746d5621ace5`. This local check grants no independent PASS or G3-L identity. Exact child reviews remain authorization-held: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

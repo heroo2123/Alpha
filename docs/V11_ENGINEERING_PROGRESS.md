@@ -1,3 +1,7 @@
+## Coordinator exact-queue correction — 2026-10-03 07:25 UTC
+
+Audited all 65 registered worktrees and marked the historical G3-L handoff row superseded and pointed review dispatch to current child `02dc668`. No active specialist, new commissioning artifact, candidate-specific authorized independent PASS, or merge appeared. The protected master hash matches and host headroom remains above the 3 GiB/900 MiB preference. No provider request, capture, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator local G3-L repair probe — 2026-10-03 07:03 UTC
 
 Reused the retained parent-review adversarial harness against exact unmerged G3-L child `02dc668`: 53 cases completed, original R1 malformed/missing observations refused, and R2's newer-artifact-baseline probe kept slice 3 FUTURE with zero credit. Script/result hashes are recorded in the checkpoint. No candidate-specific independent PASS or merge followed; the fresh-readiness child `976217d` also remains review-held. No provider request, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
