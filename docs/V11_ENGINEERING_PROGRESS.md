@@ -1,3 +1,7 @@
+## Coordinator recovery — 2026-10-03 15:32 UTC
+
+Recovered both live isolated weather workers rather than launching duplicates. Their work is uncommitted and awaits finished candidates and exact review; validated-plan export author reports 91 focused tests passing in normal and optimized Python. Current main is clean at `08a54e2`; disk free 2.87 GB and MemAvailable about 873 MB limit additional heavy work. Checked execution units inactive; PAPER user bus unavailable; protected FINAL-REVIEWED master hash unchanged. No provider request, G3-L PASS, qualified host resources, capture, forward SHADOW or acceptance crossing. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Passive assessment integrated; two weather prerequisites active — 2026-10-03 15:23 UTC
 
 Independent exact `a6f98ad` review passed and local merge `de879af` preserves both reviewed blobs; post-merge JSON/whitespace checks pass. Its resource values remain author-recorded, with no operational qualification. A separate Astra/high worker now builds only an offline resource custody refusal model while the Sol/high validated-plan export worker continues. Both require independent exact review before any integration. No provider request, capture, SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

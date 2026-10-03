@@ -1,3 +1,7 @@
+## Live offline weather prerequisites — 2026-10-03 15:32 UTC
+
+Validated-plan export and resource-custody refusal-model workers remain active in separate worktrees with uncommitted source/tests and no terminal verdict. The export worker reports 91/91 focused tests per Python mode, pending candidate and independent review. Neither grants authenticated pins, host reservation, provider authority, G3-L credit, or SHADOW admission. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Passive host assessment reviewed; custody model active — 2026-10-03 15:23 UTC
 
 Exact `a6f98ad` passive assessment passed independent review and merged locally as `de879af` with reviewed blobs intact. Samples are author-recorded and do not qualify actual host resources. Separate offline custody-refusal and validated-plan export workers are active in isolated worktrees; neither is an acceptance gate PASS. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
