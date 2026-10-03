@@ -1,3 +1,6 @@
+## V5 IFS repair continuity — 2026-10-03 19:14 UTC
+
+The isolated Sol/high repair of `7cff90a` remains live with uncommitted outer-admission changes. New focused tests pass 24/24 in both Python modes; the prior adverse probe now refuses at batch construction before runner effects. Wider tests and the clean successor are pending. No independent PASS, merge, provider request, identity credit, capture or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
 ## V5 IFS outer admission repair — 2026-10-03 19:05 UTC
 
 Exact `7cff90a` review sealed **CHANGES_REQUIRED** for one P1 `CandidateRunner` admission gap with reproduced synthetic runtime/paper effects before V5 refusal. Prior direct ECMWF and pump findings are closed. One isolated Sol/high repair worker is live in the preserved author worktree; require clean successor, different-model exact PASS, reconciliation and post-merge tests before integration. No provider request, G3-L identity credit, qualified capture or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
