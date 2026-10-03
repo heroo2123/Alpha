@@ -1,3 +1,7 @@
+## Validated-plan export design under exact review — 2026-10-03 15:12 UTC
+
+Clean `988f544` documentation-only export/provenance candidate entered different-model exact review while passive host-feasibility `4fe59ea` review continues. Neither creates a production export, host qualification or admission authority. With MemAvailable below 900 MiB, no third heavy specialist starts. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Reviewed production-mapping proposal integrated — 2026-10-03 15:09 UTC
 
 Documentation-only `1dad476` received independent `PASS_IN_SCOPE` and merged locally as `e8bdfb0` with unchanged blobs; post-merge V4 tests pass 58/58. Its P3 direct-pin recommendation applies to any later amendment. The current V4 mapping predicate, provider rights and G3-L holds remain unchanged. Passive host assessment `4fe59ea` is under separate exact review. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
