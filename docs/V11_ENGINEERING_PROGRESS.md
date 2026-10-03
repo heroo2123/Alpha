@@ -1,3 +1,7 @@
+## G3-L intake exact review launched — 2026-10-03 21:21 UTC
+
+Recovered the exit-0 G3-L writer terminal and clean `383412e` two-file candidate, verified its tree and whitespace, and launched a different-model Astra/high exact review against frozen bytes. The separate FC1 repair continues. After review dispatch, disk free was about 4,219 MiB and MemAvailable about 811 MiB, so two specialist lanes fill the live reserve. No reviewer verdict, merge, provider request, G3-L PASS or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## FC1 review recycled into successor repair — 2026-10-03 21:16 UTC
 
 Sealed Astra/high exact review of `b1edf2a` returned CHANGES_REQUIRED on four normal/optimized reproductions: cross-request clock intersection, permission-to-start bracket, REFUSED overdelivery and inherited uncertain debit completion. A single Sol/high writer now repairs these in the existing isolated FC1 worktree; a distinct Sol/high writer repairs the G3-L runtime intake gap. Both need clean successors and different-model exact reviews before any merge. No provider request, qualified capture, G3-L PASS, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
