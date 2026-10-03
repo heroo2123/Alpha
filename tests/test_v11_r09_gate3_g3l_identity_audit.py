@@ -270,6 +270,45 @@ def test_missing_individual_observation_refuses(monkeypatch):
         subject.audit(REPO, **ARGS)
 
 
+@pytest.mark.parametrize("identity", sorted(subject.REUSABLE_ROW_ARTIFACTS))
+def test_reusable_row_cannot_omit_artifacts(monkeypatch, identity):
+    # Presence of all seven observations alone does not establish which
+    # reviewed artifacts an individual retained row depends on.
+    actual = subject._json
+
+    def changed(path):
+        value = actual(path)
+        if path.name == Path(subject.RECONCILIATION).name:
+            value = dict(value)
+            value["identities"] = dict(value["identities"])
+            row = dict(value["identities"][identity])
+            row["artifacts"] = []
+            value["identities"][identity] = row
+        return value
+
+    monkeypatch.setattr(subject, "_json", changed)
+    with pytest.raises(ValueError, match="artifact coverage changed"):
+        subject.audit(REPO, **ARGS)
+
+
+def test_reusable_row_cannot_omit_one_dependency(monkeypatch):
+    actual = subject._json
+
+    def changed(path):
+        value = actual(path)
+        if path.name == Path(subject.RECONCILIATION).name:
+            value = dict(value)
+            value["identities"] = dict(value["identities"])
+            row = dict(value["identities"][subject.SLICE3_ID])
+            row["artifacts"] = row["artifacts"][:-1]
+            value["identities"][subject.SLICE3_ID] = row
+        return value
+
+    monkeypatch.setattr(subject, "_json", changed)
+    with pytest.raises(ValueError, match="artifact coverage changed"):
+        subject.audit(REPO, **ARGS)
+
+
 def test_observation_path_substituted_for_another_tracked_path_refuses(monkeypatch):
     # R2: swapping an observation's path onto another tracked artifact while
     # keeping its own hash/commit must be caught as a baseline mismatch, not

@@ -47,6 +47,42 @@ CODE_BYTE_OBSERVATION_NAMES = frozenset({
     "launch_validator", "ledgers", "offline_decoder_and_clock_types",
 })
 
+# Keep reviewed row-to-artifact coverage fixed. Otherwise an omitted artifact
+# can make an empty dependency list pass the later all(...) freshness check.
+REUSABLE_ROW_ARTIFACTS = {
+    "code.mapping_exact_commit_review": frozenset({
+        "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+        "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json",
+    }),
+    SLICE3_ID: frozenset({
+        "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md",
+        "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4_terminal.json",
+        "docs/V11_R09_GATE3_V4_SLICE3_RECONCILIATION_6340cb4.json",
+    }),
+    "protocol.g3i_composition_review_terminal": frozenset({
+        "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md",
+        "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_terminal.json",
+    }),
+    "protocol.g3p_addendum_commit_tree_document": frozenset({
+        "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+        "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+        "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+    }),
+    "protocol.g3p_addendum_review_terminal": frozenset({
+        "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+        "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+    }),
+    "protocol.g3p_original_commit_tree_document": frozenset({
+        "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+        "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+    }),
+    "protocol.transport_design_review_terminal": frozenset({
+        "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+        "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md",
+        "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json",
+    }),
+}
+
 _COMMIT_OID_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -178,6 +214,14 @@ def audit(repo: Path, *, target_date: str, now_utc: int,
         raise ValueError("G3-L identity schema drift; audit classification needs review")
     if any(source["identities"][i]["qualified_entry"] is not None for i in ALL_IDS):
         raise ValueError("source reconciliation contains an unreviewed qualified entry")
+    reusable = {identity for identity in PRE_REVIEW_IDS
+                if source["identities"][identity]["material_status"] == "REUSABLE_SCOPED_ARTIFACTS"}
+    if reusable != set(REUSABLE_ROW_ARTIFACTS):
+        raise ValueError("source reconciliation reusable identity coverage changed")
+    for identity, expected in REUSABLE_ROW_ARTIFACTS.items():
+        paths = source["identities"][identity]["artifacts"]
+        if not isinstance(paths, list) or len(paths) != len(expected) or set(paths) != expected:
+            raise ValueError(f"source reconciliation artifact coverage changed: {identity}")
 
     artifacts = {}
     for path, claimed in sorted(source["artifacts"].items()):
