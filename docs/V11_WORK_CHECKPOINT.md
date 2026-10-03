@@ -20310,3 +20310,60 @@ The protected FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c
 ## Coordinator current-main offline gate and passive host check — 2026-10-03 10:01 UTC
 
 Recovered clean main `0a9d5b7` with no separate Alpha specialist. Current weather repair candidates `297ad8f` and `2afef9b` remain clean, unmerged, and without candidate-specific authorized different-model exact PASS; their ancestor review authorizations do not cover these bytes. The eight-packet local manifest and prior 77-missing-identity audit remain preparation only. Ran four current-main offline G3-L/preflight-intake/launch-V4 test files: **98/98 passed**. Passive `timedatectl` reported `NTPSynchronized=yes` and UTC system/RTC times matching to the displayed second; this is not an accepted clock dossier or launch calibration. Measured 3,981,451,264 bytes free disk and 824,209,408 bytes MemAvailable, so no additional heavy specialist was launched below the 900 MiB scheduling threshold. The protected FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`; V10 and V11 weather execution system units were inactive, protected V11 authority roots absent, and PAPER user-unit state remains unverified because the user bus was unavailable. The earlier fill-markout release failure is closed by the accepted 5,460-pass/13-skip release; no new full suite was run. No provider request, eligible capture, genuine forward SHADOW, financial/V10/Axiom action, or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, F1 repaired — 2026-10-02 22:20 UTC
+
+Isolated worktree `/tmp/alpha-v11-g3l-audit-hardening-20261002`, base `main`
+`40bc64e`. Repaired `tools/v11_r09_gate3_g3l_identity_audit.py` per F1 of the
+independent `131eb12` review (`docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_REVIEW_131eb12.md`):
+replaced the hard-coded slice-3-only runtime-drift special case with a
+generic recheck that, for every PRE_REVIEW row, correlates its own cited
+terminal/reconciliation JSON against the reconciliation's
+`code_byte_observations` by reviewed-commit field, and folds in the current
+byte-freshness of every code file actually certified. The review's own
+probe scenario (simulated `tools/v11_r09_gate3_launch_v4.py` drift, which the
+pre-fix tool missed for `code.mapping_exact_commit_review`) is now a passing
+regression test, alongside a second independent-file-drift test proving the
+mechanism is not special-cased. Also made the two scoped F2 (before/after
+screen wording) and F3 (terminal marker/error check; bounded `_git_bytes`
+timeout via `git cat-file blob`) fixes the review authorized; its other two
+F3 nits (duplicate report ref, test-pins-live-drift) were left untouched as
+out of authorized scope. New snapshot
+`docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json` (SHA-256
+`566eb4beb8e8c15f359c7af2205acc91e1bc9235ae0df54f5a5ea4cb23719b1b`)
+reproduces the same `6/1/70/0` category boundary, 77 MISSING, 0 credit,
+G3-L NO-GO as the frozen `131eb12` snapshot, which along with its review
+bundle remains untouched. 27 focused offline tests passed (20 pre-existing +
+7 new, `--basetemp=/tmp/g3l-audit-hardening-basetemp/bt`), `py_compile` and
+`git diff --check` clean. Candidate is isolated and unmerged; the separate
+fresh-readiness worktree and `main` were not touched. No provider request,
+capture, SHADOW, financial, V10, Axiom, authority, merge, or score crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, R1/R2 repaired — 2026-10-02 23:30 UTC
+
+Second independent exact-commit review of `c9e3b8d` (OpenAI GPT-6
+Astra/high) returned `CHANGES_REQUIRED`: R1, an empty/invalid/nonexistent
+`commit_oid`, or a whole missing observation entry, silently dropped out of
+dependency coverage instead of being refused; R2, the dependency baseline
+was read from the artifact dict's `git_commit`, not the observation's own
+`commit_oid`/`sha256`/`tree_oid`, so a rebound artifact baseline or a
+path-substituted observation could mask real drift. Repaired in
+`tools/v11_r09_gate3_g3l_identity_audit.py`: `code_byte_observations` must
+now match a fixed 7-name set exactly; each observation's commit/tree is
+resolved and verified via Git, and its blob hash checked, before use;
+dependency refs are now anchored to the observation's own verified
+commit/hash, never the artifact dict's. Also fixed the review's nonblocking
+R3 handoff wording (three correlated identities, not two; slice-3 gained
+both ledger and runtime refs). 10 new regression tests reproduce the
+reviewer's own adverse probes; all previously-silent false `RETAINED`
+cases now fail closed or correctly report `FUTURE`. Same `6/1/70/0`, 77
+missing, 0 credit, G3-L NO-GO boundary; regenerated candidate snapshot
+`docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json` now 187,952
+bytes, SHA-256 `2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4`
+(prior pre-repair hash `566eb4be...` documented, not silently overwritten).
+37 focused offline tests passed (27 prior + 10 new), bounded `--basetemp`,
+`git diff --check` clean. Frozen `131eb12` bundle, private FINAL-REVIEWED
+master, and the independent `c9e3b8d` review's own evidence are untouched.
+No provider request, capture, SHADOW, financial, V10, Axiom, authority,
+merge, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

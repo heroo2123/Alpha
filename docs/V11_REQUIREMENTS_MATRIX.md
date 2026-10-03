@@ -4571,3 +4571,52 @@ Recovered clean main `0a9d5b7` with no separate Alpha specialist. Current weathe
 The owner's 2026-10-03 standing Alpha review/development authorization supersedes the older per-descendant transfer hold recorded below. Two different-model exact reviews were already live for clean, unmerged weather children `297ad8f` and `2afef9b`; no duplicate reviewer was launched. The `297ad8f` review finished **CHANGES_REQUIRED** (retained `/tmp/review-297ad8f-authorized-final.out`, SHA-256 `3902a5305b3f3b7b7404aa9b9d0388f9560d77857f36589d440cc2e30e67a702`): repeated field reads of exact clock/resource observations can invoke hostile instance-dict key equality, raise, or suppress a storage diagnostic. Its exact checkout is clean. A single Sonnet/high offline repair worker is now live in isolated `/tmp/alpha-v11-fresh-snapshot-repair-20261003`, based on `297ad8f`, with a terminal marker; the `2afef9b` Opus exact review remains live. No candidate has an independent PASS or merge.
 
 The Opus reviewer's completed adjacent pytest scratch `/tmp/rev2afef9b-final/bt-adjO` consumed about 1.5 GiB and pushed disk briefly below the 2 GiB floor. After confirming no open files or active pytest used it and that `raw-O.json` and the review checkout remained retained, removed only that re-creatable scratch. Free disk recovered to 3,856,883,712 bytes; MemAvailable was 862,956 KiB, so no further heavy specialist was started. Protected FINAL-REVIEWED master SHA-256 remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`; main `66c2d97` was clean before this update. No provider request, capture, G3-L PASS, forward SHADOW, V10/Axiom/financial action, or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, F1 repaired — 2026-10-02 22:20 UTC
+
+Repaired `tools/v11_r09_gate3_g3l_identity_audit.py`, isolated off `main`
+`40bc64e`, against F1 of the independent `131eb12` review: the tool no
+longer hard-codes only the slice-3 runtime-drift case, but generically
+recorrelates every PRE_REVIEW row's cited terminal/reconciliation JSON
+against the reconciliation's `code_byte_observations` and downgrades any
+`RETAINED` row whose certified code dependency has drifted. The review's
+own adverse probe (`tools/v11_r09_gate3_launch_v4.py` drift, previously
+undetected for `code.mapping_exact_commit_review`) is now a regression
+test. The 77-missing, zero-credit, G3-L NO-GO boundary and the 503/503/429
+restriction holds are unchanged and reproduced identically by the repaired
+tool. The frozen `131eb12` review bundle and its reviewed JSON remain
+untouched as the historical record of the pre-fix tool. No qualified
+inventory entry, provider request, capture, dispatch, or score crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, R1/R2 repaired — 2026-10-02 23:30 UTC
+
+A second independent exact-commit review of the F1 repair above (candidate
+`c9e3b8d`, OpenAI GPT-6 Astra/high,
+`/tmp/alpha-v11-g3l-hardening-review-c9e3b8d.review.md`) returned
+`CHANGES_REQUIRED`: R1, malformed/unresolvable/missing `code_byte_observations`
+entries silently dropped out of dependency coverage instead of being
+refused; R2, the dependency byte baseline came from the artifact dict's
+recorded commit, not the observation's own `commit_oid`/`sha256`/`tree_oid`,
+so rebinding the artifact's baseline (or substituting the observation's
+path onto another tracked file) could mask real drift. Repaired both in
+`tools/v11_r09_gate3_g3l_identity_audit.py`: `code_byte_observations` must
+now contain exactly the fixed 7-name set or the audit refuses; each
+observation's commit must resolve in Git with a matching tree, and its own
+blob must hash to its recorded `sha256`, before it is used; the dependency
+ref returned to a row is now anchored to the observation's own verified
+commit, not the artifact's. Also corrected the nonblocking R3 handoff
+wording (three correlated identities, not two; slice-3 gained both ledger
+and runtime refs, not just a reworded obligation). 10 new regression tests
+reproduce the reviewer's own adverse probes against the repaired tool; all
+previously-silent false `RETAINED` cases now either fail closed or
+correctly report `FUTURE`. The classification boundary is unchanged —
+`6/1/70/0`, 77 missing, 0 credit, G3-L NO-GO — though the regenerated
+candidate snapshot's bytes changed (two rows' `source_refs` now show the
+observation's own commit/tree instead of the artifact's); new SHA-256
+`2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4`, 187,952
+bytes. 37 focused offline tests passed (27 prior + 10 new), `git diff
+--check` clean. The frozen `131eb12` bundle, the private FINAL-REVIEWED
+master, and the independent `c9e3b8d` review's own evidence are untouched.
+No qualified inventory entry, provider request, capture, dispatch, or score
+crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
