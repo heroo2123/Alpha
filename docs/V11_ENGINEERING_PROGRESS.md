@@ -7589,3 +7589,8 @@ The isolated Sol/high repair ended with clean `13324e6` and author-reported 12/1
 ## V5 historical replay exact PASS integrated; independent weather work active — 2026-10-03 17:59 UTC
 
 The different-model Astra/high review of clean `13324e6` sealed exit-0 **PASS_IN_SCOPE** after reproducing and verifying all parent findings. Conflict-free local merge `7d73277` imported all three reviewed blobs exactly. Post-merge offline tests pass 12/12 per Python mode and baseline replay passes 32 checks/22 pins per mode; current-source `--check` refuses expected status-document drift. Two distinct isolated workers are live for a documentation-only full-cohort contract and V5-scoped offline IFS three-hour cadence. Neither is reviewed or integrated; preserve their worktrees and intake their exact candidates when finished. Disk remains above 2 GiB, with two heavy workers at the host cap. No provider request, qualified capture, forward SHADOW, V10/Axiom/financial action or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+
+## V5 IFS candidate entered independent review — 2026-10-03 18:06 UTC
+
+The clean offline IFS three-hour candidate `53163d7` has author-reported 170 focused tests passing per Python mode and a live independent Astra/high exact reviewer with retained terminal path. The separate full-cohort worker continues. No verdict, merge, provider request, qualified capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

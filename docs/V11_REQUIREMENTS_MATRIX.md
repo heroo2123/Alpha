@@ -4856,3 +4856,8 @@ Clean successor `13324e6` addresses the prior review findings and is under diffe
 ## V5 historical replay repair integrated — 2026-10-03 17:59 UTC
 
 Independent Astra/high exact review of `13324e6` sealed **PASS_IN_SCOPE** for bounded offline historical replay; exact reviewed blobs merged locally as `7d73277`. Post-merge focused tests pass 12/12 and baseline replay passes 32 checks/22 pins in normal and optimized Python. Current-pin `--check` still correctly refuses advancing status documents. The separate full-cohort contract and three-hour IFS cadence weather workers are active in isolated worktrees and remain unreviewed. This integration does not resolve V5's capacity contradictions, the expired Gate-3 proposal, 77 missing G3-L identities, provider rights, host qualification or SHADOW admission. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+
+## V5 IFS cadence exact review active — 2026-10-03 18:06 UTC
+
+Clean candidate `53163d7` represents the required three-hour IFS slots offline and is under different-model Astra/high exact review; it is not integrated or qualified. The separate full-cohort contract author remains active. V5 remains **PROPOSED_BLOCKED**; 77 G3-L identities and host/provider prerequisites remain unresolved. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
