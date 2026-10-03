@@ -1,3 +1,7 @@
+## Coordinator read-only G3-L rerun — 2026-10-03 00:26 UTC
+
+Verified clean main, the two preserved clean weather repair worktrees, the unchanged private FINAL-REVIEWED master, and no newer commissioning/backfill files or separate Alpha specialist. The existing current-main offline G3-L audit returned 77 missing identities, 6/1/70/0 material categories, zero qualification, and a resource-only 59/2,713-slot proposal for October 4. Its generic drift hardening remains unmerged in `741c6ae`; both weather repairs still need their own authorized exact independent reviews. No provider request, forward SHADOW, or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator offline lane correction — 2026-10-03 00:21 UTC
 
 Verified clean main and held exact repair candidates, unchanged protected master, no new checked forward evidence, adequate host headroom, and no separate active Alpha worker. Requested review-only authorization for the two new repair commits; their parent review approvals do not apply to the repaired bytes. Corrected a stale InventoryTransform start-contract status header without running the observer. No provider request, G3-L PASS, forward SHADOW, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
