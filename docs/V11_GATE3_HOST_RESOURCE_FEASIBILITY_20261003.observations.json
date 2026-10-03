@@ -1,0 +1,387 @@
+{
+  "schema": "V11_GATE3_PASSIVE_HOST_OBSERVATIONS_V1",
+  "baseline_commit": "71c6916d2ab69e643138991198bde7b1942bbe00",
+  "baseline_tree": "7632691eef6dca9be6f66e32c25e05533b4adc0a",
+  "status": "UNQUALIFIED",
+  "g3l": "NO_GO",
+  "qualification_credit": 0,
+  "execution_authority": false,
+  "provider_authority": false,
+  "resource_reservation": false,
+  "timestamp_basis": "Session clock tool brackets; not host-clock readings, synchronization evidence, atomic snapshot, or validity interval.",
+  "observation_A_bracket_utc": [
+    "2026-10-03T14:53:26Z",
+    "2026-10-03T14:53:29Z"
+  ],
+  "observation_A": {
+    "kind": "PASSIVE_OBSERVATION_NOT_RESERVATION",
+    "uid": 1000,
+    "gid": 1000,
+    "uname": [
+      "Linux",
+      "[hostname omitted]",
+      "6.8.0-137-generic",
+      "#137-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 17 20:28:23 UTC 2026",
+      "x86_64"
+    ],
+    "paths": {
+      "/": {
+        "dev": 64770,
+        "major_minor": "253:2",
+        "inode": 2,
+        "uid": 0,
+        "mode": "0o755",
+        "frsize": 4096,
+        "blocks": 5135638,
+        "bfree": 979351,
+        "bavail": 750408,
+        "user_available_bytes": 3073671168,
+        "free_bytes": 4011421696,
+        "files": 1308160,
+        "ffree": 827584,
+        "favail": 827584
+      },
+      "/tmp": {
+        "dev": 64770,
+        "major_minor": "253:2",
+        "inode": 23,
+        "uid": 0,
+        "mode": "0o1777",
+        "frsize": 4096,
+        "blocks": 5135638,
+        "bfree": 979351,
+        "bavail": 750408,
+        "user_available_bytes": 3073671168,
+        "free_bytes": 4011421696,
+        "files": 1308160,
+        "ffree": 827584,
+        "favail": 827584
+      },
+      "/tmp/alpha-v11-gate3-host-resource-feasibility-20261003": {
+        "dev": 64770,
+        "major_minor": "253:2",
+        "inode": 571401,
+        "uid": 1000,
+        "mode": "0o775",
+        "frsize": 4096,
+        "blocks": 5135638,
+        "bfree": 979351,
+        "bavail": 750408,
+        "user_available_bytes": 3073671168,
+        "free_bytes": 4011421696,
+        "files": 1308160,
+        "ffree": 827584,
+        "favail": 827584
+      },
+      "/dev/shm": {
+        "dev": 27,
+        "major_minor": "0:27",
+        "inode": 1,
+        "uid": 0,
+        "mode": "0o1777",
+        "frsize": 4096,
+        "blocks": 237448,
+        "bfree": 237448,
+        "bavail": 237448,
+        "user_available_bytes": 972587008,
+        "free_bytes": 972587008,
+        "files": 237448,
+        "ffree": 237447,
+        "favail": 237447
+      },
+      "/run": {
+        "dev": 26,
+        "major_minor": "0:26",
+        "inode": 1,
+        "uid": 0,
+        "mode": "0o755",
+        "frsize": 4096,
+        "blocks": 47490,
+        "bfree": 42966,
+        "bavail": 42966,
+        "user_available_bytes": 175988736,
+        "free_bytes": 175988736,
+        "files": 237448,
+        "ffree": 236719,
+        "favail": 236719
+      }
+    },
+    "proc": {
+      "/proc/self/cgroup": "0::/user.slice/user-1000.slice/session-133.scope",
+      "/proc/1/cgroup": "0::/init.scope",
+      "/proc/self/limits": "Limit                     Soft Limit           Hard Limit           Units     \nMax cpu time              unlimited            unlimited            seconds   \nMax file size             unlimited            unlimited            bytes     \nMax data size             unlimited            unlimited            bytes     \nMax stack size            8388608              unlimited            bytes     \nMax core file size        0                    unlimited            bytes     \nMax resident set          unlimited            unlimited            bytes     \nMax processes             7093                 7093                 processes \nMax open files            1048576              1048576              files     \nMax locked memory         243146752            243146752            bytes     \nMax address space         unlimited            unlimited            bytes     \nMax file locks            unlimited            unlimited            locks     \nMax pending signals       7093                 7093                 signals   \nMax msgqueue size         819200               819200               bytes     \nMax nice priority         0                    0                    \nMax realtime priority     0                    0                    \nMax realtime timeout      unlimited            unlimited            us",
+      "/proc/sys/vm/overcommit_memory": "0",
+      "/proc/sys/vm/overcommit_ratio": "50",
+      "meminfo_selected": {
+        "MemTotal": "1899584 kB",
+        "MemFree": "373824 kB",
+        "MemAvailable": "1108240 kB",
+        "Buffers": "98696 kB",
+        "Cached": "553592 kB",
+        "SwapTotal": "2097148 kB",
+        "SwapFree": "1742324 kB",
+        "Dirty": "780 kB",
+        "Writeback": "0 kB",
+        "Shmem": "992 kB",
+        "CommitLimit": "3046940 kB",
+        "Committed_AS": "1719668 kB"
+      },
+      "self_status_selected": {
+        "Uid": "1000\t1000\t1000\t1000",
+        "Gid": "1000\t1000\t1000\t1000",
+        "VmSize": "20572 kB",
+        "VmRSS": "12820 kB",
+        "Threads": "1",
+        "CapInh": "0000000000000000",
+        "CapPrm": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapBnd": "000001ffffffffff",
+        "CapAmb": "0000000000000000",
+        "NoNewPrivs": "0",
+        "Seccomp": "0"
+      }
+    },
+    "cgroups": {
+      "/sys/fs/cgroup/user.slice/user-1000.slice/session-133.scope": {
+        "cgroup.controllers": "cpu memory pids",
+        "cgroup.subtree_control": "",
+        "cgroup.type": "domain",
+        "memory.current": "354721792",
+        "memory.max": "max",
+        "memory.high": "max",
+        "memory.low": "0",
+        "memory.min": "0",
+        "memory.swap.current": "2560000",
+        "memory.swap.max": "max",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "pids.current": "47",
+        "pids.max": "max",
+        "cpu.max": "max 100000",
+        "directory": {
+          "uid": 0,
+          "gid": 0,
+          "mode": "0o755",
+          "writable_by_observer": false
+        }
+      },
+      "/sys/fs/cgroup/user.slice/user-1000.slice": {
+        "cgroup.controllers": "cpu memory pids",
+        "cgroup.subtree_control": "cpu memory pids",
+        "cgroup.type": "domain",
+        "memory.current": "1261006848",
+        "memory.max": "max",
+        "memory.high": "max",
+        "memory.low": "0",
+        "memory.min": "0",
+        "memory.swap.current": "296259584",
+        "memory.swap.max": "max",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 1\noom_group_kill 0",
+        "pids.current": "121",
+        "pids.max": "4681",
+        "cpu.max": "max 100000",
+        "directory": {
+          "uid": 0,
+          "gid": 0,
+          "mode": "0o755",
+          "writable_by_observer": false
+        }
+      },
+      "/sys/fs/cgroup/user.slice": {
+        "cgroup.controllers": "cpu memory pids",
+        "cgroup.subtree_control": "cpu memory pids",
+        "cgroup.type": "domain",
+        "memory.current": "1261768704",
+        "memory.max": "max",
+        "memory.high": "max",
+        "memory.low": "0",
+        "memory.min": "0",
+        "memory.swap.current": "296259584",
+        "memory.swap.max": "max",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 1\noom_group_kill 0",
+        "pids.current": "121",
+        "pids.max": "max",
+        "cpu.max": "max 100000",
+        "directory": {
+          "uid": 0,
+          "gid": 0,
+          "mode": "0o755",
+          "writable_by_observer": false
+        }
+      },
+      "/sys/fs/cgroup": {
+        "cgroup.controllers": "cpuset cpu io memory hugetlb pids rdma misc",
+        "cgroup.subtree_control": "cpu memory pids",
+        "cgroup.type": "FileNotFoundError",
+        "memory.current": "FileNotFoundError",
+        "memory.max": "FileNotFoundError",
+        "memory.high": "FileNotFoundError",
+        "memory.low": "FileNotFoundError",
+        "memory.min": "FileNotFoundError",
+        "memory.swap.current": "FileNotFoundError",
+        "memory.swap.max": "FileNotFoundError",
+        "memory.events": "FileNotFoundError",
+        "pids.current": "FileNotFoundError",
+        "pids.max": "FileNotFoundError",
+        "cpu.max": "FileNotFoundError",
+        "directory": {
+          "uid": 0,
+          "gid": 0,
+          "mode": "0o555",
+          "writable_by_observer": false
+        }
+      }
+    },
+    "tool_presence": {
+      "quota": null,
+      "findmnt": "/usr/bin/findmnt",
+      "lsblk": "/usr/bin/lsblk",
+      "getcap": "/usr/sbin/getcap"
+    },
+    "namespaces": {
+      "self/mnt": "[identifier omitted; readlink succeeded]",
+      "self/cgroup": "[identifier omitted; readlink succeeded]",
+      "self/pid": "[identifier omitted; readlink succeeded]",
+      "self/user": "[identifier omitted; readlink succeeded]",
+      "1/mnt": "[Errno 13] Permission denied: '/proc/1/ns/mnt'",
+      "1/cgroup": "[Errno 13] Permission denied: '/proc/1/ns/cgroup'",
+      "1/pid": "[Errno 13] Permission denied: '/proc/1/ns/pid'",
+      "1/user": "[Errno 13] Permission denied: '/proc/1/ns/user'"
+    },
+    "temp_environment": {
+      "TMPDIR": null,
+      "TEMP": null,
+      "TMP": null
+    },
+    "mountinfo_selected": [
+      "29 30 0:26 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=189960k,mode=755,inode64",
+      "30 1 253:2 / / rw,relatime shared:1 - ext4 /dev/vda2 rw",
+      "32 27 0:27 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+      "34 25 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:9 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot"
+    ]
+  },
+  "observation_B": {
+    "bracket_utc": [
+      "2026-10-03T14:53:50Z",
+      "2026-10-03T14:53:56Z"
+    ],
+    "commands": [
+      "ps -eo uid,pid,ppid,comm,rss --sort=-rss | head -21",
+      "findmnt -rn -o TARGET,SOURCE,FSTYPE,OPTIONS -T /tmp/alpha-v11-gate3-host-resource-feasibility-20261003",
+      "lsblk -b -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS"
+    ],
+    "mount": "/ /dev/vda2 ext4 rw,relatime",
+    "block_devices": [
+      {
+        "name": "vda",
+        "type": "disk",
+        "bytes": 21474836480
+      },
+      {
+        "name": "vda1",
+        "type": "part",
+        "bytes": 1048576
+      },
+      {
+        "name": "vda2",
+        "type": "part",
+        "bytes": 21472722432,
+        "fstype": "ext4",
+        "mountpoint": "/"
+      }
+    ],
+    "process_excerpt_top5": [
+      {
+        "uid": 1000,
+        "comm": "codex",
+        "rss_KiB": 198708
+      },
+      {
+        "uid": 1000,
+        "comm": "node",
+        "rss_KiB": 101400
+      },
+      {
+        "uid": 1000,
+        "comm": "node",
+        "rss_KiB": 86644
+      },
+      {
+        "uid": 1000,
+        "comm": "node",
+        "rss_KiB": 80656
+      },
+      {
+        "uid": 1000,
+        "comm": "node",
+        "rss_KiB": 53348
+      }
+    ],
+    "scope": "Bounded sample only; neither complete inventory nor proof that any service is active/inactive in an execution role."
+  },
+  "source_bindings": {
+    "docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md": {
+      "bytes": 20274,
+      "sha256": "ae59812fa58ec41895b87408f0ea175988ae6d20a1f4d5dabcd96a01c2dd3a68"
+    },
+    "tools/v11_r09_gate3_a4_verify.py": {
+      "bytes": 36677,
+      "sha256": "3a122d1433231ad789779a1bc85e6e7d4ba5ee39f9b699e5674407974ab57f28"
+    },
+    "docs/V11_WORK_CHECKPOINT.md": {
+      "bytes": 1635201,
+      "sha256": "1db62298223eaf446a0447548f01645863f773a1f7633e0895fa33b5252c21a2"
+    },
+    "docs/V11_REQUIREMENTS_MATRIX.md": {
+      "bytes": 489593,
+      "sha256": "afb3d687ab4bbfa16f71c09a3f80e0b701dd9759059c5b21c8c4442ec3b41083"
+    },
+    "docs/V11_ENGINEERING_PROGRESS.md": {
+      "bytes": 586028,
+      "sha256": "962c250821fdd204d55ac6955b19716f9e21f3773cab8c44b0b83ddc229a74b2"
+    },
+    "docs/V11_GATE3_RESOURCE_RESERVATION_DESIGN_20261003.md": {
+      "bytes": 50535,
+      "sha256": "600ff646fd0ab60f912fe0b0d752b3008d24dbc80c5623056b4ced4e244ba6ff"
+    },
+    "docs/V11_GATE3_OFFLINE_RESOURCE_BUDGET_HANDOFF.md": {
+      "bytes": 1857,
+      "sha256": "35ea1e13f94bcf5a99ea786617e8b93bfab7d5ee8b8e9c215925dea47b883678"
+    },
+    "docs/V11_GATE3_RESOURCE_PLAN_BINDING_HANDOFF.md": {
+      "bytes": 5058,
+      "sha256": "fc0f6275ebe42eb2391e0329d8ee3321cd2150f0b69eddee98f3329d43e8cd23"
+    },
+    "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md": {
+      "bytes": 20041,
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    "tools/v11_gate3_offline_resource_budget.py": {
+      "bytes": 16038,
+      "sha256": "0d0ce9218878a1cd374011316b6f6fd57dadf589796d354a6cbc25bffea011d9"
+    },
+    "tools/v11_r09_gate3_launch_v4.py": {
+      "bytes": 47602,
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    "tools/v11_r09_gate3_launch.py": {
+      "bytes": 57812,
+      "sha256": "d126744f3905b65b97dd19ccddc787d4bcdd71fca88288c1504966b0fb2681b8"
+    },
+    "tools/v11_r09_gate3_runtime.py": {
+      "bytes": 120122,
+      "sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c"
+    },
+    "tools/v11_r09_gate3_ledgers.py": {
+      "bytes": 69644,
+      "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4"
+    },
+    "tools/v11_r09_gate3_store_v1.py": {
+      "bytes": 34393,
+      "sha256": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636"
+    },
+    "tools/v11_r09_gate3_a7_decoder.py": {
+      "bytes": 17101,
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+    }
+  }
+}
