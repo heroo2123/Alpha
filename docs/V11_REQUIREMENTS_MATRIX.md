@@ -1,3 +1,7 @@
+## FC1 successor review requires clock-order repair — 2026-10-03 21:50 UTC
+
+Exact `6ddcd9d` received different-model **CHANGES_REQUIRED** for one reproduced P2 cross-request same-boot clock reversal; prior four P2 findings are closed. An isolated Sol/high successor repair is live. FC1 step-2 remains unmerged pending clean tests, different-model exact PASS, reconciliation and post-merge checks. Separate G3-L real-caller and transport-stream writers remain active; none grants provider authority, qualification, identity credit, capture or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Offline transport-stream prerequisite launched — 2026-10-03 21:45 UTC
 
 An isolated writer is implementing the bounded no-socket runtime stream contract identified by the sealed downstream map. It is unreviewed and grants no transport qualification, provider right, G3-L identity, capture or SHADOW credit. FC1 exact review and G3-L real-caller authoring continue independently. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
