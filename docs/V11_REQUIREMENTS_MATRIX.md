@@ -1,3 +1,7 @@
+## Clock repair exact review pending — 2026-10-03 11:08 UTC
+
+The passive Gate-3 clock-recorder CHANGES_REQUIRED repair is frozen as `f0ca627` (tree `8a926dc62a8b6c3f73d31ddbe8fab8701030649b`) after 65 dossier and 7 native fixture tests passed in both Python modes. Independent Codex Astra/high exact review is running; no PASS, merge, accepted host clock dossier, provider request, G3-L credit, or SHADOW admission follows. The existing boundary remains **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Resource design exact PASS and local integration — 2026-10-03 10:49 UTC
 
 Independent Opus/high review of `5faedb8` returned `PASS_IN_SCOPE_PROPOSED_OFFLINE_DESIGN`; local documentation merge `63e082e` preserves the reviewed bytes. Review findings P2/P3 remain inputs to implementation and qualification, and no host resource authority, receipt, provider request, G3-L admission or SHADOW follows. Clock-recorder repair remains live and unreviewed. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
