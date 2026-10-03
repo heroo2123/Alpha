@@ -115,6 +115,10 @@ static int read_boot_id(char *dst, size_t dstsz) {
     int saved_errno = errno;
     close(fd);
     if (n < 0) { errno = saved_errno; return -1; }
+    /* A read that exactly fills the buffer cannot be distinguished from one
+     * that was silently truncated; refuse rather than report a possibly-cut
+     * identity as if it were complete (matches read_ns_link's same check). */
+    if ((size_t)n == dstsz - 1) { errno = ENAMETOOLONG; return -1; }
     while (n > 0 && (dst[n - 1] == '\n' || dst[n - 1] == '\r')) n--;
     dst[n] = 0;
     if (n == 0) { errno = ENODATA; return -1; }
@@ -129,11 +133,33 @@ static int read_ns_link(const char *path, char *dst, size_t dstsz) {
     return 0;
 }
 
+/* Convert a timespec to a signed-64 nanosecond count without ever reading an
+ * uninitialized timespec or invoking undefined-behavior signed overflow on
+ * the multiply/add (both were previously reachable: an invalid tv_nsec from
+ * a malfunctioning clock source, or a tv_sec large enough to overflow once
+ * scaled by 1e9). Returns 0 and sets `*out_ns` on success, -1 with errno set
+ * otherwise. */
+static int ts_to_ns(const struct timespec *ts, int64_t *out_ns) {
+    if (ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L) { errno = ERANGE; return -1; }
+    /* __builtin_*_overflow never themselves invoke the undefined behavior
+     * they're checking for, unlike a hand-written bounds pre-check whose own
+     * arithmetic (e.g. `INT64_MIN - tv_nsec`) can overflow first. */
+    int64_t scaled;
+    if (__builtin_mul_overflow((int64_t)ts->tv_sec, (int64_t)1000000000LL, &scaled)) {
+        errno = EOVERFLOW; return -1;
+    }
+    if (__builtin_add_overflow(scaled, (int64_t)ts->tv_nsec, out_ns)) {
+        errno = EOVERFLOW; return -1;
+    }
+    return 0;
+}
+
 static int read_clock(clockid_t id, bracket_t *out, int which /* 0=before,1=after */) {
     struct timespec ts;
     int r = clock_gettime(id, &ts);
     int saved_errno = errno;
-    int64_t ns = (int64_t)ts.tv_sec * 1000000000LL + (int64_t)ts.tv_nsec;
+    int64_t ns = 0;
+    if (r == 0 && ts_to_ns(&ts, &ns) != 0) { r = -1; saved_errno = errno; }
     if (which == 0) {
         out->before_result = r;
         out->before_errno = (r == 0) ? 0 : saved_errno;
@@ -214,11 +240,35 @@ static void emit_refused(const char *code, int detail_errno) {
     if (b_monotonic.have) { SEP(); emit_bracket("monotonic", &b_monotonic); }
     if (b_raw.have) { SEP(); emit_bracket("monotonic_raw", &b_raw); }
     if (b_boottime.have) { SEP(); emit_bracket("boottime", &b_boottime); }
+    /* Previously omitted entirely: any realtime/adjtimex data already
+     * collected before the failure that triggered this refusal must still
+     * be retained, not silently dropped (F8). */
+    if (r_realtime.have) {
+        SEP(); out_str("\"realtime\":{\"value_ns\":"); out_i64(r_realtime.value_ns);
+        out_str(",\"result\":"); out_i64(r_realtime.result);
+        out_str(",\"errno\":"); out_i64(r_realtime.err);
+        out_str(",\"res_sec\":"); out_long(r_realtime.res_sec);
+        out_str(",\"res_nsec\":"); out_long(r_realtime.res_nsec);
+        out_str(",\"res_result\":"); out_i64(r_realtime.res_result);
+        out_str(",\"res_errno\":"); out_i64(r_realtime.res_errno);
+        out_str("}");
+    }
+    if (a_adjtimex.have) {
+        SEP(); out_str("\"adjtimex\":{\"call_result\":"); out_i64(a_adjtimex.call_result);
+        out_str(",\"errno\":"); out_i64(a_adjtimex.err);
+        out_str(",");
+        emit_adjtimex_fields(&a_adjtimex.tx);
+        out_str("}");
+    }
 #undef SEP
     out_str("}}");
+    out_putc('\n');
     if (out_len > MAX_OUTPUT) {
-        /* Even the bounded refusal overflowed: emit nothing beyond this
-         * fixed minimal record and signal a distinct exit status. */
+        /* Even the bounded refusal overflowed (checked only after appending
+         * the trailing newline, so the newline itself can never be the
+         * unaccounted byte that silently pushes a would-be-exact-fit record
+         * over the cap): emit nothing beyond this fixed minimal record and
+         * signal a distinct exit status. */
         static const char fallback[] =
             "{\"schema\":\"ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1\",\"status\":\"REFUSED\","
             "\"code\":\"OUTPUT_BOUNDS\",\"detail_errno\":0,\"partial\":{}}\n";
@@ -226,12 +276,18 @@ static void emit_refused(const char *code, int detail_errno) {
         (void)ignored;
         return;
     }
-    out_putc('\n');
     ssize_t ignored = write(STDOUT_FILENO, out_buf, out_len);
     (void)ignored;
 }
 
 int main(void) {
+    /* Mark the "after" half of every bracket as not-yet-attempted (any
+     * nonzero result is already treated as unavailable by the parser): a
+     * refusal emitted after the "before" half succeeds but before the
+     * "after" half is ever read must not fabricate an after_result of 0,
+     * which would read as a successful close of a read that never ran. */
+    b_monotonic.after_result = b_raw.after_result = b_boottime.after_result = -1;
+
     /* 1. Boot identity before. Unavailable identity reads refuse the method. */
     if (read_boot_id(boot_id_before, sizeof(boot_id_before)) != 0) {
         emit_refused("CLOCK_SOURCE_UNAVAILABLE", errno);
@@ -295,9 +351,12 @@ int main(void) {
     {
         struct timespec ts;
         int r = clock_gettime(CLOCK_REALTIME, &ts);
+        int saved_errno = errno;
+        int64_t ns = 0;
+        if (r == 0 && ts_to_ns(&ts, &ns) != 0) { r = -1; saved_errno = errno; }
         r_realtime.result = r;
-        r_realtime.err = (r == 0) ? 0 : errno;
-        r_realtime.value_ns = (r == 0) ? (int64_t)ts.tv_sec * 1000000000LL + (int64_t)ts.tv_nsec : 0;
+        r_realtime.err = (r == 0) ? 0 : saved_errno;
+        r_realtime.value_ns = (r == 0) ? ns : 0;
         r_realtime.have = 1;
         if (r != 0) {
             emit_refused("CLOCK_SOURCE_UNAVAILABLE", r_realtime.err);
@@ -340,12 +399,15 @@ int main(void) {
     out_str(",");
     emit_adjtimex_fields(&a_adjtimex.tx);
     out_str("}}");
+    out_putc('\n');
 
     if (out_len > MAX_OUTPUT) {
-        emit_refused("CLOCK_SOURCE_UNAVAILABLE", 0);
+        /* Checked only after appending the trailing newline (see
+         * emit_refused for why), and labeled for what actually happened --
+         * the record did not fit, not that a clock source was unavailable. */
+        emit_refused("OUTPUT_BOUNDS", 0);
         return 1;
     }
-    out_putc('\n');
     ssize_t written = write(STDOUT_FILENO, out_buf, out_len);
     if (written < 0 || (size_t)written != out_len) return 2;
     return 0;

@@ -11,15 +11,16 @@
  *
  * Fixture selection: ALPHA_V11_CLOCK_FIXTURE selects a named scenario
  * ("OK", "MONO_FAIL", "ADJTIMEX_FAIL", "ADJTIMEX_ERROR_STATUS",
- * "BOOT_ID_MISMATCH", "NS_FAIL", "OVERLONG_BOOT_ID"). Each scenario is a
- * fixed, deterministic set of fake return values -- nothing here reads a
- * real clock or device.
+ * "BOOT_ID_MISMATCH", "NS_FAIL", "OVERLONG_BOOT_ID", "DIVERGED_CLOCKS").
+ * Each scenario is a fixed, deterministic set of fake return values --
+ * nothing here reads a real clock or device.
  */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -34,6 +35,19 @@ static const char *scenario(void) {
 }
 
 static int streq(const char *a, const char *b) { return strcmp(a, b) == 0; }
+
+/* Proves to the test harness that this shim actually loaded via LD_PRELOAD
+ * before it trusts any output as a safe fixture observation (F6): if the
+ * dynamic loader fails to preload this library, it just warns and runs the
+ * probe unpreloaded against the real host, and nothing else would detect
+ * that silently. A constructor here is the one thing that cannot run unless
+ * this exact shared object was actually mapped into the process. */
+__attribute__((constructor))
+static void announce_shim_loaded(void) {
+    static const char marker[] = "ALPHA_V11_CLOCK_FIXTURE_SHIM_LOADED\n";
+    ssize_t ignored = write(STDERR_FILENO, marker, sizeof(marker) - 1);
+    (void)ignored;
+}
 
 int clock_gettime(clockid_t id, struct timespec *tp) {
     const char *sc = scenario();
@@ -59,8 +73,21 @@ int clock_gettime(clockid_t id, struct timespec *tp) {
         case CLOCK_MONOTONIC_RAW:
         case CLOCK_BOOTTIME: {
             long seq = shared_calls++;
-            tp->tv_sec = 1000;
-            tp->tv_nsec = step_ns * seq;
+            int64_t base_ns = (int64_t)1000 * 1000000000LL + step_ns * seq;
+            if (streq(sc, "DIVERGED_CLOCKS")) {
+                /* A genuine host: CLOCK_MONOTONIC_RAW legitimately drifts
+                 * from CLOCK_MONOTONIC via NTP slew (here ~3.456ms, as if
+                 * ~40ppm over one day of uptime) and CLOCK_BOOTTIME
+                 * legitimately runs ahead by any suspended duration (here
+                 * one simulated hour). Neither nests inside the other's
+                 * bracket -- proving the F1 cross-clock fix end-to-end
+                 * through the real native probe, not just a synthetic
+                 * Python-only fixture. */
+                if (id == CLOCK_MONOTONIC_RAW) base_ns -= 3456000;
+                if (id == CLOCK_BOOTTIME) base_ns += 3600LL * 1000000000LL;
+            }
+            tp->tv_sec = base_ns / 1000000000LL;
+            tp->tv_nsec = base_ns % 1000000000LL;
             return 0;
         }
         default:

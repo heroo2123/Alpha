@@ -26,6 +26,7 @@ import json
 import os
 import re
 import stat
+import types
 
 SCHEMA_RECORD = "ALPHA_V11_GATE3_CLOCK_PROBE_RECORD_V1"
 SCHEMA_SESSION = "ALPHA_V11_GATE3_CLOCK_SESSION_V1"
@@ -48,7 +49,7 @@ REFUSAL_CODES = (
     "CLOCK_SOURCE_UNAVAILABLE", "ABI_UNSUPPORTED", "CLOCK_REFERENCE_UNQUALIFIED",
     "SYNC_OR_TIMESCALE_UNQUALIFIED", "CLOCK_CONTINUITY_LOST", "CLOCK_DRIFT_UNSUPPORTED",
     "CLOCK_EXPIRED", "WINDOW_FIT_REFUSED", "BUILD_OR_ORIGIN_UNQUALIFIED",
-    "CUSTODY_UNQUALIFIED", "STORE_WRITE_FAILED",
+    "CUSTODY_UNQUALIFIED", "STORE_WRITE_FAILED", "OUTPUT_BOUNDS",
 )
 
 
@@ -93,10 +94,18 @@ def _identifier(value, code="SCHEMA"):
     return value
 
 
+def _utf8(value, code):
+    """Encode to UTF-8, refusing instead of raising on a lone surrogate."""
+    try:
+        return value.encode("utf-8")
+    except UnicodeEncodeError:
+        _refuse(code)
+
+
 def _bounded_string(value, code="INPUT_BOUNDS"):
     if type(value) is not str:
         _refuse("SCHEMA")
-    if len(value.encode("utf-8")) > MAX_STRING:
+    if len(_utf8(value, code)) > MAX_STRING:
         _refuse(code)
     return value
 
@@ -125,14 +134,24 @@ def _pairs(items):
 
 
 def _parse_int(value):
-    if len(value) > 19:
+    # 20 chars covers the sign plus every representable signed-64 literal,
+    # including INT64_MIN ("-9223372036854775808"); the exact range is still
+    # enforced afterward by `_integer`/`_nonneg_integer`.
+    if len(value) > 20:
         _refuse("REPRESENTATION_OVERFLOW")
     return int(value)
 
 
 def _canonical(value):
-    return json.dumps(value, sort_keys=True, separators=(",", ":"),
-                       ensure_ascii=False).encode("utf-8")
+    # allow_nan=False: defense in depth so NaN/Infinity can never be
+    # silently serialized into invalid JSON on disk (F2, repro B6), even
+    # though every caller of this function already passes a schema-checked,
+    # type-exact structure that cannot itself contain a float.
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except ValueError:
+        _refuse("SCHEMA")
 
 
 def _bounded_tree(root, max_bytes):
@@ -150,16 +169,19 @@ def _bounded_tree(root, max_bytes):
             if len(value) > MAX_SAMPLES:
                 _refuse("INPUT_BOUNDS")
             for key, item in value.items():
-                if type(key) is not str or len(key.encode("utf-8")) > MAX_STRING:
+                if type(key) is not str:
                     _refuse("INPUT_BOUNDS")
-                size += len(key.encode("utf-8"))
+                encoded_key = _utf8(key, "INPUT_BOUNDS")
+                if len(encoded_key) > MAX_STRING:
+                    _refuse("INPUT_BOUNDS")
+                size += len(encoded_key)
                 stack.append((item, depth + 1))
         elif kind is list:
             if len(value) > MAX_SAMPLES:
                 _refuse("INPUT_BOUNDS")
             stack.extend((item, depth + 1) for item in value)
         elif kind is str:
-            encoded = value.encode("utf-8")
+            encoded = _utf8(value, "INPUT_BOUNDS")
             if len(encoded) > MAX_STRING:
                 _refuse("INPUT_BOUNDS")
             size += len(encoded)
@@ -234,15 +256,21 @@ def _clock_bracket(value, code="CLOCK_LINKAGE"):
         _refuse("CLOCK_SOURCE_UNAVAILABLE")
     if after < before:
         _refuse("CLOCK_CONTINUITY_LOST")
+    before_errno = _integer(value["before_errno"], code)
+    after_errno = _integer(value["after_errno"], code)
     res_sec = _nonneg_integer(value["res_sec"], code)
     res_nsec = _nonneg_integer(value["res_nsec"], code)
-    if res_sec != 0 or res_nsec > 1_000_000_000:
+    res_errno = _integer(value["res_errno"], code)
+    # A reported success (`result == 0`) with a nonzero errno is an internally
+    # inconsistent record: a genuine successful syscall never sets errno.
+    if before_errno != 0 or after_errno != 0 or res_errno != 0:
+        _refuse("CLOCK_SOURCE_UNAVAILABLE")
+    # A valid timespec resolution is strictly between 0 and one whole second.
+    if res_sec != 0 or res_nsec <= 0 or res_nsec >= 1_000_000_000:
         _refuse("ABI_UNSUPPORTED")
     return {"before_ns": before, "after_ns": after,
-            "before_errno": _integer(value["before_errno"], code),
-            "after_errno": _integer(value["after_errno"], code),
-            "res_sec": res_sec, "res_nsec": res_nsec,
-            "res_errno": _integer(value["res_errno"], code)}
+            "before_errno": before_errno, "after_errno": after_errno,
+            "res_sec": res_sec, "res_nsec": res_nsec, "res_errno": res_errno}
 
 
 def _realtime_read(value, code="CLOCK_LINKAGE"):
@@ -252,22 +280,39 @@ def _realtime_read(value, code="CLOCK_LINKAGE"):
     res_result = _integer(value["res_result"], code)
     if result != 0 or res_result != 0:
         _refuse("CLOCK_SOURCE_UNAVAILABLE")
-    value_ns = _integer(value["value_ns"], code)
+    read_errno = _integer(value["errno"], code)
+    res_errno = _integer(value["res_errno"], code)
+    if read_errno != 0 or res_errno != 0:
+        _refuse("CLOCK_SOURCE_UNAVAILABLE")
+    # A genuine CLOCK_REALTIME read is always a nonnegative Unix nanosecond
+    # count; negative values are either corrupt or a representation confusion.
+    value_ns = _nonneg_integer(value["value_ns"], code)
     res_sec = _nonneg_integer(value["res_sec"], code)
     res_nsec = _nonneg_integer(value["res_nsec"], code)
-    if res_sec != 0 or res_nsec > 1_000_000_000:
+    if res_sec != 0 or res_nsec <= 0 or res_nsec >= 1_000_000_000:
         _refuse("ABI_UNSUPPORTED")
-    return {"value_ns": value_ns, "errno": _integer(value["errno"], code),
-            "res_sec": res_sec, "res_nsec": res_nsec,
-            "res_errno": _integer(value["res_errno"], code)}
+    return {"value_ns": value_ns, "errno": read_errno,
+            "res_sec": res_sec, "res_nsec": res_nsec, "res_errno": res_errno}
 
 
 _ADJTIMEX_FIELDS = ("call_result", "errno", "modes", "offset", "freq", "maxerror",
                     "esterror", "status", "constant", "precision", "tolerance",
                     "time_sec", "time_usec", "tick", "ppsfreq", "jitter", "shift",
                     "stabil", "jitcnt", "calcnt", "errcnt", "stbcnt", "tai")
-# TIME_OK=0 .. TIME_ERROR=5 per the pinned glibc/kernel adjtimex ABI profile.
-_ADJTIMEX_OK_RESULTS = frozenset({0, 1, 2, 3, 4})
+# TIME_OK=0, TIME_INS=1, TIME_DEL=2, TIME_OOP=3, TIME_WAIT=4, TIME_ERROR=5 per
+# the pinned glibc/kernel adjtimex ABI profile. Only TIME_OK is an ordinary
+# synchronized state; every other value (including a pending or in-progress
+# leap second) leaves the sync/timescale state unqualified for this slice.
+_ADJTIMEX_KNOWN_RESULTS = frozenset({0, 1, 2, 3, 4, 5})
+# STA_INS, STA_DEL, STA_UNSYNC, STA_CLOCKERR per <sys/timex.h>: pending leap,
+# unsynchronized, or a reported clock-event fault all block qualification
+# independently of `call_result`, since a record can set these bits without
+# the kernel's call-result enum reflecting them.
+_STA_INS = 0x0010
+_STA_DEL = 0x0020
+_STA_UNSYNC = 0x0040
+_STA_CLOCKERR = 0x1000
+_BLOCKING_STATUS_BITS = _STA_INS | _STA_DEL | _STA_UNSYNC | _STA_CLOCKERR
 
 
 def _adjtimex(value, code="CLOCK_LINKAGE"):
@@ -275,11 +320,11 @@ def _adjtimex(value, code="CLOCK_LINKAGE"):
     parsed = {key: _integer(value[key], code) for key in _ADJTIMEX_FIELDS}
     if parsed["modes"] != 0:
         _refuse("ABI_UNSUPPORTED")
-    if parsed["call_result"] not in _ADJTIMEX_OK_RESULTS:
-        if parsed["call_result"] == 5:
-            _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
+    if parsed["call_result"] not in _ADJTIMEX_KNOWN_RESULTS:
         _refuse("CLOCK_SOURCE_UNAVAILABLE")
-    if parsed["call_result"] in (1, 2):
+    if parsed["call_result"] != 0:
+        _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
+    if parsed["status"] & _BLOCKING_STATUS_BITS:
         _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
     return parsed
 
@@ -325,9 +370,26 @@ def parse_probe_record(raw: bytes) -> dict:
     adjtimex = _adjtimex(value["adjtimex"])
     m_before = clocks["monotonic"]["before_ns"]
     m_after = clocks["monotonic"]["after_ns"]
-    for name in ("monotonic_raw", "boottime"):
-        if not (m_before <= clocks[name]["before_ns"] <= clocks[name]["after_ns"] <= m_after):
-            _refuse("CLOCK_CONTINUITY_LOST")
+    # CLOCK_MONOTONIC_RAW and CLOCK_BOOTTIME are not required to numerically
+    # nest inside CLOCK_MONOTONIC's bracket: raw legitimately diverges from
+    # monotonic via NTP slew over uptime, and boottime legitimately runs ahead
+    # of monotonic by any suspended duration. Requiring that containment
+    # rejected genuine records (independent review finding F1 on 5667acb).
+    # Each clock's own before<=after ordering is already enforced above in
+    # `_clock_bracket`; this design supplies no reviewed numeric cross-clock
+    # rate/bracket tolerance (handoff section 3), so a cross-clock drift check
+    # is deferred, not invented here.
+    #
+    # The adjtimex kernel-discipline query and the bracketed realtime read are
+    # the same clock domain (CLOCK_REALTIME) sampled microseconds apart within
+    # this one observation, so a coarse, sign-agnostic, whole-second sanity
+    # check between them is a consistency check on this record, not a UTC
+    # accuracy claim: it reuses this codebase's existing frozen 60-second
+    # convention (readiness/attempt sample-age cap) rather than inventing a
+    # new numeric bound.
+    realtime_sec = realtime["value_ns"] // 1_000_000_000
+    if abs(adjtimex["time_sec"] - realtime_sec) > 60:
+        _refuse("SYNC_OR_TIMESCALE_UNQUALIFIED")
     return {"status": "OK", "boot_id": boot_before, "ns_time": ns_time, "ns_pid": ns_pid,
             "monotonic": clocks["monotonic"], "monotonic_raw": clocks["monotonic_raw"],
             "boottime": clocks["boottime"], "realtime": realtime, "adjtimex": adjtimex,
@@ -432,21 +494,110 @@ def to_microseconds_outward(lower_ns: int, upper_ns: int) -> tuple:
 # Bounded standalone session (fixed false authority flags)
 # --------------------------------------------------------------------------
 
-FIXED_AUTHORITY_FLAGS = {
+# A mapping proxy, not a plain dict: `FIXED_AUTHORITY_FLAGS["x"] = True` now
+# raises TypeError instead of silently mutating every later session (F2,
+# independent review of 5667acb, repro B3).
+FIXED_AUTHORITY_FLAGS = types.MappingProxyType({
     "execution_authority": False,
     "provider_authority": False,
     "capture_eligibility": False,
     "clock_qualification": False,
     "qualification_credit": 0,
     "g3l": "NO_GO",
-}
+})
+
+_SESSION_BASE_KEYS = frozenset({
+    "schema", "status", "session_nonce", "sequence", "event_kind", "prior_head",
+    "raw_record_sha256", "raw_record_byte_length", "parsed_projection_sha256",
+    "calibration_ref", "method_envelope_ref", "absence_reasons",
+})
+_SESSION_KEYS = _SESSION_BASE_KEYS | frozenset(FIXED_AUTHORITY_FLAGS) | {"session_sha256"}
+
+
+def _copy_reference(value, code="CLOCK_LINKAGE"):
+    """Validate an optional reference and return a fresh, unaliased copy.
+
+    Storing the caller's own dict object would let a later caller-side
+    mutation change what the in-memory session appears to carry without
+    touching its already-computed `session_sha256` (F3, repro B4). Every
+    field here is recomputed from the validated decoded bytes, never copied
+    from the caller's dict.
+    """
+    if value is None:
+        return None
+    decoded = _reference(value, code)
+    return {"sha256": hashlib.sha256(decoded).hexdigest(),
+            "byte_length": len(decoded), "bytes_hex": decoded.hex()}
+
+
+def _validate_closed_session(session: dict) -> dict:
+    """Re-validate the full closed session schema independent of its origin.
+
+    Used both to self-check `build_session`'s own output and to gate
+    `write_session_file` against a hand-built or tampered dict: nothing,
+    including a malformed or adversarial caller dict, can reach disk without
+    every field -- especially the fixed-false authority flags and the
+    session's own hash -- passing this exact structural and value check
+    (F2, repros B3/B5/B6).
+    """
+    _keys(session, _SESSION_KEYS, "SCHEMA")
+    if session["schema"] != SCHEMA_SESSION:
+        _refuse("SCHEMA")
+    _identifier(session["session_nonce"], "SCHEMA")
+    _nonneg_integer(session["sequence"], "SCHEMA")
+    if session["event_kind"] not in ("LOCAL_OBSERVATION", "SYNTHETIC"):
+        _refuse("SCHEMA")
+    prior_head = session["prior_head"]
+    if prior_head is not None and (type(prior_head) is not str or _SHA.fullmatch(prior_head) is None):
+        _refuse("SCHEMA")
+    raw_sha256 = session["raw_record_sha256"]
+    if type(raw_sha256) is not str or _SHA.fullmatch(raw_sha256) is None:
+        _refuse("SCHEMA")
+    _nonneg_integer(session["raw_record_byte_length"], "SCHEMA")
+    if session["raw_record_byte_length"] > MAX_RAW_RECORD:
+        _refuse("INPUT_BOUNDS")
+    projection_sha256 = session["parsed_projection_sha256"]
+    if type(projection_sha256) is not str or _SHA.fullmatch(projection_sha256) is None:
+        _refuse("SCHEMA")
+    _optional_reference(session["calibration_ref"])
+    envelope_bytes = _optional_reference(session["method_envelope_ref"])
+    expected_status = ("STRUCTURALLY_LINKED_UNQUALIFIED" if envelope_bytes is not None
+                       else "RECORDED_UNQUALIFIED")
+    if session["status"] != expected_status:
+        _refuse("SCHEMA")
+    reasons = session["absence_reasons"]
+    _exact(reasons, list, "SCHEMA")
+    if len(reasons) > MAX_SAMPLES:
+        _refuse("INPUT_BOUNDS")
+    for reason in reasons:
+        if type(reason) is not str or reason not in REFUSAL_CODES:
+            _refuse("SCHEMA")
+    for key, fixed_value in FIXED_AUTHORITY_FLAGS.items():
+        actual = session[key]
+        if type(actual) is not type(fixed_value) or actual != fixed_value:
+            _refuse("SCHEMA")
+    session_sha256 = session["session_sha256"]
+    if type(session_sha256) is not str or _SHA.fullmatch(session_sha256) is None:
+        _refuse("SCHEMA")
+    recomputed = hashlib.sha256(_canonical(
+        {key: value for key, value in session.items() if key != "session_sha256"})).hexdigest()
+    if session_sha256 != recomputed:
+        _refuse("SCHEMA")
+    return session
 
 
 def build_session(*, session_nonce: str, sequence: int, event_kind: str,
-                   raw_record: bytes, parsed_record: dict,
+                   raw_record: bytes,
                    calibration_ref: dict | None, method_envelope_ref: dict | None,
                    prior_head: str | None, absence_reasons: list) -> dict:
-    """Assemble one closed-schema session record. Never qualifies anything."""
+    """Assemble one closed-schema session record. Never qualifies anything.
+
+    The parsed projection is always derived from `raw_record` by this
+    module's own parser; a caller cannot supply an independent parsed
+    projection, so the hashed projection and the stored byte length can
+    never diverge from what the raw bytes actually are (F3, independent
+    review of 5667acb, repros B1/B2).
+    """
     _identifier(session_nonce, "SCHEMA")
     _nonneg_integer(sequence, "SCHEMA")
     if event_kind not in ("LOCAL_OBSERVATION", "SYNTHETIC"):
@@ -461,10 +612,12 @@ def build_session(*, session_nonce: str, sequence: int, event_kind: str,
             _refuse("SCHEMA")
     if prior_head is not None and (type(prior_head) is not str or _SHA.fullmatch(prior_head) is None):
         _refuse("SCHEMA")
-    _optional_reference(calibration_ref)
-    envelope_bytes = _optional_reference(method_envelope_ref)
+    calibration_ref = _copy_reference(calibration_ref)
+    method_envelope_ref = _copy_reference(method_envelope_ref)
+    parsed_record = parse_probe_record(raw_record)
     raw_sha256, projection_sha256 = record_digests(raw_record, parsed_record)
-    status = "STRUCTURALLY_LINKED_UNQUALIFIED" if envelope_bytes is not None else "RECORDED_UNQUALIFIED"
+    status = ("STRUCTURALLY_LINKED_UNQUALIFIED" if method_envelope_ref is not None
+              else "RECORDED_UNQUALIFIED")
     session = {
         "schema": SCHEMA_SESSION,
         "status": status,
@@ -484,7 +637,7 @@ def build_session(*, session_nonce: str, sequence: int, event_kind: str,
     if len(encoded) > MAX_RECORD_OUTPUT:
         _refuse("OUTPUT_BOUNDS")
     session["session_sha256"] = hashlib.sha256(encoded).hexdigest()
-    return session
+    return _validate_closed_session(session)
 
 
 def _no_follow_open(path: str, flags: int, mode: int = 0o600):
@@ -502,15 +655,19 @@ def write_session_file(root: str, session: dict) -> str:
     directory binding, uid/mode verification) -- real durable retention needs
     a separately authorized private root and custody review that this
     diagnostic writer does not implement.
+
+    Writes under a private temporary name first and publishes with a no-
+    clobber `link()`, so a write failure (short write, fsync error, hitting a
+    file-size limit) never leaves a truncated, non-JSON file under the final
+    name blocking every future retry at this nonce/sequence (F11, independent
+    review of 5667acb).
     """
+    _validate_closed_session(session)
     encoded = _canonical(session)
     if len(encoded) > MAX_RECORD_OUTPUT:
         _refuse("OUTPUT_BOUNDS")
-    # Re-validate the two fields used to build the filename independently of
-    # whatever already ran inside build_session: this is a disk-write path
-    # and must not trust a hand-built caller dict to keep path components safe.
-    nonce = _identifier(session.get("session_nonce"), "SCHEMA")
-    sequence = _nonneg_integer(session.get("sequence"), "SCHEMA")
+    nonce = session["session_nonce"]
+    sequence = session["sequence"]
     try:
         root_stat = os.stat(root)
     except OSError:
@@ -518,8 +675,10 @@ def write_session_file(root: str, session: dict) -> str:
     if not stat.S_ISDIR(root_stat.st_mode):
         _refuse("STORE_WRITE_FAILED")
     name = f"{nonce}.{sequence}.json"
-    path = os.path.join(root, name)
-    fd = _no_follow_open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    final_path = os.path.join(root, name)
+    tmp_path = os.path.join(root, f".{name}.{os.getpid()}.tmp")
+    fd = _no_follow_open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    wrote_ok = False
     try:
         written = 0
         while written < len(encoded):
@@ -529,10 +688,29 @@ def write_session_file(root: str, session: dict) -> str:
                 if error.errno == errno.EINTR:
                     continue
                 _refuse("STORE_WRITE_FAILED")
-        os.fsync(fd)
+        try:
+            os.fsync(fd)
+        except OSError:
+            _refuse("STORE_WRITE_FAILED")
+        wrote_ok = True
     finally:
         os.close(fd)
-    return path
+        if not wrote_ok:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+    try:
+        try:
+            os.link(tmp_path, final_path)
+        except OSError:
+            _refuse("STORE_WRITE_FAILED")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+    return final_path
 
 
 def session_total_bytes(session_paths: list) -> int:
