@@ -1,3 +1,7 @@
+## Current-child local G3-L audit — 2026-10-03 07:58 UTC
+
+The clean unmerged `3411097` child produced a retained read-only October 4 local audit (SHA-256 `e7b5226cc75c9d41d04daec575ff4bb2acf26f6c803a8c05a0a133129373078e`): 77 missing PRE_REVIEW identities, 6/1/70/0 historical-scope/offline/future/invalid categories, zero qualification, G3-L NO-GO. Its 43 resource-feasible slots are hypothetical only. Candidate-specific independent exact review remains held; no provider right, SHADOW admission, or C/J/E/A crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator exact-packet integrity — 2026-10-03 07:52 UTC
 
 All eight current review checkouts and 25 manifest file blobs reverified locally against their commit/tree/hash bindings. Review-only authorization for these exact bytes is requested but not yet received; no independent PASS, merge, G3-L identity, SHADOW admission, or score change: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
