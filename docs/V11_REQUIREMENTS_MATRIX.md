@@ -4948,3 +4948,7 @@ Clean `7cff90a` / tree `0713b1045eadc461517d15f198ce67974e0a894a` repairs the tw
 ## FC1 successor regression preparation — 2026-10-03 20:11 UTC
 
 The read-only step-2 repair handoff finished clean and maps three CHANGES_REQUIRED interfaces. An independent read-only legacy refusal-test survey is active while the versioned IA1 amendment author continues. No exact IA1 review, successor PASS, G3-L evidence or SHADOW qualification exists. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## IA1 reviewed amendment integrated; FC1 repair and G3-I terminal recovery active — 2026-10-03 20:29 UTC
+
+Different-model exact PASS of `86662ab` permitted local documentation-only merge `82c0eae`; merged-main IA1 checks passed 10/10 per Python mode and inherited ledger/runtime/store regressions passed 270/270. This selects the proposed terminal-before-receipt, durable actual-start pacing, and 65-counted-read interfaces without implementing them. One isolated Sol/high FC1 step-2 repair writer is live on branch `1a3ccfa`; require clean successor, different-model exact PASS, reconciliation, and post-merge tests. Read-only G3-L reconciliation found seven scoped historical links and a known current runtime-byte drift; none is a qualified inventory entry. A separate read-only G3-I terminal search is live. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
