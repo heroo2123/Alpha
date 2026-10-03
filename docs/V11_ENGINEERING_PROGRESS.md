@@ -1,3 +1,7 @@
+## G3-L reconciliation and current G3-I review — 2026-10-03 20:34 UTC
+
+Sealed read-only reconciliation found seven bounded historical evidence links and zero qualified G3-L entries; a follow-up search found no original completed terminals for three G3-I review identities. Launched an independent read-only Astra/high exact review of current collector/GEFS-ceiling bytes in a frozen isolated checkout while the FC1 step-2 IA1 repair writer continues separately. No verdict or merge follows yet. Disk and memory support two current specialist lanes. No provider request, G3-L PASS, eligible capture, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L inventory sealed; reconciliation lane launched — 2026-10-03 20:20 UTC
 
 The clean exit-0 read-only inventory at `0638fe3` mapped 77 missing identities without granting credit. A separate read-only Sol/medium worker now verifies retained scoped evidence bindings in detached `/tmp/alpha-v11-g3l-retained-reconciliation-20261003`; the Sol/high IA1 exact reviewer remains live in its own checkout. Two active lanes fit current reserve. No independent IA1 verdict, merge, provider request, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

@@ -1,3 +1,7 @@
+## G3-I terminal gap and current-closure review — 2026-10-03 20:34 UTC
+
+Read-only reconciliation confirms seven historically scoped links, but all 77 G3-L PRE_REVIEW identities remain unqualified. No original completed terminal was recovered for the collector, GEFS-ceiling or provider-bound G3-I historical review; the 64 KiB CGI bound is superseded for S3 full fields. A fresh independent exact current-collector review is live at frozen `f04aeed`; it cannot backdate those terminals or grant G3-L credit. FC1 step-2 IA1 repair remains in a separate live worktree. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L retained-evidence reconciliation active — 2026-10-03 20:20 UTC
 
 The frozen read-only inventory confirms 77 unqualified PRE_REVIEW identities and identifies only six scoped retained rows plus one terminal for offline reconciliation. A separate read-only worker is checking their exact retained bindings while IA1 remains under independent exact review. Neither lane grants evidence credit, provider authority, G3-L PASS or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
