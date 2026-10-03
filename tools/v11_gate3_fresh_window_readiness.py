@@ -113,7 +113,7 @@ checker operation can invoke their string protocols.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any, Mapping, Optional
 
 from tools.v11_gate3_evidence_preflight_checker import (
@@ -263,6 +263,39 @@ def _unsafe_persistence_reference(v: Any) -> bool:
     a non-dict object reach the checker's unbounded ``set(v.keys())``.
     """
     return type(v) is not dict or _unsafe_reference_candidate(v, REF_KEYS_NO_REPO)
+
+
+def _snapshot_observation(obj: Any, cls: type) -> Optional[dict]:
+    """Read every field of an exact-type ``cls`` instance exactly once,
+    directly from its instance dict, and return it as a plain ``dict``
+    keyed by field name -- or ``None`` if that cannot be done safely.
+
+    ``type(obj) is cls`` alone does not make ``obj.field`` reads pure: the
+    instance dict backing an exact dataclass instance is an ordinary
+    mutable ``dict``, reachable and rewritable by the caller via
+    ``vars(obj)`` even though the dataclass itself is frozen (freezing only
+    overrides ``__setattr__``, not direct dict mutation). A caller can
+    clear it and reinsert a key whose hash collides with a real field name
+    but whose ``__eq__`` raises, or returns a different answer on
+    successive calls -- so every later ``obj.field`` access, and each
+    repeated access to the *same* field, runs that caller-controlled
+    ``__eq__`` again. Requiring the instance dict itself to be an exact
+    ``dict`` no larger than the field count, with only exact-``str`` keys,
+    rules that out: exact ``str`` keys are compared with CPython's built-in
+    string equality, which cannot be overridden from Python. Each field is
+    then read exactly once via ``dict.get`` into the returned snapshot, so
+    nothing downstream ever re-reads the live instance dict.
+    """
+    if type(obj) is not cls:
+        return None
+    d = vars(obj)
+    names = tuple(f.name for f in fields(cls))
+    if type(d) is not dict or len(d) > len(names):
+        return None
+    for k in d:
+        if type(k) is not str:
+            return None
+    return {name: d.get(name) for name in names}
 
 
 def _has_unsafe_key(obj: Mapping, label: str, reasons: list) -> bool:
@@ -464,41 +497,53 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
     currentness.
     """
     ok = True
-    if type(clock) is not ClockObservation:
+    # Snapshot every field exactly once into local values (F1): reading
+    # ``clock.field`` repeatedly below, straight off the live instance,
+    # would let a caller who has rewritten ``clock``'s instance dict with a
+    # colliding key run their own ``__eq__`` on each read -- raising, or
+    # switching the answer between an earlier type-check read and a later
+    # use (see ``_snapshot_observation``).
+    snap = _snapshot_observation(clock, ClockObservation)
+    if snap is None:
         reasons.append("INVALID_CLOCK_OBSERVATION")
         return False
-    if type(clock.source) is not str or clock.source != "LOCAL_AUTHORIZED_ONLY":
+    source = snap["source"]
+    monotonic_consistent = snap["monotonic_consistent"]
+    uncertainty_seconds = snap["uncertainty_seconds"]
+    calibration_age_seconds = snap["calibration_age_seconds"]
+    measured_utc = snap["measured_utc"]
+    if type(source) is not str or source != "LOCAL_AUTHORIZED_ONLY":
         reasons.append("INVALID_CLOCK_SOURCE")
         ok = False
-    if clock.monotonic_consistent is not True:
+    if monotonic_consistent is not True:
         # Exact-type check: a truthy non-bool must never be accepted in
         # place of the real boolean flag.
         reasons.append("NONMONOTONIC_CLOCK")
         ok = False
     uncertainty_valid = (
-        (type(clock.uncertainty_seconds) is int or type(clock.uncertainty_seconds) is float)
-        and _is_finite_nonneg(clock.uncertainty_seconds)
+        (type(uncertainty_seconds) is int or type(uncertainty_seconds) is float)
+        and _is_finite_nonneg(uncertainty_seconds)
     )
     if not uncertainty_valid:
         reasons.append("INVALID_CLOCK_UNCERTAINTY")
         ok = False
-    elif clock.uncertainty_seconds > _limit_int(limits, "clock_uncertainty_seconds"):
+    elif uncertainty_seconds > _limit_int(limits, "clock_uncertainty_seconds"):
         reasons.append("EXCESSIVE_CLOCK_UNCERTAINTY")
         ok = False
     if (
-        (type(clock.calibration_age_seconds) is not int and type(clock.calibration_age_seconds) is not float)
-        or not _is_finite_nonneg(clock.calibration_age_seconds)
+        (type(calibration_age_seconds) is not int and type(calibration_age_seconds) is not float)
+        or not _is_finite_nonneg(calibration_age_seconds)
     ):
         reasons.append("INVALID_CALIBRATION_AGE")
         ok = False
-    elif clock.calibration_age_seconds > _limit_int(limits, "clock_calibration_max_age_seconds"):
+    elif calibration_age_seconds > _limit_int(limits, "clock_calibration_max_age_seconds"):
         reasons.append("EXPIRED_CLOCK_CALIBRATION")
         ok = False
-    measured = _parse_utc(clock.measured_utc) if type(clock.measured_utc) is str else None
+    measured = _parse_utc(measured_utc) if type(measured_utc) is str else None
     if measured is None:
         reasons.append("UNPARSEABLE_CLOCK")
         ok = False
-    elif uncertainty_valid and abs((measured - now).total_seconds()) > clock.uncertainty_seconds:
+    elif uncertainty_valid and abs((measured - now).total_seconds()) > uncertainty_seconds:
         reasons.append("CLOCK_DISAGREES_WITH_NOW_UTC")
         ok = False
     # No reviewed trusted observation/provenance boundary for a clock
@@ -721,9 +766,20 @@ def evaluate_fresh_window_readiness(
                     )
                     storage_reasons.append(f"{label}:storage_qualification.persistence_review")
                 sq_dict["persistence_review"] = None
+            # Snapshot resources once (F1) and hand _check_storage a freshly
+            # constructed ResourceObservation rather than the caller's own
+            # instance: _check_storage reads each resource field multiple
+            # times, and ``type(resources) is ResourceObservation`` does not
+            # make those reads pure -- the caller can still rewrite
+            # ``resources``'s instance dict with a colliding key (same
+            # mechanism as the clock snapshot above). A failed snapshot is
+            # passed through as None, which _check_storage's own existing
+            # exact-type check already turns into INVALID_RESOURCE_OBSERVATION.
+            res_snap = _snapshot_observation(resources, ResourceObservation)
+            safe_resources = ResourceObservation(**res_snap) if res_snap is not None else None
             _check_storage(
                 {"limits": dict(FROZEN_LIMITS), "storage_qualification": sq_dict},
-                resources,
+                safe_resources,
                 storage_reasons,
             )
             # _check_storage enforces exact integer typing, the standing

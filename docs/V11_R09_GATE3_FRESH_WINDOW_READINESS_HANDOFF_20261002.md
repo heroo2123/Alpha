@@ -300,10 +300,13 @@ operation performed before the cardinality comparison — and the three call
 sites (`proposed_window`, `prerequisites`, `storage_qualification`) no
 longer pre-copy with `dict(...)` before that comparison; a `dict(...)`
 copy only ever happens afterward, once cardinality is already confirmed
-bounded. F2: a new local `_oversized_reference` helper checks
-`isinstance(v, dict) and len(v) > len(schema_keys)` — a dict that large
-can never be a valid reference regardless, since `_is_ref` requires exact
-key-set equality — and gates every direct reference before `_is_ref` runs:
+bounded. F2: a new local `_oversized_reference` helper (superseded by the
+exact-type `_unsafe_reference_candidate`/`_has_unsafe_key` guards in the
+next revision below, once an `isinstance` check was itself found
+insufficient) checks `isinstance(v, dict) and len(v) > len(schema_keys)`
+— a dict that large can never be a valid reference regardless, since
+`_is_ref` requires exact key-set equality — and gates every direct
+reference before `_is_ref` runs:
 each of the **twelve** non-owner (nullable) prerequisite references, the
 owner reference, and (since `_check_storage` itself is frozen and
 unmodifiable) `storage_qualification["persistence_review"]` is substituted
@@ -403,6 +406,60 @@ Mapping)` check. This is a deliberate consistency fix, not a semantic
 regression: `proposed_window` and `prerequisites` already classified "not
 an acceptable object" as a structural refusal, and a `dict` subclass is
 exactly that kind of problem, not evidence that happens to be missing.
+
+## Revision: closing the clock/resource instance-dict hash-collision gap (commit after `297ad8f`)
+
+An independent Astra review of `297ad8f` returned `CHANGES_REQUIRED` on
+one new finding (F1, low severity but blocking for consistency with R2,
+and predating that commit): `type(clock) is ClockObservation` (and the
+equivalent check on `resources`) does not make `clock.field`/
+`resources.field` reads pure. A caller holding such an exact-type
+instance can still rewrite its instance dict directly with ordinary dict
+mutation (`vars(obj).clear(); vars(obj)[k] = v`) — freezing a dataclass
+only overrides `__setattr__`, not direct mutation of the instance dict
+itself — using a key whose hash collides with a real field name. Every
+later attribute read then runs that key's own `__eq__`, which can raise
+uncaught, or return a different answer on successive reads of the *same*
+field: a key that answers `False` on an early read (passing the
+exact-type/value guard) and `True` on a later one delivers a hostile
+value to code that already believed it had checked that field,
+reproducing the R2 symptom (an uncaught exception from caller numeric
+code, this time with no metaclass involved) on this candidate, and
+separately letting `INSUFFICIENT_POST_RESERVATION_DISK` disappear for a
+resource observation whose `free_disk_bytes_after_reservation` answer
+switches between the check and the use.
+
+This revision closes it with a snapshot, not a deeper per-call guard: a
+new `_snapshot_observation(obj, cls)` helper reads `vars(obj)` once,
+refuses (returns `None`) unless it is an exact `dict` no larger than
+`cls`'s own field count with only exact-`str` keys — exact `str` keys
+compare using CPython's built-in string equality, which cannot be
+overridden from Python, unlike a `str` subclass or an unrelated
+hash-colliding key — and otherwise reads each field exactly once via
+`dict.get` into a plain local `dict`. `_check_clock_quality` now
+snapshots `clock` once at entry and uses only those local values for
+every check that follows. `_check_storage` is frozen and not modified by
+this module, so `evaluate_fresh_window_readiness` instead snapshots
+`resources` once and hands `_check_storage` a freshly constructed
+`ResourceObservation` built from that snapshot — a plain object the
+caller has never seen and cannot reach — or `None` on a failed snapshot,
+which `_check_storage`'s own existing exact-type check already turns into
+`INVALID_RESOURCE_OBSERVATION` without any change to that frozen
+function.
+
+Re-running the review's exact reproduction (`toctou-probe.py`,
+`new-probes.py`) against this revision, in both plain and `-O` mode:
+every case that previously raised or switched now lands on the 0-caller-
+call refusal path instead, the valid-input and exact-zero-free-disk
+control cases still report their diagnostics exactly as before (no
+over-rejection), and no side effect is recorded. 17 new regression tests
+were added in this pass — parametrized over all five `ClockObservation`
+fields and all three `ResourceObservation` fields, each in a raising and
+a read-switching colliding-key variant, plus the review's exact
+disk-floor switching scenario — bringing this file to 170 tests (from
+153 before this pass); each of the 17 fails against the pre-fix planner.
+The focused planner and checker suites, combined, pass 625/625 before
+this pass's new tests and 642/642 after, in both plain and `-O` mode.
 
 ## Required before any further promotion
 

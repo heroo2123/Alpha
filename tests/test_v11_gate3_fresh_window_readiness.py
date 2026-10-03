@@ -1250,6 +1250,116 @@ def test_clock_metaclass_equality_cannot_forge_oversized_uncertainty():
     assert "INVALID_CLOCK_UNCERTAINTY" in result.incompleteness_reasons
 
 
+class _CollidingKey:
+    """A dict key with a hash matching a real field name, standing in for
+    ordinary dict mutation of an exact dataclass instance's own instance
+    dict (``vars(obj).clear(); vars(obj)[k] = v``) -- the mechanism by
+    which a caller can make every ``obj.field`` read run this key's own
+    ``__eq__`` even though ``type(obj) is ClockObservation`` (or
+    ``ResourceObservation``) remains exactly true throughout.
+    """
+
+    def __init__(self, field_name, *, raise_always=False, false_until=0):
+        self._field_name = field_name
+        self._raise_always = raise_always
+        self._false_until = false_until
+        self.calls = 0
+
+    def __hash__(self):
+        return hash(self._field_name)
+
+    def __eq__(self, other):
+        self.calls += 1
+        if self._raise_always:
+            raise RuntimeError("caller equality invoked")
+        return self.calls > self._false_until
+
+
+def _tamper_instance(instance, field, colliding_key):
+    """Return a same-type clone of ``instance`` whose instance dict has
+    ``field``'s real string key replaced by ``colliding_key``, with every
+    other field left under its genuine exact-``str`` key.
+    """
+    clone = replace(instance)
+    original = dict(vars(clone))
+    d = vars(clone)
+    d.clear()
+    for name, value in original.items():
+        d[colliding_key if name == field else name] = value
+    return clone
+
+
+CLOCK_FIELDS = (
+    "measured_utc", "uncertainty_seconds", "calibration_age_seconds",
+    "monotonic_consistent", "source",
+)
+RESOURCE_FIELDS = (
+    "free_disk_bytes_after_reservation", "mem_available_bytes_after_reservation",
+    "physically_reserved_bytes",
+)
+
+
+@pytest.mark.parametrize("field", CLOCK_FIELDS)
+def test_clock_instance_dict_raising_colliding_key_is_refused_without_raising(field):
+    key = _CollidingKey(field, raise_always=True)
+    tampered = _tamper_instance(GOOD_CLOCK, field, key)
+    result = _call(clock=tampered)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.clock_ready is False
+    assert "INVALID_CLOCK_OBSERVATION" in result.incompleteness_reasons
+    assert key.calls == 0
+
+
+@pytest.mark.parametrize("field", CLOCK_FIELDS)
+def test_clock_instance_dict_switching_colliding_key_is_refused_without_switching(field):
+    key = _CollidingKey(field, false_until=1)
+    tampered = _tamper_instance(GOOD_CLOCK, field, key)
+    result = _call(clock=tampered)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.clock_ready is False
+    assert "INVALID_CLOCK_OBSERVATION" in result.incompleteness_reasons
+    assert key.calls == 0
+
+
+@pytest.mark.parametrize("field", RESOURCE_FIELDS)
+def test_resources_instance_dict_raising_colliding_key_is_refused_without_raising(field):
+    key = _CollidingKey(field, raise_always=True)
+    tampered = _tamper_instance(GOOD_RESOURCES, field, key)
+    result = _call(resources=tampered)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "INVALID_RESOURCE_OBSERVATION" in result.incompleteness_reasons
+    assert key.calls == 0
+
+
+@pytest.mark.parametrize("field", RESOURCE_FIELDS)
+def test_resources_instance_dict_switching_colliding_key_is_refused_without_switching(field):
+    key = _CollidingKey(field, false_until=1)
+    tampered = _tamper_instance(GOOD_RESOURCES, field, key)
+    result = _call(resources=tampered)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "INVALID_RESOURCE_OBSERVATION" in result.incompleteness_reasons
+    assert key.calls == 0
+
+
+def test_resources_switching_disk_floor_never_silently_passes():
+    """The review's exact bypass: a key that reads as a valid, sufficient
+    int on an early read and only becomes insufficient (or lies) on a
+    later one must never let ``INSUFFICIENT_POST_RESERVATION_DISK`` -- or
+    any other storage diagnostic -- disappear. The snapshot guard refuses
+    the whole observation up front, before any individual field's value is
+    ever compared against a floor.
+    """
+    key = _CollidingKey("free_disk_bytes_after_reservation", false_until=2)
+    tampered = _tamper_instance(GOOD_RESOURCES, "free_disk_bytes_after_reservation", key)
+    result = _call(resources=tampered)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "INVALID_RESOURCE_OBSERVATION" in result.incompleteness_reasons
+    assert key.calls == 0
+
+
 @pytest.mark.parametrize("value", (None, "review", 7, []))
 def test_scalar_persistence_review_keeps_checker_diagnostic(value):
     storage = dict(GOOD_STORAGE_QUALIFICATION, persistence_review=value)
