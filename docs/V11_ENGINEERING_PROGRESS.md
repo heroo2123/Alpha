@@ -1,3 +1,7 @@
+## Clock exact-review continuity — 2026-10-03 11:17 UTC
+
+Recovered the interrupted `f0ca627` Astra/high exact review without changing candidate bytes or discarding its prior transcript. A single replacement reviewer is live with retained output and terminal paths recorded in the checkpoint. Current main and the review checkout are clean; no review verdict or merge is claimed. Weather Gate 3 remains **91/200, formal 1/50, 77 missing identities, G3-L NO-GO**.
+
 ## Clock recorder repair frozen and review running — 2026-10-03 11:08 UTC
 
 Claude Sonnet's repair preserved five changed files before a weekly-limit exit. Host-side fixture tests passed 72/72 in each of normal and optimized Python. Candidate `f0ca627` is committed in its isolated author worktree with `.review-input/` left untracked; a separate clean detached checkout is in different-model Codex Astra/high exact review. No merge or operational clock qualification is claimed. Resource design `5faedb8` was already independently reviewed and integrated on main; weather Gate 3 remains held at **91/200, formal 1/50, 77 missing identities, G3-L NO-GO**.

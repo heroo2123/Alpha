@@ -1,3 +1,7 @@
+## Clock review recovered — 2026-10-03 11:17 UTC
+
+The `f0ca627` Astra/high exact review interrupted without verdict and was restarted once in the same clean detached checkout with a separate retained transcript and terminal marker. The candidate remains unmerged; no accepted host clock dossier, provider request, identity credit, or SHADOW admission follows. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Clock repair exact review pending — 2026-10-03 11:08 UTC
 
 The passive Gate-3 clock-recorder CHANGES_REQUIRED repair is frozen as `f0ca627` (tree `8a926dc62a8b6c3f73d31ddbe8fab8701030649b`) after 65 dossier and 7 native fixture tests passed in both Python modes. Independent Codex Astra/high exact review is running; no PASS, merge, accepted host clock dossier, provider request, G3-L credit, or SHADOW admission follows. The existing boundary remains **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
