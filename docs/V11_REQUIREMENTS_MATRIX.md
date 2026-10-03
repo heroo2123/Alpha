@@ -1,3 +1,7 @@
+## FC1 downstream handoffs and unresolved interface seams — 2026-10-03 19:51 UTC
+
+Read-only step-4 and step-5 handoffs finished without tests or edits. Three FC1 seams require independent adjudication before dependent implementation: receipt/terminal ordering, start-to-start pacing versus inherited close-plus-two-seconds, and EOF/overdelivery accounting versus exactly 64 reads. A distinct Astra/high read-only adjudicator and Sol/medium native-fixture preparer are live alongside the unfinished step-2 author. These preparations grant no FC1 acceptance, provider rights, 77 missing G3-L identities or SHADOW admission. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 IFS reviewed integration and FC1 downstream preparation — 2026-10-03 19:46 UTC
 
 Independent exact `610ee4a` PASS_IN_SCOPE is integrated at `24c8251`; all nine merged blobs match the reviewed candidate and focused post-merge tests pass 115/115 in each Python mode with zero socket events. The reviewer retained one optimized concurrent timing failure that passed alone, so no clean full-suite claim is made. FC1 step-2 schema authoring remains unfinished; step-3 store handoff is read-only and complete; separate read-only step-4 ledger and step-5 scheduler preparation lanes are live. None supplies production V5 acceptance, provider rights, the 77 missing G3-L identities, or forward SHADOW admission: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
