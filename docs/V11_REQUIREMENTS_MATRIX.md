@@ -1,3 +1,7 @@
+## Clock repair recovery and Gate-3 hold — 2026-10-03 10:46 UTC
+
+The passive clock-recorder candidate `5667acb` remains unmerged after Opus/high CHANGES_REQUIRED. Its Sonnet/high repair was recovered in the same preserved worktree after a local Claude write-permission failure; resumed runner `/tmp/alpha-v11-clock-recorder-repair-5667acb-recovery2.runner` was live, with no successor bytes or verdict yet. Separate Opus/high resource-design exact review `5faedb8` remains live. Both are offline prerequisites only. No accepted clock/resource qualification, provider request, capture, G3-L PASS, or SHADOW admission follows. **91/200, formal 1/50; 77 missing identities; NOT_READY_TO_FUND**.
+
 ## Fresh-readiness repair integrated after exact PASS — 2026-10-03 10:41 UTC
 
 Different-model Astra/high review of `35728a3` returned **PASS_IN_SCOPE**; local merge `5c24af2` passes 642/642 focused post-merge offline tests. The three reviewed readiness holds remain false, so no executable preflight, clock/resource qualification, provider access, capture, or SHADOW admission follows. Separate clock repair remains live; resource-reservation design `5faedb8` now has one live independent Opus/high exact review with no verdict. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
