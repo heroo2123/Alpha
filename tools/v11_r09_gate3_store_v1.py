@@ -244,6 +244,7 @@ class VersionedImmutableObjectStore:
         self.expected_descriptor_sha256 = expected_descriptor_sha256
         self._pid = os.getpid()
         self._mutex = threading.RLock()
+        self._binding_mutex = threading.RLock()
         self._callback = False
         self._failed = False
         self.root_fd = self.dir_fd = self.journal_fd = None
@@ -710,14 +711,21 @@ class VersionedImmutableObjectStore:
         if os.getpid() != self._pid:
             self._fork_child()
             return
-        with self._mutex:
-            check(not self._callback, 'STORE_CALLBACK_REENTRANCY')
-            for attr in ('journal_fd', 'dir_fd', 'root_fd'):
-                fd = getattr(self, attr, None)
-                if fd is not None:
-                    os.close(fd)
-                    setattr(self, attr, None)
-            self._failed = True
+        # A RAW byte handoff holds this guard through its release point.
+        # Ordinary close still waits for a concurrent seal/read on _mutex.
+        if not self._binding_mutex.acquire(blocking=False):
+            raise LaunchContractError('STORE_CONCURRENT_USE')
+        try:
+            with self._mutex:
+                check(not self._callback, 'STORE_CALLBACK_REENTRANCY')
+                for attr in ('journal_fd', 'dir_fd', 'root_fd'):
+                    fd = getattr(self, attr, None)
+                    if fd is not None:
+                        os.close(fd)
+                        setattr(self, attr, None)
+                self._failed = True
+        finally:
+            self._binding_mutex.release()
 
     def __enter__(self):
         return self

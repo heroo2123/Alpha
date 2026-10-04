@@ -15,6 +15,7 @@ import os
 import re
 import stat
 import subprocess
+import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -702,6 +703,7 @@ class DurableBudget:
             check(not stat.S_ISLNK(os.lstat(ancestor).st_mode), 'JOURNAL_PATH_SYMLINK')
         check(path == path.resolve(), 'JOURNAL_DIRECTORY')
         self._owner_pid = os.getpid()
+        self._custody_mutex = threading.RLock()
         self.dir_fd = self.lock_fd = self.fd = None
         self.failed = False
         self.uncertain_received_bytes = 0
@@ -850,6 +852,10 @@ class DurableBudget:
         self._journal_bytes = size
 
     def _append(self, event):
+        with self._custody_mutex:
+            return self._append_locked(event)
+
+    def _append_locked(self, event):
         self._healthy()
         # Capacity exhaustion is a clean, deterministic, replayable refusal
         # (same fixed caps every restart), never a durability failure: do not
@@ -1109,11 +1115,16 @@ class DurableBudget:
         self._state()
 
     def close(self):
-        for name in ('fd', 'lock_fd', 'dir_fd'):
-            fd = getattr(self, name, None)
-            if fd is not None:
-                os.close(fd)
-                setattr(self, name, None)
+        if not self._custody_mutex.acquire(blocking=False):
+            raise LaunchContractError('JOURNAL_CONCURRENT_USE')
+        try:
+            for name in ('fd', 'lock_fd', 'dir_fd'):
+                fd = getattr(self, name, None)
+                if fd is not None:
+                    os.close(fd)
+                    setattr(self, name, None)
+        finally:
+            self._custody_mutex.release()
 
     def __enter__(self):
         return self
