@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse,calendar,fcntl,hashlib,json,os,re,sqlite3,stat,time
+import argparse,calendar,fcntl,hashlib,http.client,json,os,re,sqlite3,ssl,stat,time,urllib.parse
 from datetime import date,datetime,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -75,6 +75,63 @@ def daily_date_token(d):
 def full_month(d):
     x=date.fromisoformat(d);return calendar.month_name[x.month].lower(),x.day
 
+def gamma_slug(target_date):
+    x=date.fromisoformat(target_date)
+    return f"highest-temperature-in-atlanta-on-{calendar.month_name[x.month].lower()}-{x.day}-{x.year}"
+
+def live_gamma_event(target_date):
+    host='gamma-api.polymarket.com'
+    slug=gamma_slug(target_date)
+    path='/events?'+urllib.parse.urlencode({'slug':slug})
+    conn=http.client.HTTPSConnection(host,443,context=ssl.create_default_context(),timeout=10)
+    try:
+        conn.request('GET',path,headers={'Host':host,'User-Agent':'Alpha-V11-root-daily-review/1.0',
+                                         'Accept':'application/json','Connection':'close'})
+        r=conn.getresponse()
+        need(r.status==200,'GAMMA_HTTP_STATUS')
+        need(r.getheader('Location') is None,'GAMMA_REDIRECT_REFUSED')
+        raw=r.read(4*1024*1024+1)
+        need(len(raw)<=4*1024*1024,'GAMMA_RESPONSE_SIZE')
+    finally:
+        conn.close()
+    try: rows=json.loads(raw)
+    except Exception as exc: raise Refusal('GAMMA_JSON') from exc
+    need(isinstance(rows,list) and len(rows)==1 and isinstance(rows[0],dict),'GAMMA_EXACT_EVENT_REQUIRED')
+    event=rows[0]
+    need(event.get('slug')==slug,'GAMMA_SLUG_BINDING')
+    return event
+
+def bind_live_event(payload,event):
+    need(str(event.get('id'))==str(payload.get('event_id')),'LIVE_EVENT_ID')
+    need(norm(event.get('title'))==norm(payload.get('title')),'LIVE_EVENT_TITLE')
+    need(str(event.get('eventDate') or '')==str(payload.get('target_date')),'LIVE_EVENT_DATE')
+    need(event.get('active') is True and event.get('closed') is False and event.get('archived') is False,
+         'LIVE_EVENT_NOT_OPEN')
+    sc=payload.get('strict_contract',{})
+    need(isinstance(sc,dict),'STRICT_CONTRACT')
+    core=dict(sc);claimed=core.pop('sha256',None)
+    need(HEX64.fullmatch(str(claimed or '')) and digest(core)==claimed,'STRICT_CONTRACT_SHA')
+    need(norm(event.get('description'))==norm(sc.get('operative_rules')),'LIVE_EVENT_RULE_TEXT')
+    markets=event.get('markets')
+    need(isinstance(markets,list) and len(markets)==len(payload.get('partition',[])),'LIVE_MARKET_COUNT')
+    byid={str(m.get('id')):m for m in markets if isinstance(m,dict)}
+    need(len(byid)==len(markets),'LIVE_MARKET_ID_UNIQUE')
+    for row in payload.get('partition',[]):
+        m=byid.get(str(row.get('market_id')));need(m is not None,'LIVE_MARKET_ID')
+        need(str(m.get('conditionId') or '').lower()==str(row.get('condition_id') or '').lower(),'LIVE_CONDITION_ID')
+        need(norm(m.get('question'))==norm(row.get('question')),'LIVE_MARKET_QUESTION')
+        need(norm(m.get('description'))==norm(sc.get('operative_rules')),'LIVE_MARKET_RULE_TEXT')
+        need(str(m.get('resolutionSource') or '')==str(sc.get('operative_source') or ''),'LIVE_MARKET_SOURCE')
+        try: tokens=json.loads(m.get('clobTokenIds'))
+        except Exception as exc: raise Refusal('LIVE_TOKEN_JSON') from exc
+        need(tokens==[row.get('yes_token'),row.get('no_token')],'LIVE_TOKEN_BINDING')
+        try: outcomes=json.loads(m.get('outcomes'))
+        except Exception as exc: raise Refusal('LIVE_OUTCOME_JSON') from exc
+        need(outcomes==['Yes','No'],'LIVE_BINARY_OUTCOMES')
+        need(m.get('active') is True and m.get('closed') is False and m.get('enableOrderBook') is True,
+             'LIVE_MARKET_NOT_OPEN')
+    return True
+
 def partition_shape(part,unit):
     need(isinstance(part,list) and len(part)==11,'PARTITION_COUNT')
     ordered=sorted(part,key=lambda x:-10**9 if x.get('lower') is None else float(x['lower']))
@@ -133,6 +190,24 @@ def normalized_payload(payload):
     sc['operative_rules']=normalize_rules(sc.get('operative_rules'),d)
     return p
 
+def bind_raw_event(payload,event):
+    need(str(event.get('id'))==str(payload.get('event_id')),'RAW_EVENT_ID')
+    need(norm(event.get('title'))==norm(payload.get('title')),'RAW_EVENT_TITLE')
+    sc=payload.get('strict_contract',{});rules=norm(sc.get('operative_rules'));source=norm(sc.get('operative_source'))
+    need(norm(event.get('description'))==rules,'RAW_EVENT_RULES')
+    markets=event.get('markets');need(isinstance(markets,list) and len(markets)==len(payload.get('partition',[])),'RAW_MARKET_COUNT')
+    byid={str(x.get('id')):x for x in markets if isinstance(x,dict)}
+    need(len(byid)==len(markets),'RAW_MARKET_IDS')
+    for row in payload['partition']:
+        m=byid.get(str(row['market_id']));need(m is not None,'RAW_MARKET_MISSING')
+        need(str(m.get('conditionId','')).lower()==str(row['condition_id']).lower(),'RAW_CONDITION_ID')
+        need(norm(m.get('question'))==norm(row.get('question')),'RAW_QUESTION')
+        need(norm(m.get('description'))==rules and norm(m.get('resolutionSource'))==source,'RAW_MARKET_RULE_OR_SOURCE')
+        try: outcomes=json.loads(m.get('outcomes'));tokens=json.loads(m.get('clobTokenIds'))
+        except Exception as exc: raise Refusal('RAW_BINARY_SCHEMA') from exc
+        need(outcomes==['Yes','No'] and tokens==[str(row['yes_token']),str(row['no_token'])],'RAW_TOKEN_BINDING')
+    return True
+
 def validate_rule_against_policy(payload,rule_sha,policy):
     need(HEX64.fullmatch(rule_sha or ''),'RULE_SHA_FORMAT')
     need(digest(payload)==rule_sha,'RULE_SHA_MISMATCH')
@@ -156,12 +231,14 @@ def verify_db(policy,request):
     payload=rd.get('preimage');need(isinstance(payload,dict),'RULE_PREIMAGE')
     target=validate_rule_against_policy(payload,rd.get('fingerprint'),policy)
     need(dbp.name==f'daily-{target.isoformat()}.sqlite','DB_DATE_BINDING')
+    live=live_gamma_event(target.isoformat())
+    bind_live_event(payload,live)
     need(rd.get('source_event_sha256') and HEX64.fullmatch(rd['source_event_sha256']),'SOURCE_EVENT_SHA')
     evidence=rr['body'].get('evidence',[]);need(len(evidence)==1,'RULE_SOURCE_EVIDENCE_COUNT')
     raw=get(db,evidence[0]['id']);need(raw['sha256']==evidence[0]['sha256'] and raw['kind']=='RULES','RULE_SOURCE_EVIDENCE')
     event=raw['body'].get('payload',{}).get('event');need(isinstance(event,dict),'RAW_EVENT')
     need(digest(event)==rd['source_event_sha256'],'RAW_EVENT_HASH')
-    need(str(event.get('id'))==str(payload['event_id']),'RAW_EVENT_ID')
+    bind_raw_event(payload,event)
     metas=[]
     rows=[record(x) for x in db.execute("SELECT * FROM v11_records WHERE kind='REGISTRY' AND event_id='station:KATL' ORDER BY seq")]
     for x in rows:

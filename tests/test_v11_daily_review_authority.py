@@ -18,7 +18,7 @@ def payload(target):
         part.append({'market_id':str(5000+i),'condition_id':'0x'+format(i+1,'064x'),'question':q,
           'lower':lo,'upper':hi,'unit':'F','yes_token':str(10**40+i*2+1),'no_token':str(10**40+i*2+2)})
     questions=[a.norm(x['question']) for x in part]
-    return {'version':'alpha_v11_universal_rule_v1','event_id':'1123309','title':f'Highest temperature in Atlanta on {month} {day}?',
+    out={'version':'alpha_v11_universal_rule_v1','event_id':'1123309','title':f'Highest temperature in Atlanta on {month} {day}?',
       'strict_contract':{'version':'weather_contract_strict_v9_reviewed_city_station_binding','event_id':'1123309',
         'family':'daily_high_temperature','location':'atlanta',
         'operative_rules':f"fixed reviewed semantics in atlanta on {day} {abbr} '{yy:02d} with unchanged suffix",
@@ -33,6 +33,8 @@ def payload(target):
       'partition':part,'metadata_fingerprint':'e'*64,
       'compiler_version':'weather_only_contract_compiler_v1_inventory_no_financial_authority',
       'semantic_profile_version':'weather_temperature_rule_authority_v2_hko_decimal_fail_closed','financial_authority':False}
+    sc=dict(out['strict_contract']);sc.pop('sha256',None);out['strict_contract']['sha256']=a.digest(sc)
+    return out
 
 def append(db,seq,rid,kind,event,body_extra):
     at=1000.+seq;body={'record_id':rid,'kind':kind,'event_id':event,'recorded_at':at,'available_at':at,
@@ -44,7 +46,18 @@ def setup(tmp_path,offset=1):
     today=datetime.now(ZoneInfo('America/New_York')).date();target=today+timedelta(days=offset);anchor=payload(today);cand=payload(target)
     # Change only expected daily fields.
     cand['event_id']='1129999';cand['strict_contract']['event_id']='1129999'
-    event={'id':'1129999','title':cand['title'],'markets':[]};srcsha=a.digest(event);rule_sha=a.digest(cand)
+    sc=dict(cand['strict_contract']);sc.pop('sha256',None);cand['strict_contract']['sha256']=a.digest(sc)
+    markets=[]
+    for row in cand['partition']:
+        markets.append({'id':row['market_id'],'conditionId':row['condition_id'],'question':row['question'],
+          'description':cand['strict_contract']['operative_rules'],'resolutionSource':cand['strict_contract']['operative_source'],
+          'clobTokenIds':json.dumps([row['yes_token'],row['no_token']]),'outcomes':json.dumps(['Yes','No']),
+          'active':True,'closed':False,'enableOrderBook':True})
+    event={'id':'1129999','slug':a.gamma_slug(target.isoformat()),'title':cand['title'],
+      'eventDate':target.isoformat(),'description':cand['strict_contract']['operative_rules'],
+      'active':True,'closed':False,'archived':False,'markets':markets}
+    a.live_gamma_event=lambda _date,e=event:json.loads(json.dumps(e))
+    srcsha=a.digest(event);rule_sha=a.digest(cand)
     dbp=tmp_path/f'daily-{target.isoformat()}.sqlite';db=sqlite3.connect(dbp)
     db.executescript('CREATE TABLE v11_meta(key TEXT PRIMARY KEY,value TEXT);CREATE TABLE v11_records(seq INTEGER PRIMARY KEY,record_id TEXT UNIQUE,kind TEXT,event_id TEXT,recorded_at REAL,available_at REAL,body TEXT,body_sha256 TEXT);')
     db.executemany('INSERT INTO v11_meta VALUES(?,?)',[('version','alpha_v11_evidence_v1'),('namespace','CHALLENGER:katl-shadow')])
