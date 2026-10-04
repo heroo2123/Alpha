@@ -25,6 +25,7 @@ from .runtime_health import KEY as HEALTH_KEY
 VERSION = 'alpha_v11_market_discovery_v1'
 KEY = 'v11-market-discovery'
 ENDPOINT = 'https://gamma-api.polymarket.com/events/keyset'
+KEYSET_SCHEMA_URL = 'https://gamma-api.polymarket.com/schemas/EventsKeysetListResponse.json'
 
 
 @dataclass(frozen=True)
@@ -229,7 +230,8 @@ class MarketDiscovery:
                 or b['source_identity']!=expected.source_identity or p.get('endpoint')!=ENDPOINT
                 or p.get('request_params')!=dict(expected.params) or p.get('http_status')!=200
                 or b['evidence_class'] not in {'PUBLIC_OBSERVED','SYNTHETIC'} or type(response) is not dict
-                or set(response)-{'events','next_cursor'}):
+                or set(response)-{'events','next_cursor','$schema'}
+                or ('$schema' in response and response.get('$schema') != KEYSET_SCHEMA_URL)):
             raise EvidenceError('DISCOVERY_PAGE_ENVELOPE_OR_SCOPE')
         if not 0 <= self.store.clock()-b['received_at'] < self.policy.maximum_page_age_seconds:
             raise EvidenceError('DISCOVERY_PAGE_RECEIPT_STALE')
