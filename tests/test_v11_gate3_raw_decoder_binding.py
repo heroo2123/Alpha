@@ -137,6 +137,22 @@ def test_failed_attempt_never_releases_bytes(tmp_path):
         _close(acquired)
 
 
+def test_current_transport_closure_binds_read_bytes(tmp_path):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        closed = next(event for event in runtime.session.events
+                      if event.get('op') == 'transport_closed')
+        raw = base64.b64decode(closed['closure_evidence_raw_b64'], validate=True)
+        closure = json.loads(raw)
+        assert closure['read_bytes'] == len(BODY)
+        assert closure['read_bytes'] == closure['delivered_bytes']
+        assert _read(runtime, request) == BODY
+    finally:
+        runtime.report_sink.close()
+        _close(acquired)
+
+
 def test_replayed_receipt_has_unknown_acknowledgement_and_refuses(tmp_path):
     acquired, runtime, request = _attempt(tmp_path)
     try:
