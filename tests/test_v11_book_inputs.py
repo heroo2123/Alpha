@@ -80,10 +80,9 @@ def test_bad_scope_time_tick_or_depth_never_produces_normalized_book(books, chan
     assert len(books['store'].records(kind='BOOK')) == 1
 
 
-@pytest.mark.parametrize('change', ['old_server', 'future_server', 'late_normalization', 'changed_query', 'historical', 'superseded'])
+@pytest.mark.parametrize('change', ['future_server', 'late_normalization', 'changed_query', 'historical', 'superseded'])
 def test_causal_freshness_and_exact_public_request_are_required(books, change):
     body = response(books); fields = {}; changes = {}
-    if change == 'old_server': body['timestamp'] = str(int((books['now'][0]-31)*1000))
     if change == 'future_server': body['timestamp'] = str(int((books['now'][0]+1)*1000))
     if change == 'changed_query': changes['request_params'] = {'token_id':'wrong'}
     if change == 'historical': fields['evidence_class'] = 'HISTORICAL_AVAILABILITY_UNKNOWN'
@@ -91,6 +90,19 @@ def test_causal_freshness_and_exact_public_request_are_required(books, change):
     if change == 'late_normalization': books['now'][0] += 31
     if change == 'superseded': raw(books, 'new')
     with pytest.raises(EvidenceError): normalize(books)
+
+
+def test_fresh_rest_receipt_accepts_unchanged_book_with_older_generation_time(books):
+    body = response(books)
+    body['timestamp'] = str(int((books['now'][0]-300)*1000))
+    source = raw(books, body=body)
+    books['now'][0] += 2
+    row = normalize(books)
+    b, p = row['body'], row['body']['payload']
+    assert b['observed_at'] == source['body']['received_at']
+    assert p['exchange_book_generated_at'] == source['body']['received_at']-300
+    assert p['market_event_to_receipt_seconds'] == 300
+    assert p['stream_healthy'] and not p['continuous_stream_verified']
 
 
 def test_empty_side_is_archived_as_absence_of_liquidity_and_cannot_make_microstructure_features(books):

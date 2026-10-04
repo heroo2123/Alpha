@@ -95,8 +95,12 @@ def normalize_book_capture(store, raw_id, *, rule, token_id, collateral_asset, p
     stamp = response.get('timestamp')
     if not isinstance(stamp, str) or not re.fullmatch(r'[0-9]{1,16}', stamp):
         raise EvidenceError('PUBLIC_BOOK_SERVER_TIMESTAMP_REQUIRED')
-    observed = float(Decimal(stamp)/1000)
-    if not 0 <= observed <= body['received_at'] <= now or now-observed >= policy.maximum_age_seconds:
+    generated_at = float(Decimal(stamp)/1000)
+    # GET /book is a fresh REST observation at receipt time. The exchange
+    # timestamp is the current book generation time and may remain unchanged
+    # while an inactive book is still the current snapshot. Preserve that age
+    # for audit, but do not conflate it with receipt freshness.
+    if not 0 < generated_at <= body['received_at'] <= now:
         raise EvidenceError('PUBLIC_BOOK_SERVER_TIME_STALE_OR_FUTURE')
     exchange_hash = identity(response.get('hash'), maximum=256)
     tick, minimum = number(response.get('tick_size')), number(response.get('min_order_size'))
@@ -125,12 +129,13 @@ def normalize_book_capture(store, raw_id, *, rule, token_id, collateral_asset, p
         continuous_stream_verified=False, exchange_book_hash=exchange_hash,
         minimum_order_size=str(minimum), tick_size=str(tick), negative_risk=response['neg_risk'],
         raw_evidence_id=raw_id, raw_evidence_sha256=raw['sha256'], feature_ready_at=now,
-        market_event_to_receipt_seconds=body['received_at']-observed,
+        exchange_book_generated_at=generated_at,
+        market_event_to_receipt_seconds=body['received_at']-generated_at,
         network_latency_seconds=None, fees=None, financial_authority=False)
     # Empty sides are valid absence of liquidity, never an executable price.
     # The response's opaque hash is not a sequence or a proof of our execution.
     derived = dict(provider=PROVIDER, source_identity=token_id, revision=body['revision'],
-        payload=normalized, observed_at=observed, issued_at=None, published_at=None,
+        payload=normalized, observed_at=body['received_at'], issued_at=None, published_at=None,
         received_at=body['received_at'], evidence_class=body['evidence_class'], source_kind='BOOK')
     return store._append(record_id, 'BOOK', raw['event_id'], derived, now, now,
                          expected_previous_seq=head['seq'] if head else 0)
