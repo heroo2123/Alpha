@@ -1,3 +1,7 @@
+## 2026-10-04 current Shadow commissioning reconciliation
+
+The historical Gate-3 91/200 / formal 1/50 entries below are preserved as dated Gate-3 sub-scores; they are **not** a current whole-program completion percentage. Current PAPER V11 READY uses an explicit 11-requirement denominator: **8/11 strict PASS (72.7%)**, with requirements 2 (fully prepared current-input cycle), 8 (current-input scenario-risk evidence), and 9 (current-input PWS Shadow evidence) still partial. The active release is 0dd809ea4b42cce9026225e390856509d0b2041c / tree 92c5bde0415e7eeeb76c9340f14d4ccba39fd1ae. Real execution remains inactive/masked and financial_authority=false. See docs/V11_SHADOW_READINESS_20261004.md and docs/V11_WORK_CHECKPOINT.md for exact current evidence.
+
 ## 2026-10-03 23:32 UTC reviewed transport integration
 
 Transport `5a0ce21` received different-model exact **PASS_IN_SCOPE** and was merged locally as `c13c2a4` after conflict-free reconciliation; 25 focused post-merge transport tests passed per Python mode. The allocation compatibility map sealed without a demonstrated defect. RAW successor repair remains live. These are offline code/test advances with no G3-L identity, physical, provider, capture, SHADOW or C/J/E/A qualification credit. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
