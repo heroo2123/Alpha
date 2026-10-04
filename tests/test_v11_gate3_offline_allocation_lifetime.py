@@ -2,9 +2,11 @@
 
 from dataclasses import replace
 import copy
+import hashlib
 import tracemalloc
 import unittest
 
+from tests import test_v11_gate3_offline_resource_budget as resource_tests
 from tools.v11_gate3_offline_allocation_lifetime import (
     Domain, FRESH_CHECKS, Obligation, REQUIRED, reconcile,
 )
@@ -49,6 +51,60 @@ def fixture():
 
 
 class AllocationLifetimeTests(unittest.TestCase):
+    def test_validated_calculator_contract_at_exact_disk_boundary(self):
+        # Reuse the canonical V4 bytes and validation context from the calculator
+        # suite; the allocation claims and ceilings remain synthetic assertions.
+        source = resource_tests.ValidatedBytesResourceBudgetTests
+        source.setUpClass()
+        try:
+            budget = source('test_valid_fixture_exact_digest_and_zero_authority').estimate()
+            expected_digest = hashlib.sha256(source.raw).hexdigest()
+        finally:
+            source.tearDownClass()
+
+        _, rows, _ = fixture()
+        envelopes = {
+            'v4_envelope': budget['v4_quota_formula_bytes'],
+            'runtime_envelope': budget['runtime_capacity']['disk_bytes'],
+            'parent_child_memory': budget['runtime_capacity']['memory_bytes'],
+        }
+        rows = [replace(row, maximum_bytes=envelopes.get(row.category, row.maximum_bytes),
+                        outstanding_bytes=envelopes.get(row.category, row.outstanding_bytes))
+                for row in rows]
+        disk_rows = [row for row in rows if row.domain == 'disk']
+        disk_bytes = sum(row.maximum_bytes for row in disk_rows)
+        disk_inodes = sum(row.maximum_inodes for row in disk_rows)
+        domains = [Domain('disk', 'DISK', 'disk-pool', disk_bytes, disk_inodes),
+                   Domain('memory', 'MEMORY', 'memory-pool',
+                          envelopes['parent_child_memory'], 0)]
+
+        self.assertEqual(budget['validated_manifest_sha256'], expected_digest)
+        result = reconcile(budget, rows, domains, snapshot=5)
+        self.assertEqual(result['status'], 'UNQUALIFIED')
+        self.assertEqual(result['manifest_sha256'], expected_digest)
+        self.assertEqual(result['lifetime_peaks']['disk']['bytes'], disk_bytes)
+        self.assertEqual(result['lifetime_peaks']['disk']['inodes'], disk_inodes)
+        self.assertEqual(result['g3l'], 'NO_GO')
+        self.assertEqual(result['qualification_credit'], 0)
+        for key in ('resource_qualification', 'execution_authority',
+                    'provider_authority', 'capture_authority', 'host_authority',
+                    'selected_window_evidence'):
+            self.assertIs(result[key], False)
+
+        for field in ('peak_bytes_ceiling', 'peak_inodes_ceiling'):
+            with self.subTest(ceiling=field), self.assertRaisesRegex(
+                    ValueError, 'overlapping lifetimes'):
+                lowered = replace(domains[0], **{field: getattr(domains[0], field) - 1})
+                reconcile(budget, rows, [lowered, domains[1]], snapshot=5)
+
+        for mutate in (
+                lambda b: b.update(manifest_validation='DECLARED'),
+                lambda b: b['fresh_ceiling_checks'].update(store_objects=False)):
+            changed = copy.deepcopy(budget)
+            mutate(changed)
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                reconcile(changed, rows, domains, snapshot=5)
+
     def test_full_coverage_partial_materialization_and_zero_authority(self):
         budget, rows, domains = fixture()
         envelope = rows[0]
