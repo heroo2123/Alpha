@@ -172,8 +172,9 @@ def _read_raw_guarded(*, runtime: GateRuntime, request: AttemptRequest,
         raise RawBindingRefusal('BINDING_CLOSURE') from exc
     _require(type(closure) is dict, 'BINDING_CLOSURE')
     _require(set(closure) == {'adapter', 'known_closed', 'status', 'headers',
-              'prefetched_bytes', 'delivered_bytes', 'chunks_consumed',
-              'chunk_count', 'deadline_monotonic', 'closure_clock_sha256'} and
+              'prefetched_bytes', 'delivered_bytes', 'read_bytes',
+              'chunks_consumed', 'chunk_count', 'deadline_monotonic',
+              'closure_clock_sha256'} and
              canonical(closure) == raw_closure and
              hashlib.sha256(raw_closure).hexdigest() ==
                  transport_closed.get('closure_evidence_sha256'),
@@ -226,6 +227,8 @@ def _read_raw_guarded(*, runtime: GateRuntime, request: AttemptRequest,
              closure['delivered_bytes'] == delivered and
              type(closure.get('prefetched_bytes')) is int and
              closure['prefetched_bytes'] == delivered and
+             type(closure.get('read_bytes')) is int and
+             closure['read_bytes'] == delivered and
              type(closure.get('chunks_consumed')) is int and
              type(closure.get('chunk_count')) is int and
              closure['chunks_consumed'] == closure['chunk_count'] and
