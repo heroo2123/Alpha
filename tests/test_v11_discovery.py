@@ -60,6 +60,26 @@ def test_catalog_page_is_archived_once_and_bounded_semantic_processing_resumes_a
     assert len(b['summary']['template_counts'])==2 and not r['store'].records(kind='TRADE')
 
 
+def test_exact_gamma_keyset_schema_metadata_is_accepted_but_other_schema_is_refused(catalog):
+    async def accepted():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda req:httpx.Response(200,json={'$schema':'https://gamma-api.polymarket.com/schemas/EventsKeysetListResponse.json',
+                                                    'events':[event()],'next_cursor':None}))) as client:
+            w=discovery(catalog,client);w.start('schema-ok');return await w.step('schema-ok-step')
+    good=asyncio.run(accepted())['body']['details']
+    assert good['summary']['catalog_traversal_complete']
+    r,_,_=catalog
+    advance(r,61)
+
+    async def refused():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda req:httpx.Response(200,json={'$schema':'https://example.invalid/unreviewed.json',
+                                                    'events':[event('other')],'next_cursor':None}))) as client:
+            w=discovery(catalog,client);w.start('schema-bad');return await w.step('schema-bad-step')
+    bad=asyncio.run(refused())['body']['details']
+    assert bad['outcome']=='PAGE_REJECTED' and bad['state']['phase']=='INCOMPLETE'
+
+
 def test_keyset_cursor_cooldown_and_duplicate_denominator_are_durable(catalog):
     r,_,_=catalog;calls=[]
     def transport(req):
