@@ -19,6 +19,19 @@ def test_exact_source_view_retains_revision_order_and_raw_identity_without_mutat
     assert r['store'].pin_read_view()==pin
 
 
+def test_source_view_reuses_borrowed_runtime_health_transaction(gefs):
+    r=gefs
+    a=field(r,0,r['plan'].hours[0])
+    pin=r['store'].pin_read_view()
+    with r['store'].runtime_health_publication() as bound:
+        snapshot=bound.source_batch(
+            kind='MODEL',event_id=r['plan'].event_id,provider=PROVIDER,
+            record_ids=(a['id'],),source_identities=(a['body']['source_identity'],),raw_lineage=True)
+        assert snapshot['records'][a['id']]==a
+        assert bound.db.in_transaction
+    assert r['store'].pin_read_view()==pin
+
+
 @pytest.mark.parametrize('changes',[dict(record_ids=()),dict(record_ids=('x',)*901),dict(source_identities=()),
     dict(source_identities=('x',)*513),dict(raw_lineage=1),dict(kind='OPERATOR_EVENT')])
 def test_batch_read_bounds_do_not_relax_existing_decision_limits(gefs,changes):

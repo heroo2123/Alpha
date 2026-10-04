@@ -524,7 +524,12 @@ class EvidenceStore:
             if total>8*1024*1024 or len(values)>=1000:raise EvidenceError('SOURCE_VIEW_BYTES_OR_ROWS_BOUND')
             result=self._decode(row);values[result['id']]=result;return result
         with self._connect() as db:
-            db.execute('BEGIN');db.set_progress_handler(lambda:time.monotonic()>=end,1000)
+            # A runtime-health publication borrows an already-open writer
+            # transaction. Reuse that snapshot instead of attempting a nested
+            # BEGIN; ordinary stores still open their own bounded read snapshot.
+            if not db.in_transaction:
+                db.execute('BEGIN')
+            db.set_progress_handler(lambda:time.monotonic()>=end,1000)
             try:
                 check()
                 head=db.execute('SELECT * FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
