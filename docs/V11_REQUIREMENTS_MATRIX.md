@@ -1,3 +1,9 @@
+## 2026-10-04 full current-input cycle and forward-qualification gap
+
+PAPER V11 READY strict subscore is now **9/11 (81.8%)** after the clean current-input GEFS census completed 310/310 fields and a fully prepared CandidateRunner cycle finished BOUNDED_RUN_FINISHED with six clean ticks, zero errors, healthy clock and no financial authority/orders. Requirements 8 and 9 remain partial: this smoke-only FUTURE_FORECAST cycle produced no economic proposal/account scenario reservation and contains no PWS sleeve. decision_count=0 is not labeled no-opportunity.
+
+A separate CODE READY gap is now explicit: the verified release's shadow_commission.py intentionally reports LIVE_CAUSAL_DECISION_LINEAGE_AND_GROUPED_OUTCOME_QUALIFICATION_NOT_IMPLEMENTED and forces qualifying forward sample/admission counts to zero. Do not infer forward qualification from completed smoke runs or synthetic admissions. Implement and independently review causal decision-lineage + grouped-outcome qualification before overall CODE READY/promotion evidence can be claimed. READY_TO_FUND remains false.
+
 ## 2026-10-04 current Shadow commissioning reconciliation
 
 The historical Gate-3 91/200 / formal 1/50 entries below are preserved as dated Gate-3 sub-scores; they are **not** a current whole-program completion percentage. Current PAPER V11 READY uses an explicit 11-requirement denominator: **8/11 strict PASS (72.7%)**, with requirements 2 (fully prepared current-input cycle), 8 (current-input scenario-risk evidence), and 9 (current-input PWS Shadow evidence) still partial. The active release is 0dd809ea4b42cce9026225e390856509d0b2041c / tree 92c5bde0415e7eeeb76c9340f14d4ccba39fd1ae. Real execution remains inactive/masked and financial_authority=false. See docs/V11_SHADOW_READINESS_20261004.md and docs/V11_WORK_CHECKPOINT.md for exact current evidence.

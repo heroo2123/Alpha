@@ -1,3 +1,17 @@
+## Current-input census completed; first fully prepared cycle healthy — 2026-10-04 18:20 UTC
+
+**PAPER V11 READY subgate:** 9/11 strict PASS (81.8%). Requirements 8 and 9 remain partial. **READY_TO_FUND remains false and CODE READY is not claimed.**
+
+- Current exact GEFS census reached 310/310 required fields with monotonic progress and zero reported errors.
+- needs_census cleared to false.
+- The ensuing clean-process CandidateRunner completed BOUNDED_RUN_FINISHED with six TICK_COMPLETED runtime outcomes, all_async_jobs_drained=true, clock_healthy_at_finish=true, errors=[], financial_authority=false and real_orders_sent=false.
+- decision_count=0 is **not** classified as NO_OPPORTUNITY. Five post-census strategy adapter attempts were fail-closed with EVENT_REVALIDATION_EXPIRED before temperature economic evaluation.
+- Current event-state evidence is EVENT with conservative unknown/degraded reasons including SOURCE_STALE_OR_UNKNOWN, execution health unknown, websocket synchronization not demonstrated and settlement window unknown/closed. The current KATL plan explicitly declares economic_policy=SMOKE_ONLY_NOT_LIVE_ACCEPTED, so this is runtime commissioning evidence, not a live-economic-policy acceptance claim.
+- The active database contains current StrategyAdmission pins and EventRisk evidence, but no accepted temperature-strategy measurement or account scenario reservation. Requirement 8 therefore remains PARTIAL rather than being inferred from a zero-proposal cycle.
+- The current KATL FUTURE_FORECAST smoke plan contains only MODEL/GEFS strategy input, no PWS source or PWS_OBSERVATION_LEAD sleeve. Requirement 9 remains PARTIAL.
+- A separate implementation gap was confirmed in verified release 0dd809e: polymarket_scanner/v11/shadow_commission.py intentionally hard-codes forward_evidence_available=false, qualifying_forward_sample_count=0 and forward_admission_count=0 with reason LIVE_CAUSAL_DECISION_LINEAGE_AND_GROUPED_OUTCOME_QUALIFICATION_NOT_IMPLEMENTED. This blocks honest forward qualification/promotion evidence and must be implemented/reviewed before overall CODE READY can be claimed.
+- Exact next engineering action: implement bounded causal decision-lineage + grouped-outcome Shadow qualification with adversarial tests, then independently review it; keep all qualification nonfinancial and preserve admissions/labels as evidence rather than authority.
+
 ## Clean current-day Shadow recovery and perpetual rollover commissioned — 2026-10-04 18:08 UTC
 
 **Phase:** PAPER V11 READY / current-input Shadow commissioning. **Strict current subgate:** 8/11 PAPER V11 READY requirements satisfied (72.7%); requirements 2, 8 and 9 remain live-evidence partials. This is the declared denominator for this checkpoint. Do **not** reinterpret the historical Gate-3 91/200 score as whole-program completion. **READY_TO_FUND remains false.**
