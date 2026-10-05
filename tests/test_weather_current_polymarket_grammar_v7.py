@@ -19,6 +19,7 @@ CURRENT_REVIEWED_F_STATIONS = (
     ("KDAL", "Dallas Love Field"),
     ("KHOU", "William P. Hobby Airport"),
     ("KLAX", "Los Angeles International Airport"),
+    ("KLGA", "LaGuardia Airport"),
     ("KMIA", "Miami Intl Airport"),
     ("KORD", "Chicago O'Hare Intl Airport"),
     ("KSEA", "Seattle-Tacoma International Airport"),
@@ -109,8 +110,15 @@ def test_current_question_rejects_wrong_city_date_group_label_and_unreviewed_ali
         target=base["target"],
         group_item_title="60-61°F",
     )
-    assert not _question_supported(
+    assert _question_supported(
         "Will the highest temperature in New York City be 70°F on September 15?",
+        DAILY_HIGH,
+        event_title="Highest temperature in NYC on September 15?",
+        target=date(2026, 9, 15),
+        group_item_title="70°F",
+    )
+    assert not _question_supported(
+        "Will the highest temperature in New York be 70°F on September 15?",
         DAILY_HIGH,
         event_title="Highest temperature in NYC on September 15?",
         target=date(2026, 9, 15),

@@ -74,14 +74,15 @@ _CURRENT_STATION_DISPLAY_NAMES = {
     "LFPB": "paris-le bourget airport",
     "SBGR": "sao paulo-guarulhos international airport",
     # Fahrenheit station-name/code pairs independently enumerated from the complete
-    # 2026-09-15 live daily-temperature universe. NYC/KLGA is deliberately omitted
-    # because the parent title says "NYC" while its child questions say "New York City".
+    # 2026-09-15 live daily-temperature universe. KLGA is admitted only with the
+    # separately reviewed NYC -> New York City child-question alias below.
     "KATL": "hartsfield-jackson international airport",
     "KAUS": "austin-bergstrom international airport",
     "KBKF": "buckley space force base",
     "KDAL": "dallas love field",
     "KHOU": "william p. hobby airport",
     "KLAX": "los angeles international airport",
+    "KLGA": "laguardia airport",
     "KMIA": "miami intl airport",
     "KORD": "chicago o'hare intl airport",
     "KSEA": "seattle-tacoma international airport",
@@ -100,6 +101,12 @@ _REVIEWED_STATION_CITIES = {
     "KORD": frozenset({"chicago"}), "KSEA": frozenset({"seattle"}),
     "KSFO": frozenset({"san francisco"}), "EDDM": frozenset({"munich"}),
     "KLGA": frozenset({"nyc", "new york city"}),
+}
+
+# Exact reviewed parent-title -> child-question location aliases.  This is kept
+# separate from station/city binding so no arbitrary synonym becomes admissible.
+_CURRENT_QUESTION_LOCATION_ALIASES = {
+    "nyc": frozenset({"new york city"}),
 }
 
 # Gamma currently uses ``description``/``resolutionSource`` for these contracts, but a
@@ -287,8 +294,10 @@ def _question_supported(
     if location is None or target is None:
         return False
     month = re.escape(target.strftime("%B"))
+    reviewed_locations = (location, *_CURRENT_QUESTION_LOCATION_ALIASES.get(_norm(location), ()))
+    location_pattern = "(?:" + "|".join(re.escape(value) for value in reviewed_locations) + ")"
     current = re.fullmatch(
-        rf"Will\s+the\s+{statistic}\s+temperature\s+in\s+{re.escape(location)}\s+be\s+"
+        rf"Will\s+the\s+{statistic}\s+temperature\s+in\s+{location_pattern}\s+be\s+"
         rf"(?P<bucket>{current_bucket})\s+on\s+{month}\s+0?{target.day}\?",
         text,
         re.I,
