@@ -44,6 +44,13 @@ def _field(value, key):
     return value[key]
 
 
+def _string_field(value, key):
+    result = _field(value, key)
+    if type(result) is not str:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return result
+
+
 def _record(value, cls):
     value = _mapping(value)
     if set(value) != {field.name for field in fields(cls)}:
@@ -82,6 +89,8 @@ class PWSPreconfirmation:
                 or d.get('target') != NEXT_OBSERVATION or d.get('valuation_type') != 'OBSERVATION_ONLY'):
             raise EvidenceError('PWS_OBSERVATION_RESEARCH_REQUIRED')
         request = _mapping(_field(d, 'request'))
+        official_id = _string_field(request, 'official_id')
+        pws_id = _string_field(request, 'pws_id')
         rule = _record(_field(request, 'rule'), RuleFingerprint)
         policy = _record(_field(request, 'policy'), LeadPolicy)
         now = finite(self.store.clock())
@@ -103,9 +112,14 @@ class PWSPreconfirmation:
                 raise EvidenceError('PWS_OBSERVATION_AND_PAYOUT_SCOPE_MISMATCH')
             binding = _record(_field(original, 'binding'), ReleaseBinding)
             context = _record(_field(original, 'context'), EventContext)
-            leases = {_field(s, 'evidence_id'):s for s in _sequence(_field(original, 'source_leases'))}
-            if any(type(s) is not dict or 'role' not in s for s in leases.values()):
-                raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+            leases = {}
+            for lease in _sequence(_field(original, 'source_leases')):
+                lease = _mapping(lease)
+                if set(lease) != {'evidence_id', 'role', 'maximum_age_seconds'}:
+                    raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+                evidence_id = _string_field(lease, 'evidence_id')
+                _string_field(lease, 'role')
+                leases[evidence_id] = lease
             result = StrategyAdmission(self.store).revalidate(key, context=context,
                         rule=rule, binding=asdict(binding), strategies=(STRATEGY,))
             mode = 'V11_PAPER' if _field(original, 'stage') == 'PAPER' else 'V11_SHADOW'
@@ -114,7 +128,7 @@ class PWSPreconfirmation:
                     or model.bundle.sha256 != binding.bundle_sha256 or model.bundle.payload['bundle']['target'] != target):
                 raise EvidenceError('PWS_SEPARATE_APPROVED_OBSERVATION_AND_PAYOUT_TARGETS_REQUIRED')
             if any(key not in leases or leases[key]['role'] != role for key, role in
-                   ((_field(request, 'official_id'), 'OFFICIAL'), (_field(request, 'pws_id'), 'PWS'))):
+                   ((official_id, 'OFFICIAL'), (pws_id, 'PWS'))):
                 raise EvidenceError('PWS_BOTH_MODELS_REQUIRE_SAME_OFFICIAL_AND_PWS_LEASES')
             admissions.append(result); originals.append(original); models.append(model)
         obs, payout = originals
@@ -123,10 +137,10 @@ class PWSPreconfirmation:
                        ('station', 'family', 'source_rule_family', 'strategy', 'season', 'time_of_day'))
                 or any(obs['binding'][k] != payout['binding'][k] for k in
                        ('code_commit', 'code_tree', 'config_sha256', 'rule_fingerprint'))
-                or obs['binding'] != request['binding']
+                or obs['binding'] != _field(request, 'binding')
                 or {s['evidence_id'] for s in obs['source_leases'] if s['role'] == 'MODEL'} != set(_ids(_field(request, 'model_ids')))):
             raise EvidenceError('PWS_MODEL_PAIR_CONTEXT_OR_RELEASE_MISMATCH')
-        if request['bundle_sha256'] != models[0].bundle.sha256:
+        if _field(request, 'bundle_sha256') != models[0].bundle.sha256:
             raise EvidenceError('PWS_RESEARCH_BUNDLE_NOT_APPROVED_OBSERVATION_CHAMPION')
         heads = _heads([*_head_rows(admissions[0]['heads']), *_head_rows(admissions[1]['heads']),
                         *_head_rows(_field(d, 'source_heads'))])
@@ -134,17 +148,17 @@ class PWSPreconfirmation:
             head = self.store.latest(kind=kind, event_id=event)
             if (head['seq'] if head else 0) != seq:
                 raise EvidenceError('PWS_PRECONFIRMATION_SOURCE_CHANGED')
-        official = self.store.get(request['official_id']); _report(official, rule)
-        pws = self.store.get(request['pws_id']); qc = pws['body']['payload']
+        official = self.store.get(official_id); _report(official, rule)
+        pws = self.store.get(pws_id); qc = pws['body']['payload']
         graph = _lineage(self.store, tuple(_ids(_field(request, 'model_ids'))), event_id=rule.payload['event_id'], cutoff=cutoff)
-        if graph != _field(_field(d, 'paired_provenance'), 'with_pws') or graph['pws_ids'] != [request['pws_id']]:
+        if graph != _field(_field(d, 'paired_provenance'), 'with_pws') or graph['pws_ids'] != [pws_id]:
             raise EvidenceError('PWS_OBSERVATION_LINEAGE_MISMATCH')
         components = _model_inputs(self.store, rule, tuple(request['model_ids']), cutoff, target=NEXT_OBSERVATION)
 
         prediction = predict_with_bundle(models[0].bundle, rule, components, as_of=cutoff,
                                          max_source_age_seconds=policy.max_model_age_seconds)
 
-        if prediction.payload != d['with_pws']:
+        if prediction.payload != _field(d, 'with_pws'):
             raise EvidenceError('PWS_OBSERVATION_PREDICTION_NOT_REPRODUCED')
         expiry = min(*(a['valid_until'] for a in admissions), cutoff+policy.horizon_seconds,
                      self.store.latest(kind='RULE_STATE', event_id=rule.payload['event_id'])['body']['recorded_at']+policy.max_rule_age_seconds,

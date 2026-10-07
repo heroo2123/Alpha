@@ -204,6 +204,54 @@ def test_wrong_type_reference_and_oversized_lead_number_refuse(joined, location)
     assert result.financial_authority is False
 
 
+@pytest.mark.parametrize('location', [
+    'official_id', 'pws_id', 'binding', 'bundle_sha256', 'with_pws',
+])
+def test_malformed_nested_lead_field_refuses(joined, location):
+    c = coordinator(joined)
+    c.coordinate('batch', (synthetic_proposal(joined),))
+    lead = c.store.get('lead')
+    details = deepcopy(lead['body']['details'])
+    if location == 'with_pws':
+        del details['with_pws']
+    elif location == 'official_id':
+        details['request'][location] = []
+    elif location == 'pws_id':
+        details['request'][location] = {}
+    else:
+        del details['request'][location]
+    bad_lead = c.store.audit('bad-lead', event_id=lead['event_id'], kind=lead['kind'], details=details)
+    assert c.store.get('bad-lead') == bad_lead
+    pin = c.store.get('paired-pin')
+    pin_details = deepcopy(pin['body']['details'])
+    pin_details['request']['lead_id'] = 'bad-lead'
+    c.store.audit('bad-pin', event_id=pin['event_id'], kind=pin['kind'], details=pin_details)
+    result = probe(joined, c, preconfirmation_id='bad-pin')
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is False
+    assert result.financial_authority is False
+
+
+@pytest.mark.parametrize('field', ['evidence_id', 'role'])
+def test_wrong_type_admission_lease_field_refuses(joined, field):
+    c = coordinator(joined)
+    c.coordinate('batch', (synthetic_proposal(joined),))
+    admission = c.store.get('observation-pin')
+    details = deepcopy(admission['body']['details'])
+    details['request']['source_leases'][0][field] = []
+    bad_admission = c.store.audit('bad-admission', event_id=admission['event_id'],
+                                  kind=admission['kind'], details=details)
+    assert c.store.get('bad-admission') == bad_admission
+    pin = c.store.get('paired-pin')
+    pin_details = deepcopy(pin['body']['details'])
+    pin_details['request']['observation_admission_id'] = 'bad-admission'
+    c.store.audit('bad-pin', event_id=pin['event_id'], kind=pin['kind'], details=pin_details)
+    result = probe(joined, c, preconfirmation_id='bad-pin')
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is False
+    assert result.financial_authority is False
+
+
 @pytest.mark.parametrize('error', [KeyError, TypeError, ValueError, AttributeError])
 def test_valid_pin_does_not_hide_admission_revalidation_defect(joined, monkeypatch, error):
     c = coordinator(joined)
