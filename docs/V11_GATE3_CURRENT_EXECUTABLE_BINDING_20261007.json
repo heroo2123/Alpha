@@ -1,5 +1,11 @@
 {
   "drift_commits": {
+    "polymarket_scanner/v11/evidence.py": [
+      {
+        "classification": "repair PWS readiness malformed evidence refusals",
+        "commit": "3ae3852474ad87977ccd50aac010d3d1ed813c96"
+      }
+    ],
     "polymarket_scanner/v11/forecast_features.py": [
       {
         "classification": "validate explicit final-payout or next-observation prediction target and match pinned bundles; keep initial research bundles final-payout only",
@@ -22,6 +28,52 @@
       {
         "classification": "preserve physical feature-schema identity by excluding the newly added forecast prediction-target field",
         "commit": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f"
+      }
+    ],
+    "polymarket_scanner/v11/pws_admission.py": [
+      {
+        "classification": "repair PWS readiness malformed evidence refusals",
+        "commit": "3ae3852474ad87977ccd50aac010d3d1ed813c96"
+      },
+      {
+        "classification": "validate nested PWS evidence at read sites",
+        "commit": "0d55adbd70c74375c1dbdd9d0dcac0344f4202ce"
+      },
+      {
+        "classification": "refuse malformed nested admission evidence",
+        "commit": "5c8ae333c8eb2d2c73fbfeb25ce6c707eb3b19a7"
+      },
+      {
+        "classification": "fail closed on malformed retained PWS rule representations",
+        "commit": "b2bbb0df76ccbcf4300903c04eb2748a3ef61de6"
+      }
+    ],
+    "tests/test_v11_gate3_attempt_runtime_wiring.py": [
+      {
+        "classification": "verify Gate-3 refusal codes under optimized Python",
+        "commit": "ef4f534eaae442dd0aac149c9850f0ef3c76d78f"
+      }
+    ],
+    "tests/test_v11_gate3_evidence_intake_launch_wiring.py": [
+      {
+        "classification": "verify Gate-3 refusal codes under optimized Python",
+        "commit": "ef4f534eaae442dd0aac149c9850f0ef3c76d78f"
+      }
+    ],
+    "tests/test_v11_r09_gate3_runtime.py": [
+      {
+        "classification": "retain observed Gate-3 denial when initial stream snapshot fails",
+        "commit": "7adbd18b0fcd0ae1e970264334e1b477c980e5aa"
+      },
+      {
+        "classification": "preserve R1 denial on unencodable response header",
+        "commit": "d806c11082fe81defd74993152906ee7454bce1d"
+      }
+    ],
+    "tools/v11_gate3_evidence_preflight_real_intake.py": [
+      {
+        "classification": "bound no-follow regular-file reads in real evidence intake",
+        "commit": "a582a005d08c0bcb62a9061946aa0bf096657360"
       }
     ],
     "tools/v11_r09_gate3_collector.py": [
@@ -68,6 +120,14 @@
       {
         "classification": "RAW decoder custody and closure binding",
         "commit": "dd529ee548a6752aa21d7c53f8f662f4fdb7f570"
+      },
+      {
+        "classification": "retain observed Gate-3 denial when initial stream snapshot fails",
+        "commit": "7adbd18b0fcd0ae1e970264334e1b477c980e5aa"
+      },
+      {
+        "classification": "preserve R1 denial on unencodable response header",
+        "commit": "d806c11082fe81defd74993152906ee7454bce1d"
       }
     ]
   },
@@ -188,9 +248,9 @@
       "sha256": "778899351535782d4be2b289065bf92b017d043769eb1dd86c7b7fbb79e06e11"
     },
     "polymarket_scanner/v11/evidence.py": {
-      "byte_length": 47907,
-      "git_blob": "f4225857061f91d5dec5bb97e144a054acbe290f",
-      "sha256": "792d4d32d9996cc6581ef771507b0f8ccad1ec975d9c32292ba64f3e7497270f"
+      "byte_length": 48530,
+      "git_blob": "e2fa589d1beadb88f302a689b9d601b2ce17fe2e",
+      "sha256": "98c865e5c5306adf38bb6f18c659edff191d6975d477ddc8482ddb7ce1b46d6e"
     },
     "polymarket_scanner/v11/fill_evidence.py": {
       "byte_length": 5416,
@@ -318,9 +378,9 @@
       "sha256": "27fa5e03416196a1e8772a56e5810720b00865f42f54d9daf0295512945daf69"
     },
     "polymarket_scanner/v11/pws_admission.py": {
-      "byte_length": 9925,
-      "git_blob": "7834a6ada6ef61f3fd3dba88ad32552b283648ab",
-      "sha256": "71c38e65312b43ff3066d34c3e55ff96342278bc5634764719651f2a28089cd6"
+      "byte_length": 14207,
+      "git_blob": "f904d4e9612135f74d6d81c52b1bfb81438eae2f",
+      "sha256": "4c401221203eb570557109e1deb37bd56336d490c2bb89477e7a6ce74e5e1dac"
     },
     "polymarket_scanner/v11/pws_lead.py": {
       "byte_length": 14130,
@@ -413,14 +473,14 @@
       "sha256": "45404971df008dbe88e9fc91f906d1cb6e8dafddbc58e130813140e3f62379ae"
     },
     "tests/test_v11_gate3_attempt_runtime_wiring.py": {
-      "byte_length": 26430,
-      "git_blob": "a117267dccee72c4b7d46ff6319a85814c945495",
-      "sha256": "2194df3077a4e5314f17e45d31cd9de2e50c6261a6e0f40b208ea862f7583364"
+      "byte_length": 26181,
+      "git_blob": "7ba802f898b75933e8777bdfbb165279f0479a3d",
+      "sha256": "041dbe9ba6aeaca290c4a61ac077fd0a58aacbd2bce63a60a17489e7d7eeca56"
     },
     "tests/test_v11_gate3_evidence_intake_launch_wiring.py": {
-      "byte_length": 37345,
-      "git_blob": "e341844b5d5af8b1affcfc9b86ee3dcf73103576",
-      "sha256": "c766049333836f535ca5f903e85940b792e6a7e595352150f0b967da287fa7b7"
+      "byte_length": 36887,
+      "git_blob": "b7a5fe5d9419cf7028c961f5e9332a3504ab62bd",
+      "sha256": "b942963b80ada4a35aac1e0799a929be278d0f8f8a9b7224367bf78c4c279745"
     },
     "tests/test_v11_gate3_raw_decoder_binding.py": {
       "byte_length": 23450,
@@ -443,9 +503,9 @@
       "sha256": "633ee69f4567422a02ea4f53be4e47e39e4f3d867b733d30db7c6266a0ae645d"
     },
     "tests/test_v11_r09_gate3_runtime.py": {
-      "byte_length": 113519,
-      "git_blob": "23d0d0122765611c95b188287cf1cf198c1a39ce",
-      "sha256": "f7ab30373dd818778bdeb04eae60811ace82237f6a1c6fac32ca3aec827d9887"
+      "byte_length": 118968,
+      "git_blob": "01115565f1bcd1c12d73bf3d4340ae964f037dbd",
+      "sha256": "6d27ba0c3a26b923f6abb5c37eb18248cf9fcd56bd4624ee0082d0caf3158fc3"
     },
     "tools/v11_gate3_evidence_intake_guard.py": {
       "byte_length": 7192,
@@ -458,9 +518,9 @@
       "sha256": "6df49d57b6807d1b6d47075520d45c493f33550baaee1317d416e4d2d6347355"
     },
     "tools/v11_gate3_evidence_preflight_real_intake.py": {
-      "byte_length": 12559,
-      "git_blob": "77c26d1e15c18fc4df00c9c35dad18c681902843",
-      "sha256": "2a1daf2eb4ea4502d494dd12384576972a9cc84d276b18a8b45580b01877ba24"
+      "byte_length": 14587,
+      "git_blob": "f8d2c26ed784816a3145cf2b393481d6a6dc5292",
+      "sha256": "ce598b8e336fe8bdec3ab57b67abcbcfa9781a44635e8d670224c3189dda72d5"
     },
     "tools/v11_gate3_preflight_attempt_model.py": {
       "byte_length": 42781,
@@ -518,9 +578,9 @@
       "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
     },
     "tools/v11_r09_gate3_runtime.py": {
-      "byte_length": 129234,
-      "git_blob": "5a33f787689f47bb2493b2d7ee80af412e16abdd",
-      "sha256": "ffce597f40b6acbca0ead8b0913996bb8b41f3a7404937b6d9a2e62b1377f509"
+      "byte_length": 131019,
+      "git_blob": "9534e5821b12cd1f2669c811f755902f7d343d5a",
+      "sha256": "1ad36eeea10b4f001b1a7f922ee3ad99d5d0b64bbaffb5a08ffed2c93b35dfcb"
     },
     "tools/v11_r09_gate3_store_v1.py": {
       "byte_length": 34815,
@@ -534,6 +594,13 @@
     }
   },
   "historical_baselines": {
+    "polymarket_scanner/v11/evidence.py": {
+      "byte_length": 47907,
+      "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+      "git_blob": "f4225857061f91d5dec5bb97e144a054acbe290f",
+      "sha256": "792d4d32d9996cc6581ef771507b0f8ccad1ec975d9c32292ba64f3e7497270f",
+      "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+    },
     "polymarket_scanner/v11/forecast_features.py": {
       "byte_length": 5427,
       "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
@@ -562,6 +629,41 @@
       "sha256": "1d6ba9c1cfa77778e692b73ed470eff067d877d1617ce610af674e7dede5daf4",
       "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
     },
+    "polymarket_scanner/v11/pws_admission.py": {
+      "byte_length": 9925,
+      "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+      "git_blob": "7834a6ada6ef61f3fd3dba88ad32552b283648ab",
+      "sha256": "71c38e65312b43ff3066d34c3e55ff96342278bc5634764719651f2a28089cd6",
+      "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+    },
+    "tests/test_v11_gate3_attempt_runtime_wiring.py": {
+      "byte_length": 26430,
+      "commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+      "git_blob": "a117267dccee72c4b7d46ff6319a85814c945495",
+      "sha256": "2194df3077a4e5314f17e45d31cd9de2e50c6261a6e0f40b208ea862f7583364",
+      "tree": "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
+    },
+    "tests/test_v11_gate3_evidence_intake_launch_wiring.py": {
+      "byte_length": 37345,
+      "commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+      "git_blob": "e341844b5d5af8b1affcfc9b86ee3dcf73103576",
+      "sha256": "c766049333836f535ca5f903e85940b792e6a7e595352150f0b967da287fa7b7",
+      "tree": "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
+    },
+    "tests/test_v11_r09_gate3_runtime.py": {
+      "byte_length": 113519,
+      "commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+      "git_blob": "23d0d0122765611c95b188287cf1cf198c1a39ce",
+      "sha256": "f7ab30373dd818778bdeb04eae60811ace82237f6a1c6fac32ca3aec827d9887",
+      "tree": "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
+    },
+    "tools/v11_gate3_evidence_preflight_real_intake.py": {
+      "byte_length": 12559,
+      "commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+      "git_blob": "77c26d1e15c18fc4df00c9c35dad18c681902843",
+      "sha256": "2a1daf2eb4ea4502d494dd12384576972a9cc84d276b18a8b45580b01877ba24",
+      "tree": "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
+    },
     "tools/v11_r09_gate3_collector.py": {
       "byte_length": 39633,
       "commit": "95e07fab75a3818560378d71556efc55ce122a56",
@@ -588,6 +690,6 @@
   "qualification_credit": 0,
   "review_limit": "Candidate byte binding only. Historical exact reviews remain scoped to their original commits. Independent exact review of this candidate and separate G3-L inventory/package entry review are required; no provider, capture, runtime launch, or financial authority.",
   "schema": "V11_GATE3_CURRENT_EXECUTABLE_BINDING_V1",
-  "source_commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
-  "source_tree": "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
+  "source_commit": "d806c11082fe81defd74993152906ee7454bce1d",
+  "source_tree": "153752a33294f2531283bb78b6e77bb2235fd99a"
 }
