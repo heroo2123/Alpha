@@ -20,11 +20,18 @@ review artifact.
 `V11_GATE3_CURRENT_EXECUTABLE_BINDING_20261007.json` pins source commit
 `d1c5602aa77e0d835e416d281b4a78754a3a79df`, tree
 `7da55dd47f4a0acfb6062765ec5df67bada1ebf4`, and exact Git blob ID,
-SHA-256 and byte length for each of 20 files. It includes the three target
-executables, the collection/launch/transport protocol documents, observed GEFS
-sizing input, associated supporting code, and seven directly relevant tests.
+SHA-256 and byte length for each of 92 files. It includes the three target
+executables, all 81 statically reachable local Python modules from those
+executables and the already pinned support modules (including package
+initializers), the collection/launch/transport protocol documents, observed
+GEFS sizing input, and seven directly relevant tests. Some imported modules
+serve other product paths; their source bytes are pinned here without changing
+or authorizing those paths. A separate test recomputes the transitive AST
+import closure from source-commit Git blobs and requires it to be a subset of
+the fixed verifier coverage. It refuses recognized dynamic import calls for
+separate review.
 The verifier checks raw commit-parent ancestry, historical and source blobs,
-all 20 live files, and exact drift-commit coverage. Git replacement refs and
+all 92 live files, and the listed drift-commit coverage. Git replacement refs and
 local grafts cannot redefine its source bytes or ancestry. The source commit
 precedes this candidate; an independent reviewer must additionally pin and
 review the final candidate commit and tree.
@@ -43,7 +50,7 @@ attempt to seal them.
 
 ## Identity effect after independent review
 
-An exact independent PASS on the candidate could support current-byte portions
+An exact independent PASS on the successor candidate could support source-byte portions
 of `code.collector_commit_tree` and `code.source_file_hashes`, and provide the
 current runtime/ledger scope needed to supersede the historical
 `code.slice3_exact_commit_review` baseline. None is credited by this package.
@@ -54,11 +61,19 @@ historical G3-I review terminals remain separate. The identity audit's seven
 retained/offline rows, 70 future rows, 77-slot unfilled baseline screen, and
 zero qualification credit remain unchanged.
 
+This binding covers source files in the source-commit static local import
+closure. It does not bind Python bytecode caches, `sys.path`, the interpreter,
+third-party packages, dynamically selected modules, or the executed image.
+Those limits prevent a source-byte PASS from serving as launch approval.
+
 Run the offline verifier with
 `python -m tools.v11_gate3_current_executable_binding` from this checkout.
 It returns a byte-binding result only and has no provider or launch path.
 
-Candidate verification: 58 identity/binding/adversarial cases passed, including
-replacement, graft, missing pin, stale baseline, duplicate JSON key and live
-byte drift attacks. The seven focused collector/runtime/ledger/dependency test
-files passed 405 cases. These are author checks, not an independent verdict.
+The previous 897d064 candidate received CHANGES_REQUIRED in the independent
+exact review because eight imported local modules lacked pins. This successor
+adds the complete statically discovered closure, an independent closure-subset
+test, live and committed drift probes for a formerly unpinned module, and a
+stable missing-file refusal. The prior 58-case claim was not reproducible;
+the focused binding and identity-audit suite passed 40 cases in normal mode
+and 40 under `python -O`. These are author checks, not an independent verdict.

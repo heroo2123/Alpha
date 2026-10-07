@@ -39,6 +39,78 @@ DRIFT_COMMITS = {
         "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",),
 }
 DEPENDENCIES = frozenset({
+    "polymarket_scanner/__init__.py",
+    "polymarket_scanner/config.py",
+    "polymarket_scanner/production/__init__.py",
+    "polymarket_scanner/production/chain.py",
+    "polymarket_scanner/production/fees.py",
+    "polymarket_scanner/safe_logging.py",
+    "polymarket_scanner/v11/__init__.py",
+    "polymarket_scanner/v11/account_effects.py",
+    "polymarket_scanner/v11/allocation.py",
+    "polymarket_scanner/v11/basket_coordinator.py",
+    "polymarket_scanner/v11/basket_valuation.py",
+    "polymarket_scanner/v11/candidate_liveness.py",
+    "polymarket_scanner/v11/certification.py",
+    "polymarket_scanner/v11/collection.py",
+    "polymarket_scanner/v11/datasets.py",
+    "polymarket_scanner/v11/ecmwf_grib.py",
+    "polymarket_scanner/v11/ecmwf_sources.py",
+    "polymarket_scanner/v11/event_queue.py",
+    "polymarket_scanner/v11/event_risk.py",
+    "polymarket_scanner/v11/evidence.py",
+    "polymarket_scanner/v11/fill_evidence.py",
+    "polymarket_scanner/v11/forecast_features.py",
+    "polymarket_scanner/v11/forecast_sources.py",
+    "polymarket_scanner/v11/gefs_sources.py",
+    "polymarket_scanner/v11/grib_fields.py",
+    "polymarket_scanner/v11/guardian_lease.py",
+    "polymarket_scanner/v11/guardian_protocol.py",
+    "polymarket_scanner/v11/learning_capture.py",
+    "polymarket_scanner/v11/learning_sources.py",
+    "polymarket_scanner/v11/liveness_protocol.py",
+    "polymarket_scanner/v11/measurement.py",
+    "polymarket_scanner/v11/metar_features.py",
+    "polymarket_scanner/v11/model_artifacts.py",
+    "polymarket_scanner/v11/model_panel.py",
+    "polymarket_scanner/v11/model_registry.py",
+    "polymarket_scanner/v11/nowcast_features.py",
+    "polymarket_scanner/v11/paper_cancellation.py",
+    "polymarket_scanner/v11/paper_coordinator.py",
+    "polymarket_scanner/v11/paper_guardian.py",
+    "polymarket_scanner/v11/paper_guardian_broker.py",
+    "polymarket_scanner/v11/paper_reconciliation.py",
+    "polymarket_scanner/v11/physical_inference.py",
+    "polymarket_scanner/v11/position_attribution.py",
+    "polymarket_scanner/v11/position_management.py",
+    "polymarket_scanner/v11/probability.py",
+    "polymarket_scanner/v11/pws_admission.py",
+    "polymarket_scanner/v11/pws_lead.py",
+    "polymarket_scanner/v11/pws_quality.py",
+    "polymarket_scanner/v11/pws_scoring.py",
+    "polymarket_scanner/v11/remaining_forecast.py",
+    "polymarket_scanner/v11/rules.py",
+    "polymarket_scanner/v11/runtime_health.py",
+    "polymarket_scanner/v11/scenario_risk.py",
+    "polymarket_scanner/v11/source_release.py",
+    "polymarket_scanner/v11/strategy_admission.py",
+    "polymarket_scanner/v11/strategy_pipeline.py",
+    "polymarket_scanner/v11/target_learning.py",
+    "polymarket_scanner/v11/valuation.py",
+    "polymarket_scanner/v11/weather_sources.py",
+    "polymarket_scanner/v11/weathernext_sources.py",
+    "polymarket_scanner/weather_only_contract_strict.py",
+    "polymarket_scanner/weather_only_contracts.py",
+    "polymarket_scanner/weather_only_forecast.py",
+    "polymarket_scanner/weather_only_rules.py",
+    "tools/v11_gate3_evidence_preflight_checker.py",
+    "tools/v11_gate3_evidence_preflight_real_intake.py",
+    "tools/v11_multimodel_panel.py",
+    "tools/v11_multimodel_stacking.py",
+    "tools/v11_r09_gate3_a7_decoder.py",
+    "tools/v11_r09_gate3_launch_v4.py",
+    "tools/v11_r09_gate3_offline_io.py",
+    "tools/v11_trajectory_contract.py",
     "config/v11/r09_gate3_observed_message_sizes_20260930.json",
     "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
     "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
@@ -102,17 +174,32 @@ def _blob(repo: Path, commit: str, path: str) -> tuple[str, bytes]:
 
 
 def _live(repo: Path, path: str) -> bytes:
-    # Reject symlinked path components as well as a replaced final file.
-    current = repo
+    # Hold directory and file descriptors while reading; never follow a symlink.
     parts = Path(path).parts
-    for part in parts[:-1]:
-        current = current / part
-        if not stat.S_ISDIR(current.lstat().st_mode):
-            raise ValueError(f"non-directory binding path: {path}")
-    candidate = current / parts[-1]
-    if not stat.S_ISREG(candidate.lstat().st_mode):
-        raise ValueError(f"non-regular binding path: {path}")
-    return candidate.read_bytes()
+    fd = None
+    try:
+        fd = os.open(repo, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        for part in parts[:-1]:
+            try:
+                next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                  dir_fd=fd)
+            except OSError as exc:
+                raise ValueError(f"non-directory binding path: {path}") from exc
+            os.close(fd)
+            fd = next_fd
+        try:
+            file_fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+        except OSError as exc:
+            raise ValueError(f"non-regular binding path: {path}") from exc
+        with os.fdopen(file_fd, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError(f"non-regular binding path: {path}")
+            return stream.read()
+    except OSError as exc:
+        raise ValueError(f"unavailable binding path: {path}") from exc
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 def _raw_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:

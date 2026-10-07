@@ -1,5 +1,6 @@
 """Adversarial checks for the proposed, unreviewed current-executable pins."""
 
+import ast
 import copy
 import json
 import os
@@ -11,6 +12,115 @@ import pytest
 from tools import v11_gate3_current_executable_binding as binding
 
 REPO = Path(__file__).resolve().parents[1]
+SOURCE = "d1c5602aa77e0d835e416d281b4a78754a3a79df"
+MODULE_ROOTS = {
+    "tools/v11_r09_gate3_collector.py",
+    "tools/v11_r09_gate3_runtime.py",
+    "tools/v11_r09_gate3_ledgers.py",
+    "tools/v11_r09_gate3_message_sizes.py",
+    "tools/v11_r09_gate3_launch.py",
+    "tools/v11_gate3_preflight_attempt_model.py",
+    "tools/v11_gate3_evidence_intake_guard.py",
+    "tools/v11_gate3_raw_decoder_binding.py",
+    "tools/v11_r09_gate3_store_v1.py",
+}
+
+
+def _source_git(*args):
+    return subprocess.run(["git", "--no-replace-objects", *args], cwd=REPO,
+                          env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1",
+                               "GIT_GRAFT_FILE": os.devnull}, check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+
+
+def _source_local_import_closure():
+    """Independently walk source-commit AST imports and package initializers."""
+    files = set(_source_git("ls-tree", "-r", "--name-only", SOURCE).decode().splitlines())
+    pending = list(MODULE_ROOTS)
+    visited = set()
+    while pending:
+        path = pending.pop()
+        if path in visited:
+            continue
+        visited.add(path)
+        tree = ast.parse(_source_git("show", f"{SOURCE}:{path}"), filename=path)
+        package = path.split("/")[:-1]
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                call = ast.unparse(node.func)
+                if call in {"__import__", "importlib.import_module",
+                            "importlib.util.spec_from_file_location",
+                            "importlib.machinery.SourceFileLoader"}:
+                    pytest.fail(f"dynamic local import needs review: {path}: {call}")
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                if node.level:
+                    prefix = package[:len(package) - node.level + 1]
+                    base = ".".join(prefix + ([node.module] if node.module else []))
+                else:
+                    base = node.module or ""
+                names = [base] + [base + "." + alias.name for alias in node.names]
+            else:
+                continue
+            for name in names:
+                parts = name.split(".")
+                for length in range(1, len(parts) + 1):
+                    stem = "/".join(parts[:length])
+                    for candidate in (stem + ".py", stem + "/__init__.py"):
+                        if candidate in files and candidate not in visited:
+                            pending.append(candidate)
+    return visited
+
+
+def test_source_local_import_closure_is_pinned():
+    closure = _source_local_import_closure()
+    missing = closure - binding.PATHS
+    if missing:
+        pytest.fail(f"source local imports lack pins: {sorted(missing)}")
+    if len(closure) != 81:
+        pytest.fail(f"source local import closure changed: {len(closure)}")
+    for path in ("tools/v11_multimodel_panel.py",
+                 "tools/v11_r09_gate3_launch_v4.py",
+                 "tools/v11_r09_gate3_offline_io.py",
+                 "polymarket_scanner/v11/ecmwf_grib.py"):
+        if path not in closure:
+            pytest.fail(f"closure scan missed direct or transitive import: {path}")
+
+
+def test_formerly_unpinned_local_import_drift_refuses_live_and_committed(tmp_path):
+    clone = tmp_path / "checkout"
+    subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (clone / binding.MANIFEST).write_bytes((REPO / binding.MANIFEST).read_bytes())
+    target = "tools/v11_multimodel_panel.py"
+    source = (clone / target).read_bytes()
+    (clone / target).write_bytes(source + b"\n# adverse local import drift\n")
+    for committed in (False, True):
+        if committed:
+            subprocess.run(["git", "add", "--", target], cwd=clone, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["git", "-c", "user.name=Binding Test",
+                            "-c", "user.email=binding@example.invalid", "commit", "-qm",
+                            "adverse local import drift"], cwd=clone, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        with pytest.raises(ValueError) as exc:
+            binding.verify(clone)
+        if str(exc.value) != f"current executable/dependency byte drift: {target}":
+            pytest.fail(f"unexpected refusal for local import drift: {exc.value}")
+
+
+def test_missing_pinned_live_file_has_stable_refusal(tmp_path):
+    clone = tmp_path / "checkout"
+    subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (clone / binding.MANIFEST).write_bytes((REPO / binding.MANIFEST).read_bytes())
+    target = "tools/v11_multimodel_panel.py"
+    (clone / target).unlink()
+    with pytest.raises(ValueError) as exc:
+        binding.verify(clone)
+    if str(exc.value) != f"non-regular binding path: {target}":
+        pytest.fail(f"unexpected missing-file refusal: {exc.value}")
 
 
 def _manifest():
@@ -32,7 +142,7 @@ def test_exact_candidate_pins_all_three_and_dependent_protocol_tests():
                       "verified_files": len(binding.PATHS),
                       "launchable": False, "qualification_credit": 0}
     assert len(binding.HISTORICAL) == 3
-    assert len(binding.PATHS) == 20
+    assert len(binding.PATHS) == 92
     assert {p for p in binding.PATHS if p.startswith("tests/")} == {
         "tests/test_v11_r09_gate3_collector.py",
         "tests/test_v11_r09_gate3_message_sizes.py",
