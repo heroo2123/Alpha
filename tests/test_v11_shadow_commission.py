@@ -3,6 +3,7 @@
 No fixture or completed candidate tick is qualifying forward evidence.
 """
 import asyncio
+from contextlib import contextmanager
 from dataclasses import asdict, replace
 import json
 from pathlib import Path
@@ -32,6 +33,27 @@ from polymarket_scanner.v11.maker_telemetry import MakerTelemetryPolicy
 RELEASE = 'a' * 40
 NAMESPACE = 'CHALLENGER:shadow-test'
 CONTRACT = ForecastFeatureContract((('model-1', 3),), 'F', 'daily_high_temperature')
+
+
+@contextmanager
+def expect_refusal(code):
+    with pytest.raises(EvidenceError) as exc:
+        yield
+    if exc.value.args != (code,):
+        raise AssertionError(f'expected refusal {code!r}, got {exc.value.args!r}')
+
+
+def test_expect_refusal_rejects_wrong_code():
+    with pytest.raises(AssertionError) as exc:
+        with expect_refusal('EXPECTED_CODE'):
+            raise EvidenceError('WRONG_CODE')
+    if exc.value.args != ("expected refusal 'EXPECTED_CODE', got ('WRONG_CODE',)",):
+        raise AssertionError(f'wrong-code control did not check exact code: {exc.value.args!r}')
+
+
+def test_protected_interval_remains_unconditionally_unproven():
+    with expect_refusal('FORWARD_PROTECTED_INTERVAL_UNPROVEN'):
+        sc._require_protected_interval(None, None, None)
 
 
 @pytest.fixture
@@ -110,18 +132,18 @@ def test_plan_loader_roundtrip_and_schema_guards(rig, tmp_path):
     assert sc.load_plan(path) == rig['plan']
     bad = asdict(rig['plan']); bad['unknown'] = True
     path.write_text(canonical(bad))
-    with pytest.raises(EvidenceError, match='SCHEMA'):
+    with expect_refusal('SHADOW_PLAN_SCHEMA'):
         sc.load_plan(path)
     path.write_text('{"x":1,"x":2}')
-    with pytest.raises(EvidenceError, match='DUPLICATE_KEY'):
+    with expect_refusal('SHADOW_PLAN_DUPLICATE_KEY'):
         sc.load_plan(path)
     path.write_bytes(b'x' * (sc.MAX_PLAN_BYTES + 1))
-    with pytest.raises(EvidenceError, match='BYTES_BOUND'):
+    with expect_refusal('SHADOW_PLAN_BYTES_BOUND'):
         sc.load_plan(path)
     link = tmp_path / 'link'; link.symlink_to(path)
-    with pytest.raises(EvidenceError, match='SYMLINK'):
+    with expect_refusal('SHADOW_PLAN_SYMLINK_REFUSED'):
         sc.load_plan(link)
-    with pytest.raises(EvidenceError, match='PATH_INVALID'):
+    with expect_refusal('SHADOW_PLAN_PATH_INVALID'):
         sc.load_plan(Path('relative'))
 
 
@@ -161,7 +183,7 @@ def test_actual_graph_mutation_is_detected_before_work(rig, change):
         runner.runtime.worker_id = 'other'
     else:
         runner.census.plans.clear()
-    with pytest.raises(EvidenceError, match='PREFLIGHT_FAILED'):
+    with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
         asyncio.run(w.run_once('mutated'))
     assert not rig['calls']
     assert sc.evidence_status(rig['plan'], rig['store'])['total_commission_runs_recorded'] == 0
@@ -170,7 +192,7 @@ def test_actual_graph_mutation_is_detected_before_work(rig, change):
 def test_unregistered_runner_cannot_claim_another_contract(rig):
     from copy import copy
     other = copy(rig['runner'])
-    with pytest.raises(EvidenceError, match='TYPED_COHORT_REQUIRED'):
+    with expect_refusal('CANDIDATE_TYPED_COHORT_REQUIRED'):
         sc.ShadowCommissionRunner(rig['plan'], other, release_git_sha=RELEASE,
                                  lifecycle=sc.ShadowLifecyclePolicy('test'))
 
@@ -215,7 +237,7 @@ def test_unavailable_protected_state_is_refused_and_audited(rig, monkeypatch):
     def missing():
         raise EvidenceError('PROTECTED_REVIEW_UNAVAILABLE')
     monkeypatch.setattr(cert, 'protected_reviews', missing)
-    with pytest.raises(EvidenceError, match='PREFLIGHT_FAILED'):
+    with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
         asyncio.run(wrapper(rig).run_once('missing-state'))
     status = sc.evidence_status(rig['plan'], rig['store'])
     assert status['refused_attempts_recorded'] == 1
@@ -226,7 +248,7 @@ def test_unavailable_protected_state_is_refused_and_audited(rig, monkeypatch):
 def test_release_refusal_never_counts_as_completed_or_forward_run(rig):
     w = wrapper(rig, release='b' * 40)
     for _ in range(2):
-        with pytest.raises(EvidenceError, match='PREFLIGHT_FAILED'):
+        with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
             asyncio.run(w.run_once('refused'))
     status = sc.evidence_status(rig['plan'], rig['store'])
     assert status['attempts_recorded'] == status['refused_attempts_recorded'] == 1
@@ -286,22 +308,22 @@ def test_recorded_forward_group_requires_original_plan_admission_and_counts_once
     changed = store.audit('forward-test-drift', event_id=rig['context'].event_id,
                           kind='MEASUREMENT', details=dict(detail, binding=dict(detail['binding'],
                                                                                code_commit='f' * 40)))
-    with pytest.raises(EvidenceError, match='ADMISSION_PLAN_LINEAGE_MISMATCH'):
+    with expect_refusal('FORWARD_ADMISSION_PLAN_LINEAGE_MISMATCH'):
         sc.record_forward_admission(plan, store, capture_id=changed['id'], label_ids=label_ids)
     cross = store.audit('forward-test-cross-event', event_id='other-event',
                         kind='MEASUREMENT', details=detail)
-    with pytest.raises(EvidenceError, match='PLAN_TARGET_MISMATCH'):
+    with expect_refusal('FORWARD_PLAN_TARGET_MISMATCH'):
         sc.record_forward_admission(plan, store, capture_id=cross['id'], label_ids=label_ids)
     rig['now'][0] = admission['body']['details']['assessment']['valid_until'] + 1
     stale = store.audit('forward-test-stale', event_id=rig['context'].event_id,
                         kind='MEASUREMENT', details=detail)
-    with pytest.raises(EvidenceError, match='ADMISSION_PLAN_LINEAGE_MISMATCH'):
+    with expect_refusal('FORWARD_ADMISSION_PLAN_LINEAGE_MISMATCH'):
         sc.record_forward_admission(plan, store, capture_id=stale['id'], label_ids=label_ids)
     store.audit('forward-test-rule-change', event_id=rig['context'].event_id,
                 kind='RULE_STATE', details={'test_only': True})
     rule_drift = store.audit('forward-test-rule-drift', event_id=rig['context'].event_id,
                              kind='MEASUREMENT', details=detail)
-    with pytest.raises(EvidenceError, match='ADMISSION_GUARD_CHANGED'):
+    with expect_refusal('FORWARD_ADMISSION_GUARD_CHANGED'):
         sc.record_forward_admission(plan, store, capture_id=rule_drift['id'], label_ids=label_ids)
 
 
@@ -334,9 +356,9 @@ def test_mutated_runtime_policy_refused_before_collection(rig, field):
         census = rig['runner'].census
         census.book_policy = replace(census.book_policy,
                                      maximum_age_seconds=census.book_policy.maximum_age_seconds + 1)
-    with pytest.raises(EvidenceError, match='COHORT_GRAPH_CHANGED'):
+    with expect_refusal('CANDIDATE_COHORT_GRAPH_CHANGED'):
         w.preflight()
-    with pytest.raises(EvidenceError, match='SHADOW_COMMISSION_PREFLIGHT_FAILED'):
+    with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
         asyncio.run(w.run_once('changed-policy'))
     assert not rig['calls']
     assert sc.evidence_status(rig['plan'], rig['store'])['total_commission_runs_recorded'] == 0
@@ -355,9 +377,9 @@ def test_mutated_direct_runtime_policy_refused_before_collection(rig, field):
         rt.feed.policy = replace(rt.feed.policy, maximum_reads=rt.feed.policy.maximum_reads + 1)
     else:
         rt.coordinator.policy = replace(rt.coordinator.policy, minimum_ev_per_share='0.09')
-    with pytest.raises(EvidenceError, match='COHORT_GRAPH_CHANGED'):
+    with expect_refusal('CANDIDATE_COHORT_GRAPH_CHANGED'):
         w.preflight()
-    with pytest.raises(EvidenceError, match='SHADOW_COMMISSION_PREFLIGHT_FAILED'):
+    with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
         asyncio.run(w.run_once('changed-' + field))
     assert not rig['calls']
     assert sc.evidence_status(rig['plan'], rig['store'])['total_commission_runs_recorded'] == 0
@@ -391,9 +413,9 @@ def test_mutated_maker_research_policy_refused_before_collection(maker_rig, monk
             old_sha = factory.research.policy_sha
             factory.research.policy = replace(factory.research.policy, maximum_units='1')
             assert factory.research.policy_sha == old_sha
-            with pytest.raises(EvidenceError, match='COHORT_GRAPH_CHANGED'):
+            with expect_refusal('CANDIDATE_COHORT_GRAPH_CHANGED'):
                 w.preflight()
-            with pytest.raises(EvidenceError, match='SHADOW_COMMISSION_PREFLIGHT_FAILED'):
+            with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
                 await w.run_once('changed-maker-policy')
             assert not calls
             assert sc.evidence_status(plan, r['store'])['total_commission_runs_recorded'] == 0
@@ -416,7 +438,7 @@ def test_telemetry_only_maker_policy_is_bound(maker_rig, monkeypatch):
             assert candidate_cohort(runner)
             maker = runner.runtime.maker
             maker.policy = replace(maker.policy, maximum_units='1')
-            with pytest.raises(EvidenceError, match='COHORT_GRAPH_CHANGED'):
+            with expect_refusal('CANDIDATE_COHORT_GRAPH_CHANGED'):
                 candidate_cohort(runner)
     asyncio.run(check())
 
@@ -440,7 +462,7 @@ def test_advancing_clock_bounded_restart_reuses_completed_audit(rig):
 def test_advancing_clock_repeated_refusal_keeps_one_audit(rig):
     w = wrapper(rig, release='b' * 40)
     for _ in range(2):
-        with pytest.raises(EvidenceError, match='SHADOW_COMMISSION_PREFLIGHT_FAILED'):
+        with expect_refusal('SHADOW_COMMISSION_PREFLIGHT_FAILED'):
             asyncio.run(w.run_once('retry'))
         rig['now'][0] += 1.
     assert not rig['calls']
@@ -456,7 +478,7 @@ def test_advancing_clock_repeated_freeze_refusal_keeps_one_audit(rig, monkeypatc
     manifest['reviews'][0]['review_id'] = 'new-review'
     monkeypatch.setattr(cert, 'protected_reviews', lambda: manifest)
     for _ in range(2):
-        with pytest.raises(EvidenceError, match='FROZEN_AUTHORITY_CHANGED'):
+        with expect_refusal('SHADOW_FROZEN_AUTHORITY_CHANGED_REVIEW_REQUIRED'):
             asyncio.run(w.run_once('changed-review'))
         rig['now'][0] += 1.
     assert not rig['calls']
@@ -467,7 +489,7 @@ def test_existing_audit_with_changed_semantics_still_conflicts(rig):
     w = wrapper(rig)
     w._save('shadow-test-conflict', outcome='RUN_STARTED', run_id='one')
     rig['now'][0] += 1.
-    with pytest.raises(EvidenceError, match='RECORD_ID_CONFLICT'):
+    with expect_refusal('RECORD_ID_CONFLICT'):
         w._save('shadow-test-conflict', outcome='RUN_STARTED', run_id='two')
 
 
@@ -477,7 +499,7 @@ def test_authority_change_after_freeze_requires_review(rig, monkeypatch):
     manifest = cert.protected_reviews()
     manifest['reviews'][0]['review_id'] = 'new-review'
     monkeypatch.setattr(cert, 'protected_reviews', lambda: manifest)
-    with pytest.raises(EvidenceError, match='FROZEN_AUTHORITY_CHANGED'):
+    with expect_refusal('SHADOW_FROZEN_AUTHORITY_CHANGED_REVIEW_REQUIRED'):
         asyncio.run(w.run_once('changed-review'))
     assert not rig['calls']
 
@@ -511,18 +533,18 @@ def test_unlinked_status_stub_does_not_count_as_run(rig):
 
 def test_namespace_target_and_lifecycle_guards(rig):
     p, t = rig['plan'], rig['plan'].targets[0]
-    with pytest.raises(EvidenceError, match='NAMESPACE'):
+    with expect_refusal('SHADOW_NAMESPACE_REQUIRED'):
         replace(p, namespace='V11_PAPER')
-    with pytest.raises(EvidenceError, match='DUPLICATE'):
+    with expect_refusal('SHADOW_PLAN_DUPLICATE_SCOPE_EVENT'):
         replace(p, targets=(t, t))
     for n in (0, 501, True):
-        with pytest.raises(EvidenceError, match='SAMPLE_BOUND'):
+        with expect_refusal('SHADOW_TARGET_SAMPLE_BOUND'):
             replace(t, sample_target=n)
-    with pytest.raises(EvidenceError, match='WILDCARD'):
+    with expect_refusal('CERTIFICATION_WILDCARD_FORBIDDEN'):
         replace(t.scope, station='*')
-    with pytest.raises(EvidenceError, match='STATUS_NAMESPACE_MISMATCH'):
+    with expect_refusal('SHADOW_STATUS_NAMESPACE_MISMATCH'):
         sc.evidence_status(replace(p, namespace='ABLATION:other'), rig['store'])
-    with pytest.raises(EvidenceError, match='ITERATION_BOUND'):
+    with expect_refusal('SHADOW_LIFECYCLE_ITERATION_BOUND'):
         sc.ShadowLifecyclePolicy('test', maximum_iterations=501)
 
 
@@ -535,7 +557,7 @@ def test_static_import_guard(tmp_path, monkeypatch):
 
 def test_plan_cannot_replace_actual_runner_contract(rig):
     wrong = replace(rig['plan'], cohort=replace(rig['plan'].cohort, graph_sha256='f' * 64))
-    with pytest.raises(EvidenceError, match='COHORT_MISMATCH'):
+    with expect_refusal('SHADOW_RUNNER_COHORT_MISMATCH'):
         sc.ShadowCommissionRunner(wrong, rig['runner'], release_git_sha=RELEASE,
                                  lifecycle=sc.ShadowLifecyclePolicy('test'))
 
@@ -553,7 +575,7 @@ def test_gefs_cohort_requires_native_31_member_exact_day_contract(rig, setup, wi
     cohort = candidate_cohort(runner)
     t = replace(rig['plan'].targets[0], feature_contract=replace(CONTRACT, model_widths=widths))
     if widths != ((sc.GEFS_MODEL_ID, 31),):
-        with pytest.raises(EvidenceError, match='GEFS_FEATURE_CONTRACT_MISMATCH'):
+        with expect_refusal('SHADOW_GEFS_FEATURE_CONTRACT_MISMATCH'):
             replace(rig['plan'], cohort=cohort, targets=(t,))
     else:
         plan = replace(rig['plan'], cohort=cohort, targets=(t,))
