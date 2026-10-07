@@ -1,3 +1,7 @@
+## 2026-10-07 15:43 UTC disk headroom and Brain repair
+
+Completed independently reviewed narrow pytest scratch cleanup after exact preflight, freeing about 6.5 GiB and preserving sealed evidence. Routed Brain official-source F11 false acceptance to a sole repair writer in the existing clean worktree after independent CHANGES_REQUIRED. No requirement or funding-readiness credit.
+
 ## 2026-10-07 15:40 UTC verified integration and recycled lanes
 
 Integrated reviewed Gate-3 re-pin via prepared merge `1ee5f0d`; main focused tests passed 29/29. Launched separate independent Opus exact review for reviewed-reference `eba0d13` and sole Sol repair for adverse offline pre-funding rehearsal `0aa6e3e`, each with persistent terminal markers. No qualification or financial authority changed.
