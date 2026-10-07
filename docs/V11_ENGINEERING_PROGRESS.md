@@ -7868,3 +7868,7 @@ Pushed `930a058` (local/remote agree). Independent Opus exact review of `36e769b
 ## `read_bytes` refusal tests integrated after independent review — 2026-10-07 01:20 UTC
 
 Sonnet-authored `7927067` (+31 test lines, 9 refusal cases) → Opus PASS_IN_SCOPE with 3-mutant kill evidence → merged `ddef4aa`; RAW 60/60 normal and `-O` post-merge. Root model-authority directory now observed present (stale assessment line corrected). No score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L map intake; duplicate avoided; selected-window adjudication launched — 2026-10-07 01:35 UTC
+
+Offline screen for 2026-10-08 unchanged (77/77 missing, 70 external/future-evidence). Map's proposed clock-recorder slice rejected as duplicate of merged `6f289d0`/`7c307b2`. Expired KATL SHADOW promote approvals observed and handed to an Opus read-only acceptance adjudication together with the selected-window/evidence-only-preflight path. No score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
