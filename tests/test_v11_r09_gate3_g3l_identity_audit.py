@@ -31,7 +31,11 @@ def test_retained_evidence_counts_and_current_runtime_drift():
     assert all(row["qualified_entry"] is None for row in result["identities"].values())
     changed = [path for path, ref in result["artifacts"].items()
                if not ref["current_matches_reviewed_bytes"]]
-    assert changed == ["tools/v11_r09_gate3_runtime.py"]
+    assert changed == [
+        "tools/v11_r09_gate3_collector.py",
+        "tools/v11_r09_gate3_ledgers.py",
+        "tools/v11_r09_gate3_runtime.py",
+    ]
     assert result["identities"][subject.SLICE3_ID]["category"] == subject.FUTURE
     original = result["identities"][subject.ORIGINAL_ID]
     assert original["category"] == subject.OFFLINE
@@ -129,8 +133,7 @@ def test_ledgers_drift_also_caught_generically_for_slice3_row(monkeypatch):
     assert row["category"] == subject.FUTURE
     drifted_refs = {ref["path"] for ref in row["source_refs"]
                     if not ref["current_matches_reviewed_bytes"]}
-    # The real, already-drifted runtime file and the freshly-simulated
-    # ledgers drift are both detected in the same row.
+    # Both real post-baseline changes remain visible in the slice-3 row.
     assert drifted_refs == {"tools/v11_r09_gate3_runtime.py", "tools/v11_r09_gate3_ledgers.py"}
 
 

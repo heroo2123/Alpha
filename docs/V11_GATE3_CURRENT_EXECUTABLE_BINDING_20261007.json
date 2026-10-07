@@ -1,0 +1,181 @@
+{
+  "drift_commits": {
+    "tools/v11_r09_gate3_collector.py": [
+      {
+        "classification": "budget and sizing refusal repair; fixes pre-request and received-byte accounting",
+        "commit": "ef7b47030259b79d19b2db3817b5ae660a0b4f64"
+      }
+    ],
+    "tools/v11_r09_gate3_ledgers.py": [
+      {
+        "classification": "RAW handoff mutex close and explicit clock phase custody",
+        "commit": "dd529ee548a6752aa21d7c53f8f662f4fdb7f570"
+      }
+    ],
+    "tools/v11_r09_gate3_runtime.py": [
+      {
+        "classification": "optional reviewed attempt-model pre-dispatch guard",
+        "commit": "7ef7d5d29043be4a6c7a4f64808a26f39e7c874b"
+      },
+      {
+        "classification": "attempt guard runtime binding hardening",
+        "commit": "9a844b1863c38ab83384d393ab0c0cae5ae5ae99"
+      },
+      {
+        "classification": "real-evidence intake pre-dispatch gate",
+        "commit": "70ef1a1f9155e662a166ee72359c4f3c1d5f0b19"
+      },
+      {
+        "classification": "bounded response-stream interface and delivered-byte accounting",
+        "commit": "9d0e9a14aa13566ce25823c70a368cd2ce1446a5"
+      },
+      {
+        "classification": "contradictory stream-closure hold and delivery conservation",
+        "commit": "60ac12061154eedbc7f83077aa1c756cd1e7359a"
+      },
+      {
+        "classification": "returned stream-byte preservation on progress failure",
+        "commit": "f1e85bab4cd272dd302945f20fc1193b122c4990"
+      },
+      {
+        "classification": "prefetched-byte preservation on malformed stream read",
+        "commit": "5a0ce218c2815512ee592e9203d718cfc458b43a"
+      },
+      {
+        "classification": "RAW decoder custody and closure binding",
+        "commit": "dd529ee548a6752aa21d7c53f8f662f4fdb7f570"
+      }
+    ]
+  },
+  "files": {
+    "config/v11/r09_gate3_observed_message_sizes_20260930.json": {
+      "byte_length": 2671,
+      "git_blob": "14b8b453e2f52aaa490ac2e36bab8c9d94b8c749",
+      "sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb"
+    },
+    "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md": {
+      "byte_length": 20041,
+      "git_blob": "107f160a1498cd871a2ae5bb6fff076acb3753b3",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md": {
+      "byte_length": 17309,
+      "git_blob": "6317e4fad097f2c09807a406878a8420b6f95799",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md": {
+      "byte_length": 28627,
+      "git_blob": "0affdfafda1e85dd566c47c479629dbc84b9a5b9",
+      "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+    },
+    "tests/test_v11_gate3_attempt_runtime_wiring.py": {
+      "byte_length": 26430,
+      "git_blob": "a117267dccee72c4b7d46ff6319a85814c945495",
+      "sha256": "2194df3077a4e5314f17e45d31cd9de2e50c6261a6e0f40b208ea862f7583364"
+    },
+    "tests/test_v11_gate3_evidence_intake_launch_wiring.py": {
+      "byte_length": 37345,
+      "git_blob": "e341844b5d5af8b1affcfc9b86ee3dcf73103576",
+      "sha256": "c766049333836f535ca5f903e85940b792e6a7e595352150f0b967da287fa7b7"
+    },
+    "tests/test_v11_gate3_raw_decoder_binding.py": {
+      "byte_length": 23450,
+      "git_blob": "991653d3fc2c3fbadd7d0eb6678a8d3791d36278",
+      "sha256": "4199d4e7580172846b4da220491908ec45951f3e3dc1bb5cfd560b8f68571ae5"
+    },
+    "tests/test_v11_r09_gate3_collector.py": {
+      "byte_length": 32223,
+      "git_blob": "7c5d98df63a9168e2d92e7a690d7c84ebd611e65",
+      "sha256": "d90a3127bc6448064033d3b4afce3847e03d6e7626d3b1f6719aa7562e80c100"
+    },
+    "tests/test_v11_r09_gate3_ledgers.py": {
+      "byte_length": 46825,
+      "git_blob": "1d11239aa062687811a24bfd375e30dbe45025a9",
+      "sha256": "51b11b506e90f10373236eadd361f4ef08e72d9cb2f7bd88bf50c2951f68ba64"
+    },
+    "tests/test_v11_r09_gate3_message_sizes.py": {
+      "byte_length": 4190,
+      "git_blob": "d8c79641f62d369ab8adbb4274efed6ffe248ce2",
+      "sha256": "633ee69f4567422a02ea4f53be4e47e39e4f3d867b733d30db7c6266a0ae645d"
+    },
+    "tests/test_v11_r09_gate3_runtime.py": {
+      "byte_length": 113519,
+      "git_blob": "23d0d0122765611c95b188287cf1cf198c1a39ce",
+      "sha256": "f7ab30373dd818778bdeb04eae60811ace82237f6a1c6fac32ca3aec827d9887"
+    },
+    "tools/v11_gate3_evidence_intake_guard.py": {
+      "byte_length": 7192,
+      "git_blob": "ba9e98bba3b4982f2c80d1b30bfab5ac43fbd76e",
+      "sha256": "c3a4430fcb7e5a95943c9b518dd939693a426c84e3de9b4c358e3fe43197a0c8"
+    },
+    "tools/v11_gate3_preflight_attempt_model.py": {
+      "byte_length": 42781,
+      "git_blob": "ac7ccf766a4af962f9ea1e1b1f14c3dddfbac548",
+      "sha256": "4734e9a1386e5cb96a73fa3ba8959977f9756026d1adace2b985ba3cd388a463"
+    },
+    "tools/v11_gate3_raw_decoder_binding.py": {
+      "byte_length": 19462,
+      "git_blob": "08a0012cd07ddbac5ce99ae873a0984794d8ea3d",
+      "sha256": "3e475e60aad44ef3646e3b16506a74ada0f57a4f55d31cb87476bf6ddd966ea3"
+    },
+    "tools/v11_r09_gate3_collector.py": {
+      "byte_length": 41721,
+      "git_blob": "dfdac2bd3e5fee1c615caac7912696cb7583c01e",
+      "sha256": "0cf745d9bf42b58698350479792fa4efad3b141e527e36f924a565d4a86f8637"
+    },
+    "tools/v11_r09_gate3_launch.py": {
+      "byte_length": 58430,
+      "git_blob": "dc8346bf63970fa003639e73a32836c0c1e7d887",
+      "sha256": "9174e37e929a98749a64d4fbee80430b6a9027088e709936474a1a2138e177d3"
+    },
+    "tools/v11_r09_gate3_ledgers.py": {
+      "byte_length": 70442,
+      "git_blob": "50cc5e44da3338cfd2cc333b7961c222881bdfb2",
+      "sha256": "b7e8f77c7610050bef412dc4ae5d48a27f77e1128cd70689561cf4b14b40b01d"
+    },
+    "tools/v11_r09_gate3_message_sizes.py": {
+      "byte_length": 6361,
+      "git_blob": "d139560a51a9d336d8af9f5e2934e6429f7720f4",
+      "sha256": "af333edaf619f3f9641c97b069edfcd4f06856e9a81e142255811129259a278a"
+    },
+    "tools/v11_r09_gate3_runtime.py": {
+      "byte_length": 129234,
+      "git_blob": "5a33f787689f47bb2493b2d7ee80af412e16abdd",
+      "sha256": "ffce597f40b6acbca0ead8b0913996bb8b41f3a7404937b6d9a2e62b1377f509"
+    },
+    "tools/v11_r09_gate3_store_v1.py": {
+      "byte_length": 34815,
+      "git_blob": "8d6d4a01fa2a90f8e10d0928deee323351a43181",
+      "sha256": "23b26673c6f8b0a53abf2cdedc61a24f6524dc4f598a036611c53b2898f86ef7"
+    }
+  },
+  "historical_baselines": {
+    "tools/v11_r09_gate3_collector.py": {
+      "byte_length": 39633,
+      "commit": "95e07fab75a3818560378d71556efc55ce122a56",
+      "git_blob": "360e990a5f384b5c5838c6e284f14ef9445ade61",
+      "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe",
+      "tree": "6a0880b2b7dcf101edc246e80ea999b814cfae08"
+    },
+    "tools/v11_r09_gate3_ledgers.py": {
+      "byte_length": 69644,
+      "commit": "6340cb455eebae374039c9bae23cd806681dacb0",
+      "git_blob": "5f0195607a3b3b5dca6b04b34e3131c69abb05b8",
+      "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4",
+      "tree": "b452ba91072bb78146ef6f4140f5ad41898aed28"
+    },
+    "tools/v11_r09_gate3_runtime.py": {
+      "byte_length": 110679,
+      "commit": "6340cb455eebae374039c9bae23cd806681dacb0",
+      "git_blob": "c265922e7f883507acdfab35d9245ccb51591958",
+      "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed",
+      "tree": "b452ba91072bb78146ef6f4140f5ad41898aed28"
+    }
+  },
+  "launchable": false,
+  "qualification_credit": 0,
+  "review_limit": "Candidate byte binding only. Historical exact reviews remain scoped to their original commits. Independent exact review of this candidate and separate G3-L inventory/package entry review are required; no provider, capture, runtime launch, or financial authority.",
+  "schema": "V11_GATE3_CURRENT_EXECUTABLE_BINDING_V1",
+  "source_commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+  "source_tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+}
