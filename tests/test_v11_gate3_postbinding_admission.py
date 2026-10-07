@@ -221,7 +221,12 @@ def test_stale_and_unresolved_local_objects_refuse(checkout, tmp_path):
     (tmp_path / "evidence.json").unlink()
     assert state() == "INVALID"
     assert probe(checkout, inventory, tmp_path)["reason"] == "unreviewed inventory refused"
-    (tmp_path / "evidence.json").symlink_to(tmp_path / "review.json")
+    # Link to a *separate* copy of the exact evidence bytes, not to the distinct
+    # review bytes: if the symlink guard were bypassed, length/hash would match
+    # and this would wrongly read STALE instead of INVALID, so this discriminates
+    # the guard itself rather than merely re-detecting a byte mismatch.
+    (tmp_path / "evidence-copy.json").write_bytes(b'{"local":"public test"}')
+    (tmp_path / "evidence.json").symlink_to(tmp_path / "evidence-copy.json")
     assert state() == "INVALID"
     assert probe(checkout, inventory, tmp_path)["reason"] == "unreviewed inventory refused"
 
