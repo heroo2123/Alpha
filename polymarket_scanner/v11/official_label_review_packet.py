@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import types
 from typing import Mapping
 
 
@@ -103,6 +104,24 @@ class ReviewPacket:
     automatic_promotion: bool = False
     qualified: bool = False
 
+    def __post_init__(self) -> None:
+        # Defense in depth: the public builder never passes these as
+        # constructor arguments, but `dataclasses.replace(...)` or a direct
+        # `ReviewPacket(...)` call bypasses the builder entirely. Make the
+        # type itself refuse to hold a True value on any of these fields, no
+        # matter how the instance was constructed.
+        for name in ("independent_label_attestation", "settlement_authority",
+                     "calibration_authority", "financial_authority",
+                     "automatic_promotion", "qualified"):
+            if getattr(self, name) is not False:
+                raise ValueError(f"{name} must be literal False")
+        # `source_claim` is caller data copied into the packet; without this
+        # it stays a mutable dict after construction even though the packet
+        # itself is frozen. Wrap it read-only so the only way to change it is
+        # to build a new packet.
+        if isinstance(self.source_claim, dict):
+            object.__setattr__(self, "source_claim", types.MappingProxyType(self.source_claim))
+
 
 def build_review_packet(*, rule, rule_receipt, decision, capture,
                          disclosures, source_claim, gamma_comparator=None) -> ReviewPacket:
@@ -158,8 +177,19 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
     timezone_name = p.get("timezone") if _identity(p.get("timezone")) else None
     unit = p.get("unit") if _identity(p.get("unit")) else None
 
+    # A rule payload that parses but is missing one of its own identity
+    # fields must say so explicitly: silently skipping the matching checks
+    # below (because the field is None) is a fail-open gap, not a pass.
+    if p and (event_id is None or station is None or target_date is None
+              or timezone_name is None or unit is None):
+        V("RULE_IDENTITY_INCOMPLETE")
+
+    partition_market_ids = {b["market_id"] for b in partition}
+    partition_by_id = {b["market_id"]: b for b in partition}
+
     # --- source_claim: pass-through validation only; never upgraded. ---
     winning_market_id = None
+    winner_in_partition = True
     source_ok = isinstance(source_claim, dict) and source_claim.get("version") == _SOURCE_CONTRACT_VERSION
     if not source_ok:
         V("SOURCE_CLAIM_MALFORMED")
@@ -172,16 +202,31 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
             V("SOURCE_CLAIM_AUTHORITY_VIOLATION")
         if rule_sha is not None and source_claim.get("rule_fingerprint_sha256") != rule_sha:
             V("RULE_FINGERPRINT_SOURCE_MISMATCH")
+        # Station/target_date identity binding must hold regardless of the
+        # claimed code -- a refusal claim still asserts these fields, and
+        # skipping the check on the refusal path would be fail-open.
+        if station is not None and source_claim.get("station") != station:
+            V("STATION_MISMATCH")
+        if target_date is not None and source_claim.get("target_date") != target_date:
+            V("TARGET_DATE_MISMATCH")
         if source_claim.get("code") == "SYNTHETIC_DERIVATION_ONLY":
-            if station is not None and source_claim.get("station") != station:
-                V("STATION_MISMATCH")
-            if target_date is not None and source_claim.get("target_date") != target_date:
-                V("TARGET_DATE_MISMATCH")
             candidate_winner = source_claim.get("winning_market_id")
             if _identity(candidate_winner):
                 winning_market_id = candidate_winner
+                if partition_market_ids and candidate_winner not in partition_market_ids:
+                    V("WINNER_NOT_IN_PARTITION")
+                    winner_in_partition = False
+                bucket = partition_by_id.get(candidate_winner)
+                if bucket is not None and source_claim.get("winning_yes_token") != bucket["yes_token"]:
+                    V("WINNING_TOKEN_MISMATCH")
             else:
                 V("SOURCE_CLAIM_MALFORMED")
+        # A refusal code, or a SYNTHETIC claim with no usable winner (already
+        # separately flagged SOURCE_CLAIM_MALFORMED above in that case),
+        # means there is nothing to review. Say so explicitly instead of
+        # staying silent whenever Gamma happens to be absent too.
+        if winning_market_id is None:
+            V("SOURCE_WINNER_UNAVAILABLE")
 
     # --- rule_receipt: must exist and predate the decision. ---
     rule_receipt_ok = False
@@ -240,7 +285,10 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
                 V("EVENT_ID_MISMATCH")
 
     if rule_receipt_ok and decision_ok:
-        if not (rule_receipt["seq"] <= decision["seq"] and rule_receipt["recorded_at"] <= decision["recorded_at"]):
+        # Strictly predate, matching the doc: an equal seq/timestamp is not a
+        # predate, the same way the disclosure lookahead check below is
+        # strict rather than allowing an at-or-before receipt through.
+        if rule_receipt["seq"] >= decision["seq"] or rule_receipt["recorded_at"] >= decision["recorded_at"]:
             V("RULE_RECEIPT_NOT_BEFORE_DECISION")
     if decision_ok and capture_ok:
         if not (decision["seq"] <= capture["seq"] and decision["recorded_at"] <= capture["recorded_at"]):
@@ -266,12 +314,30 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
                 prior = seen[did]
                 if prior.get("seq") != dseq or prior.get("recorded_at") != drec or prior.get("raw_sha256") != dsha:
                     V("DISCLOSURE_CONFLICT")
+                else:
+                    # Exact duplicate of an already-seen receipt. Harmless on
+                    # its own, but a silently-tolerated duplicate is still an
+                    # unexamined gap for a refusal/consistency mechanism:
+                    # flag it explicitly rather than accepting it quietly.
+                    V("DISCLOSURE_DUPLICATED")
             else:
                 seen[did] = disc
             valid_disclosures.append(disc)
 
+    # With no well-formed disclosure at all there is nothing to check for
+    # lookahead or source binding below, but the packet must say so rather
+    # than reporting an unqualified "consistent".
+    if not valid_disclosures:
+        V("DISCLOSURE_MISSING")
+
     # Every disclosure is checked, selected or not: a later "selected" receipt
     # can never excuse an earlier one that already made the winner knowable.
+    # A disclosure only "binds" the source claim's own raw bytes if its hash
+    # matches AND it independently passes the lookahead check: a receipt that
+    # is itself a lookahead violation cannot attest anything about the bytes
+    # that actually produced the winner.
+    source_raw_sha = source_claim.get("raw_sha256") if winning_market_id is not None else None
+    disclosure_bound_to_source = False
     for disc in valid_disclosures:
         lookahead = False
         if decision_ok and (disc["seq"] <= decision["seq"] or disc["recorded_at"] <= decision["recorded_at"]):
@@ -280,6 +346,16 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
             lookahead = True
         if lookahead:
             V("LOOKAHEAD_VIOLATION")
+        elif _sha(source_raw_sha) and disc.get("raw_sha256") == source_raw_sha:
+            disclosure_bound_to_source = True
+
+    # A SYNTHETIC winner is only reviewable if at least one well-formed,
+    # non-lookahead disclosure receipt attests the exact bytes that produced
+    # it. Without that, the lookahead check above can be satisfied by any
+    # unrelated late receipt while the bytes that actually produced the
+    # winner have no attested receipt time at all.
+    if winning_market_id is not None and not disclosure_bound_to_source:
+        V("SOURCE_DISCLOSURE_UNBOUND")
 
     # --- Gamma comparator: kept as a separate comparator, never merged in. ---
     gamma_comparison = UNAVAILABLE
@@ -309,9 +385,13 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
                 V("TIMEZONE_MISMATCH")
             if unit is not None and g_unit != unit:
                 V("UNIT_MISMATCH")
+            gamma_winner_in_partition = not partition_market_ids or g_winner in partition_market_ids
+            if not gamma_winner_in_partition:
+                V("WINNER_NOT_IN_PARTITION")
             source_sha = source_claim.get("raw_sha256") if isinstance(source_claim, dict) else None
             if winning_market_id is None:
-                V("SOURCE_WINNER_UNAVAILABLE")
+                # Already flagged SOURCE_WINNER_UNAVAILABLE above,
+                # unconditionally, whether or not Gamma is even present.
                 gamma_comparison = UNAVAILABLE
             elif _sha(source_sha) and g_sha == source_sha:
                 # An "independent" Gamma comparator sharing the exact source
@@ -320,6 +400,12 @@ def build_review_packet(*, rule, rule_receipt, decision, capture,
                 # violation and refuse to call it MATCH even if the claimed
                 # winners agree.
                 V("GAMMA_SOURCE_HASH_COLLISION_SUSPECTED")
+                gamma_comparison = MISMATCH
+            elif not winner_in_partition or not gamma_winner_in_partition:
+                # A winner id outside the rule's own bucket partition is not
+                # a real winner (e.g. a "ghost" id both sides happen to
+                # agree on): never report MATCH for that, even if the two
+                # claimed ids are literally equal.
                 gamma_comparison = MISMATCH
             elif g_winner == winning_market_id:
                 gamma_comparison = MATCH

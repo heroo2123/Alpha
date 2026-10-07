@@ -95,8 +95,12 @@ def make_gamma(*, raw_sha256="e" * 64, winning_market_id="m1"):
 
 def full_valid_kwargs():
     rule = make_rule()
+    # The disclosure's raw_sha256 is bound to the source claim's own default
+    # raw_sha256 ("c" * 64 in make_source_claim) so the baseline fixture has
+    # an actual attested receipt for the bytes that produced the winner, not
+    # just an unrelated later receipt (see SOURCE_DISCLOSURE_UNBOUND).
     return dict(rule=rule, rule_receipt=make_rule_receipt(rule), decision=make_decision(rule),
-                capture=make_capture(), disclosures=(make_disclosure(),),
+                capture=make_capture(), disclosures=(make_disclosure(raw_sha256="c" * 64),),
                 source_claim=make_source_claim(rule=rule), gamma_comparator=make_gamma())
 
 
@@ -306,6 +310,40 @@ def test_non_synthetic_source_claim_code_never_produces_a_winner_or_match():
     kwargs["source_claim"].pop("winning_market_id", None)
     result = build_review_packet(**kwargs)
     must(result.gamma_comparison == UNAVAILABLE)
+    # A refusal code with no winner must never be reported as mechanism-
+    # consistent just because there happens to be nothing left to disagree
+    # with -- that would be the fail-open gap this mechanism exists to catch.
+    must("SOURCE_WINNER_UNAVAILABLE" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_refusal_code_source_claim_with_no_gamma_still_flags_winner_unavailable():
+    # Same refusal shape as above, but with Gamma entirely absent too.
+    # SOURCE_WINNER_UNAVAILABLE used to be emitted only inside the Gamma
+    # branch, so this combination previously gave mechanism_consistent=True.
+    kwargs = full_valid_kwargs()
+    kwargs["source_claim"] = make_source_claim(rule=kwargs["rule"], code="MISSING_SOURCE")
+    kwargs["source_claim"].pop("winning_market_id", None)
+    kwargs["gamma_comparator"] = None
+    result = build_review_packet(**kwargs)
+    must(result.gamma_comparison == UNAVAILABLE)
+    must("SOURCE_WINNER_UNAVAILABLE" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_station_identity_binding_still_checked_on_refusal_source_claim_code():
+    # Station/target_date identity binding must not be skipped just because
+    # the source claim's code is a refusal rather than SYNTHETIC_DERIVATION_ONLY.
+    kwargs = full_valid_kwargs()
+    claim = make_source_claim(rule=kwargs["rule"], code="MISSING_SOURCE")
+    claim.pop("winning_market_id", None)
+    claim["station"] = "KXYZ"
+    kwargs["source_claim"] = claim
+    result = build_review_packet(**kwargs)
+    must("STATION_MISMATCH" in result.violations)
+    must(result.mechanism_consistent is False)
     assert_authority_false(result)
 
 
@@ -374,3 +412,111 @@ def test_no_input_can_ever_set_an_authority_flag_true():
                           rule_fingerprint_sha256=None, source_claim={}, gamma_comparison=UNAVAILABLE,
                           violations=(), mechanism_consistent=True)
     assert_authority_false(direct)
+
+    # The guarantee must hold for the type itself, not only the public
+    # builder: dataclasses.replace(...) bypasses build_review_packet
+    # entirely, so __post_init__ must independently refuse a True flag.
+    with pytest.raises(ValueError):
+        dataclasses.replace(direct, qualified=True)
+    # source_claim must also be read-only once the packet is constructed,
+    # not a mutable shallow-copied dict a caller could silently alter.
+    with pytest.raises(TypeError):
+        direct.source_claim["new_key"] = "x"  # MappingProxyType rejects writes
+
+
+def test_empty_disclosures_tuple_flags_missing_evidence():
+    # F1: with no label-determining receipt at all there is nothing to check
+    # for lookahead, but that must be an explicit violation, not silence.
+    kwargs = full_valid_kwargs()
+    kwargs["disclosures"] = ()
+    result = build_review_packet(**kwargs)
+    must("DISCLOSURE_MISSING" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_source_raw_sha256_not_bound_to_any_disclosure():
+    # F2: a disclosure that passes the lookahead check (strictly after
+    # decision/capture) but whose raw_sha256 has nothing to do with the
+    # source claim's own raw_sha256 must not be accepted as evidence for
+    # the bytes that actually produced the winner.
+    kwargs = full_valid_kwargs()
+    kwargs["disclosures"] = (make_disclosure(raw_sha256="f" * 64),)
+    result = build_review_packet(**kwargs)
+    must("LOOKAHEAD_VIOLATION" not in result.violations)
+    must("SOURCE_DISCLOSURE_UNBOUND" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_winner_outside_rule_partition_rejected():
+    # F4: a "ghost" market id that both the source claim and Gamma happen to
+    # agree on is not a real winner unless it is actually a member of the
+    # rule's own bucket partition.
+    kwargs = full_valid_kwargs()
+    claim = make_source_claim(rule=kwargs["rule"], winning_market_id="ghost")
+    kwargs["source_claim"] = claim
+    kwargs["gamma_comparator"] = make_gamma(winning_market_id="ghost")
+    result = build_review_packet(**kwargs)
+    must("WINNER_NOT_IN_PARTITION" in result.violations)
+    must(result.gamma_comparison != MATCH)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_winning_yes_token_mismatch_against_bucket_rejected():
+    # F4: winning_yes_token must match the winning bucket's own yes_token,
+    # not just be accepted as whatever the source claim happens to assert.
+    kwargs = full_valid_kwargs()
+    claim = make_source_claim(rule=kwargs["rule"], winning_market_id="m1")
+    claim["winning_yes_token"] = "y0"  # m1's real yes_token is "y1"
+    kwargs["source_claim"] = claim
+    result = build_review_packet(**kwargs)
+    must("WINNING_TOKEN_MISMATCH" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_incomplete_rule_identity_flagged():
+    # F5: a rule payload missing one of its own identity fields (here,
+    # timezone) must not silently skip the matching checks that depend on
+    # it -- it must be an explicit violation.
+    p = {"event_id": EVENT_ID, "station": STATION, "target_date": TARGET_DATE,
+         "unit": UNIT, "partition": deepcopy(PARTITION)}  # timezone omitted
+    rule = RuleFingerprint(canonical(p), digest(p), "a" * 64)
+    kwargs = full_valid_kwargs()
+    kwargs["rule"] = rule
+    kwargs["rule_receipt"] = make_rule_receipt(rule)
+    kwargs["decision"] = make_decision(rule)
+    kwargs["source_claim"] = make_source_claim(rule=rule)
+    result = build_review_packet(**kwargs)
+    must("RULE_IDENTITY_INCOMPLETE" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)
+
+
+def test_exact_duplicate_disclosure_receipt_flagged():
+    # F6: an exactly-duplicated receipt (same content, not just same id) is
+    # deliberately flagged rather than silently tolerated, even though it is
+    # harmless on its own -- distinct from DISCLOSURE_CONFLICT, which is for
+    # genuinely conflicting duplicates.
+    kwargs = full_valid_kwargs()
+    first = make_disclosure(id_="dup-exact", seq=20, recorded_at=2000.0, raw_sha256="c" * 64)
+    exact_again = make_disclosure(id_="dup-exact", seq=20, recorded_at=2000.0, raw_sha256="c" * 64)
+    kwargs["disclosures"] = (first, exact_again)
+    result = build_review_packet(**kwargs)
+    must("DISCLOSURE_DUPLICATED" in result.violations)
+    must("DISCLOSURE_CONFLICT" not in result.violations)
+    assert_authority_false(result)
+
+
+def test_rule_receipt_same_seq_and_time_as_decision_rejected():
+    # F7: "predate" must mean strictly before, matching the strict lookahead
+    # check used for disclosures -- a receipt at the exact same seq/time as
+    # the decision is not a predate.
+    kwargs = full_valid_kwargs()
+    kwargs["rule_receipt"] = make_rule_receipt(kwargs["rule"], seq=10, recorded_at=1000.0)
+    result = build_review_packet(**kwargs)
+    must("RULE_RECEIPT_NOT_BEFORE_DECISION" in result.violations)
+    must(result.mechanism_consistent is False)
+    assert_authority_false(result)

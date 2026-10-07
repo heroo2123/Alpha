@@ -18,16 +18,43 @@ receipt for the event, the existing `derive_offline_settlement_source` result
 (see `official_settlement_source.py`), and an independently supplied Gamma
 comparator vector -- it checks:
 
-- exact event/station/date/timezone/fingerprint/partition/receipt/hash
-  binding consistency across all of the above;
-- that the original rule version and its receipt predate the decision;
+- exact event/station/date/timezone/fingerprint/partition identity binding
+  across all of the above, plus one specific hash binding: at least one
+  well-formed disclosure receipt must carry the same `raw_sha256` as the
+  source claim's own winning bytes, and that receipt must independently
+  pass the lookahead check below (`SOURCE_DISCLOSURE_UNBOUND` otherwise).
+  No other pair of hash-bearing fields is cross-checked against each other
+  beyond that one binding and the Gamma-hash-collision check described
+  below;
+- that the rule payload itself carries all of its own required identity
+  fields (`event_id`/`station`/`target_date`/`timezone`/`unit`) --
+  `RULE_IDENTITY_INCOMPLETE` if not, rather than silently skipping the
+  matching checks that depend on a missing field;
+- that the original rule version and its receipt strictly predate the
+  decision (an equal seq/timestamp is a violation, not a pass);
 - that every decision bucket/target is covered exactly once, in the rule's
   canonical order (catching reordering, omission, and duplication
   separately, plus swapped condition/YES-token bindings);
 - that every label-determining disclosure receipt -- selected or not -- is
   strictly after both the decision and its capture, rejecting lookahead
-  (at-or-before is a violation, not just strictly-before);
-- that duplicate/conflicting disclosure receipts for the same id are caught;
+  (at-or-before is a violation, not just strictly-before); an empty or
+  entirely malformed disclosure set is its own explicit violation
+  (`DISCLOSURE_MISSING`), not silence;
+- that duplicate/conflicting disclosure receipts for the same id are
+  caught, including an *exact* duplicate (same content, not just same id),
+  which gets its own `DISCLOSURE_DUPLICATED` code distinct from
+  `DISCLOSURE_CONFLICT`;
+- that a settlement-source claim with no usable winner -- any code other
+  than `SYNTHETIC_DERIVATION_ONLY`, or a malformed winner even under that
+  code -- is flagged `SOURCE_WINNER_UNAVAILABLE` unconditionally, whether or
+  not a Gamma comparator is even supplied; station/target_date identity
+  binding against the source claim also runs unconditionally, not only for
+  a `SYNTHETIC_DERIVATION_ONLY` code;
+- that a claimed winner (from the source claim, and separately from Gamma)
+  is actually a member of the rule's own bucket partition
+  (`WINNER_NOT_IN_PARTITION` otherwise, and never reported `MATCH`), and
+  that the source claim's `winning_yes_token` matches the winning bucket's
+  own `yes_token` field (`WINNING_TOKEN_MISMATCH` otherwise);
 - that the settlement-source claim and the Gamma comparator are compared as
   two separate pieces of evidence (`gamma_comparison` is `MATCH`,
   `MISMATCH`, or `UNAVAILABLE`), never merged into one "truth". A Gamma
@@ -50,7 +77,13 @@ upgrades it to look like a real/authoritative label.
   `qualified`) is a frozen dataclass field with a literal `False` default.
   No code path in this module ever passes any of those fields as a
   constructor argument, so none of them can ever become `True`, regardless
-  of input.
+  of input. `ReviewPacket.__post_init__` additionally rejects any non-False
+  value on those six fields, so the guarantee holds even for
+  `dataclasses.replace(...)` or a direct `ReviewPacket(...)` construction
+  outside this module, not only calls through `build_review_packet`.
+  `source_claim` on the returned packet is also read-only (wrapped in
+  `types.MappingProxyType`), not a mutable dict a caller could alter after
+  the fact.
 - It performs no I/O, no file reads beyond its arguments, and no network or
   provider access of any kind.
 - It never calls `derive_offline_settlement_source` or any archive reader,
@@ -73,10 +106,23 @@ agreement and disagreement with the source result; an entirely absent Gamma
 vector (`UNAVAILABLE`); malformed/wrong-type clock and hash fields across
 several inputs; a Fahrenheit/Celsius unit mismatch and a DST-relevant
 timezone mismatch between inputs; confirmation that a
-`SYNTHETIC_DERIVATION_ONLY` source claim is passed through unchanged; and an
+`SYNTHETIC_DERIVATION_ONLY` source claim is passed through unchanged; an
 explicit adversarial test that tries multiple ways to force an
 independent-label/settlement/calibration/financial/promotion flag to `True`
 and confirms every attempt fails, including direct dataclass-field
-introspection and a `TypeError` check on the public builder's signature.
+introspection, a `TypeError` check on the public builder's signature, a
+`ValueError` check on `dataclasses.replace(...)` forcing a flag `True`, and
+a `TypeError` check on mutating the returned `source_claim` mapping; an
+empty disclosure tuple (`DISCLOSURE_MISSING`); a disclosure that passes the
+lookahead check but whose hash is not the source claim's own
+(`SOURCE_DISCLOSURE_UNBOUND`); a refusal-code source claim with no Gamma
+comparator at all and with station identity mismatched
+(`SOURCE_WINNER_UNAVAILABLE`, `STATION_MISMATCH`); a winner id outside the
+rule's bucket partition and a winning-token mismatch against the winning
+bucket (`WINNER_NOT_IN_PARTITION`, `WINNING_TOKEN_MISMATCH`); a rule
+payload missing one of its own identity fields
+(`RULE_IDENTITY_INCOMPLETE`); an exact-duplicate disclosure receipt
+(`DISCLOSURE_DUPLICATED`); and a rule receipt at the exact same seq/time as
+the decision it should strictly predate (`RULE_RECEIPT_NOT_BEFORE_DECISION`).
 All tests are deterministic and pass under both `python -m pytest` and
 `python -O -m pytest`.
