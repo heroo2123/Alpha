@@ -4,7 +4,8 @@ The research observation is only an input. Both model scopes and strategy
 capabilities must independently pass the protected nonfinancial admission gate.
 This module has no transport, account writer, model publisher or order endpoint.
 """
-from dataclasses import asdict
+from dataclasses import asdict, fields
+import json
 
 from .certification import CapabilityScope
 from .event_risk import EventContext
@@ -31,42 +32,130 @@ def _heads(rows):
     return tuple((k, e, s) for (k, e), s in sorted(result.items()))
 
 
+def _mapping(value):
+    if type(value) is not dict:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return value
+
+
+def _field(value, key):
+    value = _mapping(value)
+    if key not in value:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return value[key]
+
+
+def _string_field(value, key):
+    result = _field(value, key)
+    if type(result) is not str:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return result
+
+
+def _record(value, cls):
+    value = _mapping(value)
+    if set(value) != {field.name for field in fields(cls)}:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return cls(**value)
+
+
+def _retained_rule(value):
+    rule = _record(value, RuleFingerprint)
+    if type(rule.canonical_json) is not str:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    try:
+        payload = json.loads(rule.canonical_json)
+    except (ValueError, RecursionError) as exc:
+        # Only decoding the retained representation is translated. Strategy,
+        # model and inference exceptions must still reach their caller.
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE') from exc
+    if (type(payload) is not dict
+            or any(type(payload.get(key)) is not str for key in
+                   ('event_id', 'station', 'family', 'source_family', 'metadata_fingerprint'))):
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    if digest(payload) != rule.sha256:
+        raise EvidenceError('RULE_FINGERPRINT_INTEGRITY')
+    return rule
+
+
+def _sequence(value):
+    if type(value) not in (list, tuple):
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return value
+
+
+def _head_rows(value):
+    for row in _sequence(value):
+        if (type(row) not in (list, tuple) or len(row) != 3
+                or type(row[0]) is not str or type(row[1]) is not str or type(row[2]) is not int):
+            raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return value
+
+
+def _ids(value):
+    value = _sequence(value)
+    if any(type(item) is not str for item in value):
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    return value
+
+
 class PWSPreconfirmation:
     def __init__(self, store: EvidenceStore):
         self.store = store
 
     def _assess(self, *, lead_id, observation_admission_id, payout_admission_id):
-        lead = self.store.get(lead_id); d = lead['body'].get('details', {})
+        lead = self.store.get(lead_id); d = _mapping(lead['body'].get('details', {}))
         if (lead['kind'] != 'MEASUREMENT' or d.get('version') != LEAD_VERSION
                 or d.get('target') != NEXT_OBSERVATION or d.get('valuation_type') != 'OBSERVATION_ONLY'):
             raise EvidenceError('PWS_OBSERVATION_RESEARCH_REQUIRED')
-        request = d['request']; rule = RuleFingerprint(**request['rule'])
-        policy = LeadPolicy(**request['policy']); now = finite(self.store.clock())
-        cutoff = finite(d['feature_ready_at'])
-        if (cutoff != d['observation_window']['window_start'] or not cutoff <= lead['body']['recorded_at'] <= now
+        request = _mapping(_field(d, 'request'))
+        official_id = _string_field(request, 'official_id')
+        pws_id = _string_field(request, 'pws_id')
+        rule = _retained_rule(_field(request, 'rule'))
+        policy = _record(_field(request, 'policy'), LeadPolicy)
+        now = finite(self.store.clock())
+        cutoff = finite(_field(d, 'feature_ready_at'))
+        window = _mapping(_field(d, 'observation_window'))
+        if (cutoff != _field(window, 'window_start') or not cutoff <= lead['body']['recorded_at'] <= now
                 or not cutoff <= now < cutoff+policy.horizon_seconds
-                or d['observation_window']['window_end'] != cutoff+policy.horizon_seconds):
+                or _field(window, 'window_end') != cutoff+policy.horizon_seconds):
             raise EvidenceError('PWS_PRECONFIRMATION_WINDOW_EXPIRED_OR_CHANGED')
         admissions, originals, models = [], [], []
         for key, target in ((observation_admission_id, NEXT_OBSERVATION),
                             (payout_admission_id, 'FINAL_CONTRACT_PAYOUT')):
-            row = self.store.get(key); a = row['body'].get('details', {})
+            row = self.store.get(key); a = _mapping(row['body'].get('details', {}))
             if row['kind'] != 'REGISTRY' or a.get('version') != ADMISSION_VERSION:
                 raise EvidenceError('PWS_SEPARATE_STRATEGY_ADMISSION_REQUIRED')
-            original = a['request']; scope = CapabilityScope(**original['scope'])
-            if scope.strategy != STRATEGY or original['rule'] != asdict(rule):
+            before = _mapping(_field(a, 'assessment'))
+            for field in ('certification', 'heads', 'model_epoch', 'model_state_sha256',
+                          'model_bundle_sha256', 'model_size_multiplier'):
+                _field(before, field)
+            finite(_field(before, 'valid_until'))
+            original = _mapping(_field(a, 'request'))
+            scope = _record(_field(original, 'scope'), CapabilityScope)
+            if scope.strategy != STRATEGY or _field(original, 'rule') != asdict(rule):
                 raise EvidenceError('PWS_OBSERVATION_AND_PAYOUT_SCOPE_MISMATCH')
-            binding = ReleaseBinding(**original['binding'])
-            result = StrategyAdmission(self.store).revalidate(key, context=EventContext(**original['context']),
+            binding = _record(_field(original, 'binding'), ReleaseBinding)
+            context = _record(_field(original, 'context'), EventContext)
+            stage = _string_field(original, 'stage')
+            finite(_field(original, 'rule_max_age_seconds'))
+            leases = {}
+            for lease in _sequence(_field(original, 'source_leases')):
+                lease = _mapping(lease)
+                if set(lease) != {'evidence_id', 'role', 'maximum_age_seconds'}:
+                    raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+                evidence_id = _string_field(lease, 'evidence_id')
+                _string_field(lease, 'role')
+                leases[evidence_id] = lease
+            result = StrategyAdmission(self.store).revalidate(key, context=context,
                         rule=rule, binding=asdict(binding), strategies=(STRATEGY,))
-            mode = 'V11_PAPER' if original['stage'] == 'PAPER' else 'V11_SHADOW'
+            mode = 'V11_PAPER' if stage == 'PAPER' else 'V11_SHADOW'
             model = ActiveModelRegistry().pin(scope_key=scope.key, mode=mode)
             if (model.state_sha256 != result['model_state_sha256']
                     or model.bundle.sha256 != binding.bundle_sha256 or model.bundle.payload['bundle']['target'] != target):
                 raise EvidenceError('PWS_SEPARATE_APPROVED_OBSERVATION_AND_PAYOUT_TARGETS_REQUIRED')
-            leases = {s['evidence_id']:s for s in original['source_leases']}
             if any(key not in leases or leases[key]['role'] != role for key, role in
-                   ((request['official_id'], 'OFFICIAL'), (request['pws_id'], 'PWS'))):
+                   ((official_id, 'OFFICIAL'), (pws_id, 'PWS'))):
                 raise EvidenceError('PWS_BOTH_MODELS_REQUIRE_SAME_OFFICIAL_AND_PWS_LEASES')
             admissions.append(result); originals.append(original); models.append(model)
         obs, payout = originals
@@ -75,25 +164,28 @@ class PWSPreconfirmation:
                        ('station', 'family', 'source_rule_family', 'strategy', 'season', 'time_of_day'))
                 or any(obs['binding'][k] != payout['binding'][k] for k in
                        ('code_commit', 'code_tree', 'config_sha256', 'rule_fingerprint'))
-                or obs['binding'] != request['binding']
-                or {s['evidence_id'] for s in obs['source_leases'] if s['role'] == 'MODEL'} != set(request['model_ids'])):
+                or obs['binding'] != _field(request, 'binding')
+                or {s['evidence_id'] for s in obs['source_leases'] if s['role'] == 'MODEL'} != set(_ids(_field(request, 'model_ids')))):
             raise EvidenceError('PWS_MODEL_PAIR_CONTEXT_OR_RELEASE_MISMATCH')
-        if request['bundle_sha256'] != models[0].bundle.sha256:
+        if _field(request, 'bundle_sha256') != models[0].bundle.sha256:
             raise EvidenceError('PWS_RESEARCH_BUNDLE_NOT_APPROVED_OBSERVATION_CHAMPION')
-        heads = _heads([*admissions[0]['heads'], *admissions[1]['heads'], *d['source_heads']])
+        heads = _heads([*_head_rows(admissions[0]['heads']), *_head_rows(admissions[1]['heads']),
+                        *_head_rows(_field(d, 'source_heads'))])
         for kind, event, seq in heads:
             head = self.store.latest(kind=kind, event_id=event)
             if (head['seq'] if head else 0) != seq:
                 raise EvidenceError('PWS_PRECONFIRMATION_SOURCE_CHANGED')
-        official = self.store.get(request['official_id']); _report(official, rule)
-        pws = self.store.get(request['pws_id']); qc = pws['body']['payload']
-        graph = _lineage(self.store, tuple(request['model_ids']), event_id=rule.payload['event_id'], cutoff=cutoff)
-        if graph != d['paired_provenance']['with_pws'] or graph['pws_ids'] != [request['pws_id']]:
+        official = self.store.get(official_id); _report(official, rule)
+        pws = self.store.get(pws_id); qc = pws['body']['payload']
+        graph = _lineage(self.store, tuple(_ids(_field(request, 'model_ids'))), event_id=rule.payload['event_id'], cutoff=cutoff)
+        if graph != _field(_field(d, 'paired_provenance'), 'with_pws') or graph['pws_ids'] != [pws_id]:
             raise EvidenceError('PWS_OBSERVATION_LINEAGE_MISMATCH')
         components = _model_inputs(self.store, rule, tuple(request['model_ids']), cutoff, target=NEXT_OBSERVATION)
+
         prediction = predict_with_bundle(models[0].bundle, rule, components, as_of=cutoff,
                                          max_source_age_seconds=policy.max_model_age_seconds)
-        if prediction.payload != d['with_pws']:
+
+        if prediction.payload != _field(d, 'with_pws'):
             raise EvidenceError('PWS_OBSERVATION_PREDICTION_NOT_REPRODUCED')
         expiry = min(*(a['valid_until'] for a in admissions), cutoff+policy.horizon_seconds,
                      self.store.latest(kind='RULE_STATE', event_id=rule.payload['event_id'])['body']['recorded_at']+policy.max_rule_age_seconds,
@@ -102,6 +194,7 @@ class PWSPreconfirmation:
                      *(self.store.get(k)['body']['issued_at']+policy.max_model_age_seconds for k in request['model_ids']))
         if not now < expiry:
             raise EvidenceError('PWS_PRECONFIRMATION_SOURCE_POLICY_EXPIRED')
+
         for model in models:
             if not ActiveModelRegistry().revalidate(model)['passed']:
                 raise EvidenceError('PWS_MODEL_CHANGED_DURING_PRECONFIRMATION')
@@ -133,14 +226,26 @@ class PWSPreconfirmation:
                  evidence_ids=tuple(request.values()), expected_heads=result['heads'])
 
     def revalidate(self, record_id, *, context, rule, binding, payout_admission_ids):
-        row = self.store.get(record_id); d = row['body'].get('details', {})
+        row = self.store.get(record_id); d = _mapping(row['body'].get('details', {}))
         if row['kind'] != 'REGISTRY' or d.get('version') != VERSION:
             raise EvidenceError('PWS_PRECONFIRMATION_PIN_REQUIRED')
-        before = d['assessment']
-        if (before['context'] != asdict(context) or before['rule'] != asdict(rule)
-                or before['binding'] != binding or before['payout_admission_id'] not in payout_admission_ids):
+        # Explicit shape/type checks, not exception translation: the pin's own
+        # envelope is untrusted retained evidence, but ``_assess`` below may
+        # raise a genuine (non-malformed-evidence) defect from real
+        # revalidation computation, so this boundary must not use a catch
+        # broad enough to also swallow that.
+        before = d.get('assessment')
+        if type(before) is not dict:
+            raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+        if (before.get('context') != asdict(context) or before.get('rule') != asdict(rule)
+                or before.get('binding') != binding or before.get('payout_admission_id') not in payout_admission_ids):
             raise EvidenceError('PWS_PRECONFIRMATION_PROPOSAL_MISMATCH')
-        current = self._assess(**d['request'])
+        request = d.get('request')
+        if (type(request) is not dict
+                or set(request) != {'lead_id', 'observation_admission_id', 'payout_admission_id'}
+                or any(type(v) is not str for v in request.values())):
+            raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+        current = self._assess(**request)
         if canonical(current) != canonical(before):
             raise EvidenceError('PWS_PRECONFIRMATION_CHANGED_RECOMPUTE')
         return dict(current, preconfirmation_id=record_id, preconfirmation_sha256=row['sha256'])

@@ -64,7 +64,15 @@ def digest(value: object) -> str:
 
 
 def finite(value: object, *, nonnegative: bool = True) -> float:
-    if type(value) not in (int, float) or not math.isfinite(value):
+    if type(value) not in (int, float):
+        raise EvidenceError("NONFINITE_OR_NONNUMERIC")
+    try:
+        is_finite = math.isfinite(value)
+    except OverflowError:
+        # A Python int too large to convert to float (e.g. 10**400) is not a
+        # bug in the caller's math; it is exactly as unusable here as inf/nan.
+        is_finite = False
+    if not is_finite:
         raise EvidenceError("NONFINITE_OR_NONNUMERIC")
     if nonnegative and value < 0:
         raise EvidenceError("NEGATIVE_NUMBER")
@@ -371,6 +379,11 @@ class EvidenceStore:
                 "event_id": row["event_id"], "sha256": row["body_sha256"], "body": body}
 
     def get(self, record_id: str) -> dict:
+        if type(record_id) is not str:
+            # A non-string key can never address a stored record; without this
+            # guard it reaches sqlite3 as a bind parameter and raises
+            # ProgrammingError instead of the typed refusal callers expect.
+            raise EvidenceError("EVIDENCE_MISSING")
         with self._connect() as db:
             row = db.execute("SELECT * FROM v11_records WHERE record_id=?", (record_id,)).fetchone()
             if not row:
