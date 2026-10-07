@@ -23,7 +23,7 @@ from tools.v11_gate3_provider_rights_lineage import (
     ARTIFACT, ENVELOPE_OK, IN_SCOPE_IDS, NOAA_S3, NOMADS, ECMWF_PORTAL, ECMWF_CDN,
     OBSERVED, PINNED_SOURCES, RECOVERED_DIR, REFUSED, REQUIRED_EVENT_IDS,
     LineageError, canonical_bytes, check_lineage, evaluate_request, load_sources,
-    strict_loads, verify_recovered_bodies, verify_reviewed_refs,
+    strict_loads, verify_lineage_with_reviewed_refs, verify_recovered_bodies, verify_reviewed_refs,
 )
 from tools.v11_r09_gate3_g3l_prep import INDEX_CAP, REQUIRED, RUN_SPECIFIC
 
@@ -1426,3 +1426,147 @@ def test_resumption_requires_scope_decision_even_without_permissions(tmp_path):
     ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
     _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE", decision_utc="2026-10-08T00:00:01Z")
     assert "RESUMPTION_REF:ECMWF:RESUMPTION_BEFORE_SCOPE_REVIEW" in verify_reviewed_refs(doc, root, manifest)
+
+
+# -- Combined gate: check_lineage shape alone must never read as a PASS -----
+#
+# check_lineage only proves ref *shape* (sha256/byte_length/path strings);
+# it never opens a file or confirms independent review. These tests cover
+# the one sanctioned combined entry point, verify_lineage_with_reviewed_refs,
+# that a future preflight must use instead of check_lineage alone.
+
+def test_combined_gate_passes_through_a_genuine_resolved_seam(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    assert verify_lineage_with_reviewed_refs(doc, root, manifest) == []
+
+
+@pytest.mark.parametrize("missing", ["root", "manifest", "both"])
+def test_combined_gate_refuses_without_both_trusted_inputs(tmp_path, missing):
+    doc, root, manifest = _positive_seam(tmp_path)
+    call_root = None if missing in ("root", "both") else root
+    call_manifest = None if missing in ("manifest", "both") else manifest
+    assert verify_lineage_with_reviewed_refs(doc, call_root, call_manifest) == \
+        ["REVIEWED_REF_TRUSTED_INPUTS_REQUIRED"]
+
+
+def test_combined_gate_default_call_never_vacuously_passes():
+    """Omitting both inputs (e.g. a future caller forgetting them) must refuse,
+    even for the committed artifact, which has no reviewed refs at all."""
+    assert verify_lineage_with_reviewed_refs(committed()) == ["REVIEWED_REF_TRUSTED_INPUTS_REQUIRED"]
+
+
+def test_combined_gate_never_hides_shape_findings_behind_missing_inputs(tmp_path):
+    doc = committed()
+    event = next(e for e in doc["restriction_events"] if e["event_id"] ==
+                 "ecmwf-s3-coordinator-retries-status-unretained-20260929")
+    doc["restriction_events"].remove(event)
+    doc["control_domains"]["ECMWF"]["hold_basis"].remove(event["event_id"])
+    shape_findings = check_lineage(doc)
+    assert shape_findings
+    assert verify_lineage_with_reviewed_refs(doc) == shape_findings
+    assert verify_lineage_with_reviewed_refs(doc, tmp_path, {}) == shape_findings
+
+
+def test_combined_gate_on_reference_free_held_artifact_with_real_inputs(tmp_path):
+    """A reference-free HELD artifact resolves vacuously (nothing to read),
+    but only once the caller has actually supplied real trusted inputs --
+    never as a side effect of omitting them."""
+    assert verify_lineage_with_reviewed_refs(committed(), tmp_path, {}) == []
+
+
+def test_combined_gate_does_not_grant_authority_on_genuine_seam(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    assert verify_lineage_with_reviewed_refs(doc, root, manifest) == []
+    result = run(good_request(), doc=doc)
+    assert result["outcome"] == ENVELOPE_OK and result["execution_authority"] is False
+    assert doc["g3l"] == "NO_GO" and doc["qualification_credit"] == 0
+
+
+# -- CLI wiring: --trusted-evidence-root / --review-manifest ----------------
+
+def _manifest_path(tmp_path, manifest: dict) -> Path:
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest))
+    return path
+
+
+def test_cli_check_default_invocation_is_unchanged_by_new_flags(capsys):
+    assert lineage_mod.main(["check"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["problems"] == [] and out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"
+
+
+@pytest.mark.parametrize("flags", [["--trusted-evidence-root"], ["--review-manifest"]])
+def test_cli_check_refuses_with_only_one_trusted_input(tmp_path, capsys, flags):
+    flag = flags[0]
+    value = str(tmp_path) if flag == "--trusted-evidence-root" else str(_manifest_path(tmp_path, {}))
+    rc = lineage_mod.main(["check", flag, value])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert "REVIEWED_REF_TRUSTED_INPUTS_REQUIRED" in out["problems"]
+    assert out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"
+
+
+def test_cli_check_with_real_inputs_on_reference_free_artifact_still_passes(tmp_path, capsys):
+    manifest_path = _manifest_path(tmp_path, {})
+    rc = lineage_mod.main(["check", "--trusted-evidence-root", str(tmp_path),
+                          "--review-manifest", str(manifest_path)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["problems"] == [] and out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"
+
+
+def test_cli_check_missing_manifest_file_refuses(tmp_path, capsys):
+    rc = lineage_mod.main(["check", "--trusted-evidence-root", str(tmp_path),
+                          "--review-manifest", str(tmp_path / "absent-manifest.json")])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert any(p.startswith("REVIEW_MANIFEST_FILE_UNAVAILABLE:") for p in out["problems"]), out
+    assert out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"
+
+
+def test_cli_check_malformed_manifest_json_refuses(tmp_path, capsys):
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text('{"a": 1, "a": 2}')
+    rc = lineage_mod.main(["check", "--trusted-evidence-root", str(tmp_path),
+                          "--review-manifest", str(manifest_path)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert any(p.startswith("REVIEW_MANIFEST_FILE_UNAVAILABLE:") for p in out["problems"]), out
+
+
+def test_cli_check_oversized_manifest_file_refuses(tmp_path, capsys):
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_bytes(b"0" * (lineage_mod.REVIEW_MANIFEST_FILE_LIMIT + 1))
+    rc = lineage_mod.main(["check", "--trusted-evidence-root", str(tmp_path),
+                          "--review-manifest", str(manifest_path)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert any("SOURCE_TOO_LARGE" in p for p in out["problems"]), out
+
+
+def test_cli_check_symlinked_manifest_file_refuses(tmp_path, capsys):
+    real = tmp_path / "real-manifest.json"
+    real.write_text("{}")
+    link = tmp_path / "manifest-link.json"
+    os.symlink(real, link)
+    rc = lineage_mod.main(["check", "--trusted-evidence-root", str(tmp_path),
+                          "--review-manifest", str(link)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert any(p.startswith("REVIEW_MANIFEST_FILE_UNAVAILABLE:") for p in out["problems"]), out
+
+
+def test_cli_check_self_authored_manifest_cannot_upgrade_authority(tmp_path, capsys):
+    """A caller-supplied manifest, even if self-authored, can only ever be
+    consumed through the same fail-closed resolver; it cannot make the CLI
+    claim anything beyond NO_GO/credit 0 for the committed, reference-free
+    artifact."""
+    manifest_path = _manifest_path(tmp_path, {
+        "0" * 64: {"kind": "SCOPE_INDEPENDENCE", "reviewer_identity": "self-authored"},
+    })
+    rc = lineage_mod.main(["check", "--trusted-evidence-root", str(tmp_path),
+                          "--review-manifest", str(manifest_path)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["problems"] == [] and out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"

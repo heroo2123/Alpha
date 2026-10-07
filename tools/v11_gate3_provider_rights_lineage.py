@@ -1313,6 +1313,7 @@ REVIEW_OUTCOME_OK = "INDEPENDENTLY_CONFIRMED"
 REVIEWER_IDENTITY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 REVIEW_RECORD_LIMIT = 65536
 REVIEWED_DOCUMENT_LIMIT = 16 * 1024 * 1024
+REVIEW_MANIFEST_FILE_LIMIT = 1024 * 1024
 REVIEW_COMMON_KEYS = frozenset({
     "schema", "kind", "outcome", "reviewer_identity",
     "reviewer_is_self_interested", "decision_utc", "basis",
@@ -1690,6 +1691,40 @@ def _verify_reviewed_refs(lineage: Mapping, root_fd: int, review_manifest: Mappi
     return out[:128]
 
 
+def verify_lineage_with_reviewed_refs(doc: Any, trusted_evidence_root: Optional[Path] = None,
+                                      review_manifest: Optional[Mapping] = None) -> list[str]:
+    """The one sanctioned combined gate for any future G3-L lineage determination.
+
+    ``check_lineage`` alone only proves that every expiry_adjudication,
+    scope_independence_review, resumption_review, licence_document and
+    review_ref has the closed ``{sha256, byte_length, path}`` *shape*. It
+    never opens a file, binds a digest to a reviewer, or confirms the
+    review was independent. A caller that reports a lineage PASS from
+    ``check_lineage(doc) == []`` alone, without also resolving reviewed
+    references, is treating unread shape-only refs as independently
+    reviewed bytes.
+
+    Call this function, not ``check_lineage`` alone, wherever the result
+    will be read as evidence toward a G3-L determination. It always runs
+    both checks in order and never reports success from ``check_lineage``
+    alone. A missing ``trusted_evidence_root`` or ``review_manifest`` is a
+    refusal, not an implicit "no reviewed refs to check" -- there is no
+    default root or manifest; both remain the caller's own independently
+    pinned inputs, exactly as in ``verify_reviewed_refs``, and neither may
+    be a self-authored substitute for an independent one.
+
+    Like ``check_lineage`` and ``verify_reviewed_refs``, this is a findings
+    report only. It never computes or returns execution_authority, credit,
+    or a GO/PASS verdict, and by itself grants no qualification.
+    """
+    findings = check_lineage(doc)
+    if findings:
+        return findings
+    if trusted_evidence_root is None or review_manifest is None:
+        return ["REVIEWED_REF_TRUSTED_INPUTS_REQUIRED"]
+    return verify_reviewed_refs(doc, trusted_evidence_root, review_manifest)
+
+
 # ---------------------------------------------------------------------------
 # Request envelope: applies the lineage to one proposed request, offline.
 # ---------------------------------------------------------------------------
@@ -1973,12 +2008,32 @@ def verify_recovered_bodies(lineage: Mapping, root: Path = ROOT) -> list[str]:
     return out
 
 
+def _load_review_manifest_file(path_str: str) -> tuple[Optional[Any], list[str]]:
+    """Load a caller-pinned ``{sha256: {kind, reviewer_identity}}`` manifest file.
+
+    This is the only parsing the CLI performs on it; a missing, oversized,
+    symlinked or malformed manifest is a reported problem, never silently
+    treated as an empty or absent manifest.
+    """
+    try:
+        raw = read_regular(Path(path_str), REVIEW_MANIFEST_FILE_LIMIT)
+        return strict_loads(raw), []
+    except LineageError as exc:
+        return None, [f"REVIEW_MANIFEST_FILE_UNAVAILABLE:{exc}"]
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     build = sub.add_parser("build", help="rebuild from pinned retained sources")
     build.add_argument("--write", action="store_true", help="write the artifact and recovered bodies")
-    sub.add_parser("check", help="check the committed artifact offline")
+    check_cmd = sub.add_parser("check", help="check the committed artifact offline")
+    check_cmd.add_argument("--trusted-evidence-root", default=None,
+                           help="caller-pinned local directory for reviewed-reference resolution; "
+                                "required together with --review-manifest, never defaulted")
+    check_cmd.add_argument("--review-manifest", default=None,
+                           help="caller-pinned JSON file of {sha256: {kind, reviewer_identity}}; "
+                                "required together with --trusted-evidence-root, never defaulted")
     args = parser.parse_args(argv)
     committed_path = ROOT / ARTIFACT
     if args.command == "check":
@@ -1987,6 +2042,16 @@ def main(argv: Optional[list] = None) -> int:
         problems = check_lineage(doc) + verify_recovered_bodies(doc)
         if canonical_bytes(doc) != raw:
             problems.append("ARTIFACT_NOT_CANONICAL")
+        if args.trusted_evidence_root is not None or args.review_manifest is not None:
+            manifest, manifest_ok = None, True
+            if args.review_manifest is not None:
+                manifest, manifest_problems = _load_review_manifest_file(args.review_manifest)
+                problems += manifest_problems
+                manifest_ok = not manifest_problems
+            if manifest_ok:
+                root = Path(args.trusted_evidence_root) if args.trusted_evidence_root is not None else None
+                problems += verify_lineage_with_reviewed_refs(doc, root, manifest)
+        problems = list(dict.fromkeys(problems))
         print(json.dumps({"artifact_sha256": _sha(raw), "problems": problems,
                           "qualification_credit": 0, "g3l": "NO_GO"}, sort_keys=True))
         return 1 if problems else 0
