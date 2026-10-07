@@ -1,3 +1,7 @@
+## 2026-10-07 16:56 UTC wiring code integrated, evidence gates remain held
+
+Exact-reviewed Gate-3 CLI/reference wiring `b27031e` is on local main `78da8b0` with 776 selected post-main tests passing per Python mode; it adds no authenticated provider-rights evidence or G3-L identity. Current 92-file binding has two test-byte drifts, with two more code-file drifts prospective if pending PAPER PWS code integrates; final repin/review must wait for exact final bytes. Forward observer data remains incomplete with no qualified same-ledger outcome. Gate-3 91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO; PAPER 9/11, R08/R09 PARTIAL; READY_TO_FUND=false.
+
 ## 2026-10-07 16:50 UTC current-byte and PAPER candidate holds
 
 PAPER PWS candidate `5c8ae33` awaits separate exact verdict; R08/R09 remain PARTIAL and PAPER stays 9/11. The slice-3 historical review does not cover current runtime/ledger/import bytes; two tests in the 92-file current-executable binding drifted after review, so final-current repin/re-review remains required. Seven historical package-entry reviews and other G3-L identities remain absent. Gate-3 91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO; READY_TO_FUND=false.
