@@ -395,9 +395,12 @@ def test_preexisting_receipt_without_protected_interval_loses_status_credit(rig)
     target = r['plan'].targets[0]
     q = dict(group, admission_id=pin['id'], admission_sha256=pin['sha256'],
              plan_key=r['plan'].key, scope_key=target.scope.key)
-    r['store'].audit('legacy-unproven-receipt', event_id='admission:' + target.scope.key,
+    r['store'].audit('forward-qualification:' + digest([r['plan'].key, cap['id']]),
+        event_id='admission:' + target.scope.key,
         kind='REGISTRY', details=dict(version=sc.FORWARD_VERSION,
                                       qualification=q, label_ids=ids, financial_authority=False))
+    refuses(lambda: sc.record_forward_admission(r['plan'], r['store'],
+        capture_id=cap['id'], label_ids=ids), 'FORWARD_PROTECTED_INTERVAL_UNPROVEN')
     result = sc.evidence_status(r['plan'], r['store'])
     check(result['targets'][0]['forward_admission_count'] == 0, 'LEGACY_PROTECTED_CREDIT')
     check(result['targets'][0]['qualifying_forward_sample_count'] == 0, 'LEGACY_PROTECTED_SAMPLE')
