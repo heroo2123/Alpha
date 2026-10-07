@@ -1,3 +1,7 @@
+## 2026-10-07 15:25 UTC G3-L binding drift found (4/92 files); re-pin pending independent review
+
+`tools/v11_gate3_current_executable_binding.py`'s 92-file byte pin at `SOURCE_COMMIT=d1c5602` is violated by 4 files: `learning_capture.py` (pre-existing, predates this session) and `forecast_features.py`/`model_artifacts.py`/`physical_inference.py` (from this session's `fd965a9`). The gate fails closed (raises/refuses) on drift, so this is a detection gap, not a permitted bypass; G3-L stays NO-GO/HOLD/0 credit. A re-pin candidate extending the existing documented-drift mechanism is in progress in an isolated worktree and needs independent review before merge. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11; READY_TO_FUND=false.
+
 ## 2026-10-07 14:16 UTC KATL plan and receipt-preflight integrated; two repairs await re-review
 
 `fd965a9` (KATL PWS/economic plan commissioning) and InventoryTransform receipt-preflight `23be1c5` are now merged into main (`e89d126`) after passing independent PASS_IN_SCOPE review and post-merge reconciliation testing; neither grants PAPER req8/9, deployment, or transaction-qualification credit on its own. EvidenceStore budget test repair `7d91a85` and Brain label-attestation repair `d614d9d` address their respective `CHANGES_REQUIRED` findings but are not merged pending independent re-review. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11; READY_TO_FUND=false.
