@@ -5320,3 +5320,11 @@ PAPER R08/R09 malformed-rule successor `b2bbb0d` is under frozen independent exa
 ## 2026-10-07 17:31 UTC reviewed offline integrations, no acceptance credit
 
 Exact-reviewed offline forward pure-journal verifier `f87d0a5` is locally integrated as `d130780`; 69 focused post-main tests passed per Python mode, but live protected interval remains UNPROVEN and forward qualification zero. Exact-reviewed Gate-3 R2 bounded intake `4163c3d` is locally integrated as `a582a00`; 736 adjacent post-main tests passed per mode. R1 review and final current-executable repin remain pending. No C/J/E/A crossing: Gate-3 **91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
+## 2026-10-07 17:39 UTC R1 review disposition
+
+Independent exact review of Gate-3 R1 `7730021` returned `CHANGES_REQUIRED` for a reproduced malformed-header path that loses observed HTTP 429 denial history; a sole isolated repair is active. PAPER `b2bbb0d` exact review remains pending, and current-executable binding repin awaits final source/test bytes. No requirement or C/J/E/A boundary crossed: Gate-3 **91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
+## 2026-10-07 17:41 UTC PAPER code review passed in scope
+
+Independent exact review of `b2bbb0d` sealed `PASS_IN_SCOPE`, closing the four retained malformed-rule failures in normal and optimized Python. Integration and current-input evidence remain outstanding. PAPER stays **9/11** with R08/R09 PARTIAL; Gate-3 stays **91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO**; **READY_TO_FUND=false**.
