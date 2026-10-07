@@ -1,3 +1,7 @@
+## 2026-10-07 16:17 UTC full safe capacity restored after Claude cooldown
+
+Integrated exact-reviewed forward journal doc and writer guard on main `ad8222f`; post-main writer guard 2/2 passed. Preserved and resumed the four-file PAPER PWS repair after Claude's 18:50 UTC session-limit exit. Recycled quota-interrupted review lanes to Codex Astra without treating exits as verdicts. G3-L wiring successor `e1310e0` is frozen under independent exact review; three refusal-test successors and pre-funding rehearsal are also under exact reviews. Two independent read-only next-slice maps fill safe capacity to eight lanes. No acceptance, forward qualification, provider or financial authority credit; Shadow runtime untouched.
+
 ## 2026-10-07 16:05 UTC live-lane and main-diff recoveryVerified eight separate specialist runners still active at the safe target. Preserved an unexpected uncommitted main provider-rights/CLI diff as `/tmp/alpha-main-uncommitted-provider-lineage-20261007T1603.patch` (SHA-256 `c46fd024de041e4eebd7f32c623368ad469a7c8066e299558d3a166a4fdda42e`) and ran its focused suite: 314/314 pass normally and under Python `-O`. This is provisional author-side evidence only; keep the main diff and isolated sole-writer bytes intact until exact reconciliation and independent review. Healthy Shadow evidence collection was unchanged, V10 inactive/disabled and execution inactive/masked. No acceptance, authority or funding-readiness credit.
 
 ## 2026-10-07 16:03 UTC reviewed integrations and full safe capacity
