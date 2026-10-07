@@ -214,12 +214,17 @@ def verify_snapshot(policy,req):
         # zero semantic effect, so including it here would make content_sha256 change every cycle
         # too and defeat the entire point of this signature (confirmed against live 2026-10-07/-08
         # snapshots: ~512/517 and ~237/238 distinct source_event_sha256 values for one unchanged
-        # rule_fingerprint). The live event's actually-relevant properties (event id, title, dates,
-        # market ids/condition ids/question/resolutionSource/clobTokenIds/outcomes, and open/closed
-        # state) are independently re-validated by bind_event() on every single verify_snapshot()
-        # call regardless of any stored review, and that call fails closed (raises, before any
-        # proof or content_sha256 is ever built) the moment any of them stops matching the rule's
-        # own preimage -- so this signature does not need to separately track them.
+        # rule_fingerprint). The live event properties bind_event() DOES check (event id, title,
+        # dates, market ids/condition ids/question/resolutionSource/clobTokenIds/outcomes, and
+        # open/closed state) are independently re-validated on every single verify_snapshot() call
+        # regardless of any stored review, and that call fails closed (raises, before any proof or
+        # content_sha256 is ever built) the moment any of them stops matching the rule's own
+        # preimage -- so this signature does not need to separately track them. bind_event() does
+        # NOT check every field a real Gamma event carries (e.g. resolvedBy, umaResolutionStatuses,
+        # endDate, negRiskMarketID, questionID, the event-level resolutionSource); those have never
+        # been observed to vary across hundreds of real re-mints for one rule_fingerprint, but a
+        # live divergence there would not by itself be caught here or by bind_event() -- a known,
+        # currently-inert scope limitation, not something this signature is asserted to cover.
         content={'result':dd.get('result'),'financial_authority':x['body'].get('financial_authority'),
           'checker_version':dd.get('checker_version'),'scope':policy['scope'],'rule_fingerprint':rd['fingerprint'],
           'fixed_evidence_sha256':{name:fr[name]['sha256'] for name in fr}}
