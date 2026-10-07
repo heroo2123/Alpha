@@ -67,12 +67,21 @@ def iterate(base=BASE,score_runner=default_score_runner):
         if resolved:
             if not validation_current(base,resolved):
                 fit=score_runner(base)
+                # A real subprocess scorer that fails closed (non-zero exit, or an
+                # exception raised before its final print) never emits its result
+                # line; last_json() then falls back to {'raw': <tail>}. A stale
+                # forward-validation-status.json from a PRIOR resolved set may
+                # still exist on disk at this point, so success must be judged by
+                # this run's own result, never by file existence alone -- that is
+                # exactly what let a newly-resolved day's DUPLICATE_LABEL_RECORD_ID
+                # or malformed-vector failure get reported as COMPLETE/ATTEMPTED.
+                scored_days=tuple(sorted(r.get('day') for r in fit.get('days',()))) if isinstance(fit,dict) else ()
+                if (not isinstance(fit,dict) or 'raw' in fit
+                        or scored_days!=tuple(sorted(resolved))):
+                    raise RuntimeError('FORWARD_SCORE_RUNNER_FAILED:'+json.dumps(fit,default=str)[:500])
             else:
                 fit=json.loads((base/'forward-validation-status.json').read_text())
-            if (base/'forward-validation-status.json').exists():
-                state='HAS_SCORED_RESOLVED_EVIDENCE_WITH_PENDING_DAYS' if pending else 'FORWARD_VALIDATION_COMPLETE'
-            else:
-                state='FORWARD_VALIDATION_ATTEMPTED'
+            state='HAS_SCORED_RESOLVED_EVIDENCE_WITH_PENDING_DAYS' if pending else 'FORWARD_VALIDATION_COMPLETE'
         else:
             fit=None;state='WAITING_RESOLVED_EVIDENCE'
         value={'version':'alpha_v11_brain_forward_supervisor_v1','state':state,'at':time.time(),

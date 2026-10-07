@@ -34,16 +34,31 @@ def run(base=BASE):
         label_ids=ls['label_ids']
         if len(set(label_ids.values()))!=len(label_ids):
             raise RuntimeError('DUPLICATE_LABEL_RECORD_ID:'+day)
+        capture_record=store.get(cs['capture_id'])
+        capture=capture_record['body']['details']
+        row_identity={child['target_identity']['market_id']:child['target_identity']
+                      for child in capture['rows']}
         labels={}
         for mid,lid in label_ids.items():
-            payload=store.get(lid)['body']['payload']
-            if payload.get('market_id') not in (None,mid):
+            rec=store.get(lid)
+            if rec['kind']!='LABEL':
+                raise RuntimeError('LABEL_MARKET_IDENTITY_MISMATCH:'+day)
+            payload=rec['body']['payload']
+            # Real labels (label_forward.py) carry no top-level market_id; identity
+            # lives in payload['target_identity']. A record filed under the wrong
+            # market key (e.g. a swapped winner/loser) must be caught here, not
+            # silently accepted because an absent top-level field compared equal
+            # to None.
+            target_identity=payload.get('target_identity')
+            if (not isinstance(target_identity,dict) or target_identity.get('market_id')!=mid
+                    or (mid in row_identity and target_identity!=row_identity[mid])):
                 raise RuntimeError('LABEL_MARKET_IDENTITY_MISMATCH:'+day)
             labels[mid]=payload['value']
-        capture=store.get(cs['capture_id'])['body']['details']
         probs=[];truth=[];ids=[]
         for child in capture['rows']:
-            d=store.get(child['decision_id'])['body']['details']
+            # Real DECISION records (EvidenceStore.decision) keep 'explanation' at
+            # the top of the body; there is no 'details' wrapper around it.
+            d=store.get(child['decision_id'])['body']
             mid=child['target_identity']['market_id']
             if mid not in labels:
                 raise RuntimeError('LABEL_MISSING_FOR_MARKET:'+day)
@@ -52,13 +67,15 @@ def run(base=BASE):
             ids.append(mid)
         if sum(truth)!=1 or not math.isclose(sum(probs),1.0,abs_tol=1e-12):
             raise RuntimeError('FORWARD_VECTOR_INVALID:'+day)
-        rows.append({'day':day,'event_id':store.get(cs['capture_id'])['event_id'],
+        rows.append({'day':day,'event_id':capture_record['event_id'],
                      'probabilities':probs,'labels':truth,'market_ids':ids,
                      'capture_id':cs['capture_id'],'prediction_sha256':cs['prediction_sha256']})
     scores=score_vectors([r['probabilities'] for r in rows],[r['labels'].index(1) for r in rows],
         event_ids=[r['event_id'] for r in rows],city_days=['atlanta:'+r['day'] for r in rows])
     out={'version':'alpha_v11_brain_forward_validation_v1',
-         'state':'FORWARD_VALIDATION_COMPLETE','parent_bundle_sha256':PARENT_BUNDLE_SHA256,
+         'state':('FORWARD_VALIDATION_COMPLETE' if not pending
+                   else 'HAS_SCORED_RESOLVED_EVIDENCE_WITH_PENDING_DAYS'),
+         'parent_bundle_sha256':PARENT_BUNDLE_SHA256,
          'days':rows,'pending_days':sorted(pending),'scores':scores,'new_challenger_trained':False,
          'reason':'FORWARD_SAMPLE_ONLY_DO_NOT_WEAKEN_PREREGISTERED_200_TRAIN_DAY_POLICY',
          'financial_authority':False,'automatic_promotion':False}
