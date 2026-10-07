@@ -1,0 +1,1546 @@
+{
+ "as_of_utc": "2026-10-07T12:00:00Z",
+ "baseline_commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+ "contacts": [
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 4,
+    "follow_redirects": false,
+    "max_attempts": 3,
+    "trust_env": false
+   },
+   "contact_id": "ecmwf-s3-backfill-20260929",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "ecmwf_backfill_db",
+    "ecmwf_backfill_code"
+   ],
+   "first_utc": "2026-09-29T10:14:38.645129Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-29T21:35:30.082495Z",
+   "method": "GET",
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path_shape": "/<run>/<cycle>z/{ifs,aifs-ens}/0p25/enfo/<run>-<step>h-enfo-{cf,pf,ef}.grib2 (+ .index)",
+   "purpose": "HISTORICAL_FIELD_BACKFILL",
+   "range_used": true,
+   "request_count": null,
+   "request_count_basis": "55488 DONE messages, 56021 message attempts, 35599041515 field bytes; index GETs per message not itemized.",
+   "status_counts": {
+    "DONE_MESSAGES": 55488
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 1,
+    "follow_redirects": false,
+    "max_attempts": 1,
+    "trust_env": false
+   },
+   "contact_id": "ecmwf-r09-origin-probe-data",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "first_utc": "2026-09-30T07:46:43Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-30T07:46:43Z",
+   "method": "GET",
+   "origin": "https://data.ecmwf.int",
+   "path_shape": "/forecasts/20260929/00z/ifs/0p25/oper/20260929000000-6h-oper-fc.index",
+   "purpose": "ORIGIN_PROBE_AFTER_S3_503",
+   "range_used": false,
+   "request_count": 1,
+   "request_count_basis": "One printed GET per origin after four S3 503s; time from the response Date header (portal time taken from the adjacent S3 leg).",
+   "status_counts": {
+    "200": 1
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 1,
+    "follow_redirects": false,
+    "max_attempts": 1,
+    "trust_env": false
+   },
+   "contact_id": "ecmwf-r09-origin-probe-ecmwf-forecasts",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "first_utc": "2026-09-30T07:46:43Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-30T07:46:43Z",
+   "method": "GET",
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path_shape": "/20260929/00z/ifs/0p25/oper/20260929000000-6h-oper-fc.index",
+   "purpose": "ORIGIN_PROBE_AFTER_S3_503",
+   "range_used": false,
+   "request_count": 1,
+   "request_count_basis": "One printed GET per origin after four S3 503s; time from the response Date header (portal time taken from the adjacent S3 leg).",
+   "status_counts": {
+    "503": 1
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 1,
+    "follow_redirects": false,
+    "max_attempts": 1,
+    "trust_env": false
+   },
+   "contact_id": "ecmwf-r09-origin-probe-d2zvc0wgha4k2l",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "first_utc": "2026-09-30T07:46:44Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-30T07:46:44Z",
+   "method": "GET",
+   "origin": "https://d2zvc0wgha4k2l.cloudfront.net",
+   "path_shape": "/20260929/00z/ifs/0p25/oper/20260929000000-6h-oper-fc.index",
+   "purpose": "ORIGIN_PROBE_AFTER_S3_503",
+   "range_used": false,
+   "request_count": 1,
+   "request_count_basis": "One printed GET per origin after four S3 503s; time from the response Date header (portal time taken from the adjacent S3 leg).",
+   "status_counts": {
+    "503": 1
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": "UNKNOWN",
+    "follow_redirects": "UNKNOWN",
+    "max_attempts": "UNKNOWN",
+    "trust_env": "UNKNOWN"
+   },
+   "contact_id": "ecmwf-capture-v1-ecmwf-forecasts",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "ecmwf_public_export",
+    "a5a6_audit"
+   ],
+   "first_utc": "2026-09-30T07:54:39.435641Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-30T07:54:39.435641Z",
+   "method": "GET",
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path_shape": "/<run>/<cycle>z/<model>/0p25/<stream>/<run>-<step>h-<stream>-<type>.index",
+   "purpose": "INDEX_EXPLORATION",
+   "range_used": false,
+   "request_count": 1,
+   "request_count_basis": "Itemized index rows in the public export; capture total requests=30 includes unitemized field/listing requests.",
+   "status_counts": {
+    "503": 1
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": "UNKNOWN",
+    "follow_redirects": "UNKNOWN",
+    "max_attempts": "UNKNOWN",
+    "trust_env": "UNKNOWN"
+   },
+   "contact_id": "ecmwf-capture-v1-data",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "ecmwf_public_export",
+    "a5a6_audit"
+   ],
+   "first_utc": "2026-09-30T07:54:40.526390Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-30T07:55:15.376499Z",
+   "method": "GET",
+   "origin": "https://data.ecmwf.int",
+   "path_shape": "/forecasts/<run>/<cycle>z/<model>/0p25/<stream>/<run>-<step>h-<stream>-<type>.index",
+   "purpose": "INDEX_EXPLORATION",
+   "range_used": false,
+   "request_count": 28,
+   "request_count_basis": "Itemized index rows in the public export; capture total requests=30 includes unitemized field/listing requests.",
+   "status_counts": {
+    "200": 22,
+    "404": 5,
+    "429": 1
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": "UNKNOWN",
+    "follow_redirects": "UNKNOWN",
+    "max_attempts": "UNKNOWN",
+    "trust_env": "UNKNOWN"
+   },
+   "contact_id": "ecmwf-capture-current-1c8836a-data",
+   "control_domain": "ECMWF",
+   "evidence": [
+    "ecmwf_public_export",
+    "a5a6_audit"
+   ],
+   "first_utc": "2026-09-30T08:04:37.034732Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-30T08:05:59.638025Z",
+   "method": "GET",
+   "origin": "https://data.ecmwf.int",
+   "path_shape": "/forecasts/<run>/<cycle>z/<model>/0p25/<stream>/<run>-<step>h-<stream>-<type>.index",
+   "purpose": "INDEX_EXPLORATION",
+   "range_used": false,
+   "request_count": 4,
+   "request_count_basis": "Itemized index rows in the public export; capture total requests=17 includes unitemized field/listing requests.",
+   "status_counts": {
+    "200": 4
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 6,
+    "follow_redirects": true,
+    "max_attempts": 3,
+    "trust_env": false
+   },
+   "contact_id": "noaa-s3-backfill-20260929",
+   "control_domain": "NOAA_GEFS",
+   "evidence": [
+    "gefs_s3_backfill_db",
+    "gefs_s3_backfill_code"
+   ],
+   "first_utc": "2026-09-29T04:54:59.858246Z",
+   "g3_ledger": false,
+   "last_utc": "2026-09-29T13:36:05.076822Z",
+   "method": "GET",
+   "origin": "https://noaa-gefs-pds.s3.amazonaws.com",
+   "path_shape": "/gefs.<run>/<cycle>/atmos/pgrb2ap5/<member>.t<cycle>z.pgrb2a.0p50.f<hour>[.idx]",
+   "purpose": "HISTORICAL_FIELD_BACKFILL",
+   "range_used": true,
+   "request_count": null,
+   "request_count_basis": "33759 DONE messages over 34023 message attempts; each successful attempt is one idx GET plus one Range GET; GETs made by failed attempts are not retained; 5204801848 field bytes; final status after redirects only.",
+   "status_counts": {
+    "2XX_AFTER_REDIRECTS": 67518
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 1,
+    "follow_redirects": false,
+    "max_attempts": 1,
+    "trust_env": true
+   },
+   "contact_id": "noaa-nomads-shadow-collector-20261006-ledger",
+   "control_domain": "NOAA_GEFS",
+   "evidence": [
+    "forward_harvest_doc",
+    "collector_code",
+    "continuous_day_manager"
+   ],
+   "first_utc": "2026-10-04T10:55:39Z",
+   "g3_ledger": false,
+   "last_utc": "2026-10-07T03:59:58Z",
+   "method": "GET",
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path_shape": "/cgi-bin/filter_gefs_atmos_0p50a.pl?<filter query>",
+   "purpose": "SHADOW_MODEL_FIELD_COLLECTION",
+   "range_used": false,
+   "request_count": 4635,
+   "request_count_basis": "model-get records in the Oct 6 daily Shadow ledger (recorded span as reported); the Oct 5 ledger's 3,743 may overlap and is not added. Each is one GET with one attempt.",
+   "status_counts": {
+    "200": 4635
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 1,
+    "follow_redirects": false,
+    "max_attempts": 5,
+    "trust_env": true
+   },
+   "contact_id": "noaa-nomads-brain-universe-20261004",
+   "control_domain": "NOAA_GEFS",
+   "evidence": [
+    "nomads_capture_manifests",
+    "nomads_errors_prefix",
+    "nomads_harvest_code"
+   ],
+   "first_utc": "2026-10-04T15:45:39.533532Z",
+   "g3_ledger": false,
+   "last_utc": "2026-10-05T17:56:32.905958Z",
+   "method": "GET",
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path_shape": "/cgi-bin/filter_gefs_atmos_0p50a.pl?<filter query>",
+   "purpose": "FORWARD_POINT_FIELD_HARVEST",
+   "range_used": false,
+   "request_count": null,
+   "request_count_basis": "21 READY captures (19 x 310 + 2 x 279 = 6,448 fields); attempts, retries and resumed fields not itemized.",
+   "status_counts": {
+    "200_FIELDS_IN_READY_CAPTURES": 6448,
+    "302_TERMINAL_FAILURES": 5
+   }
+  },
+  {
+   "classification": "OBSERVED_PUBLIC_ANONYMOUS_ACCESS_NOT_PERMISSION",
+   "client_policy": {
+    "concurrency": 6,
+    "follow_redirects": true,
+    "max_attempts": 3,
+    "trust_env": false
+   },
+   "contact_id": "noaa-s3-brain-universe-20261004",
+   "control_domain": "NOAA_GEFS",
+   "evidence": [
+    "s3_harvest_db",
+    "s3_harvest_code"
+   ],
+   "first_utc": "2026-10-04T16:20:21.284294Z",
+   "g3_ledger": false,
+   "last_utc": "2026-10-04T16:22:06.685648Z",
+   "method": "GET",
+   "origin": "https://noaa-gefs-pds.s3.amazonaws.com",
+   "path_shape": "/gefs.20261004/00/atmos/pgrb2ap5/<member>.t00z.pgrb2a.0p50.f<hour>[.idx]",
+   "purpose": "FORWARD_FIELD_HARVEST",
+   "range_used": true,
+   "request_count": 1178,
+   "request_count_basis": "589 DONE messages, one attempt each, idx GET + Range GET; 128882674 field bytes; completion times only.",
+   "status_counts": {
+    "2XX_AFTER_REDIRECTS": 1178
+   }
+  }
+ ],
+ "control_domains": {
+  "ECMWF": {
+   "hold_basis": [
+    "ecmwf-cloudfront-503-20260930T074644Z",
+    "ecmwf-portal-429-20260930T075515Z",
+    "ecmwf-s3-503-20260929T095724Z",
+    "ecmwf-s3-503-20260930T074643Z",
+    "ecmwf-s3-503-20260930T074813Z",
+    "ecmwf-s3-503-20260930T075439Z",
+    "ecmwf-s3-503-untimed-20260823000000-3h-enfo-ef",
+    "ecmwf-s3-503-untimed-20260823000000-3h-oper-fc",
+    "ecmwf-s3-503-untimed-20260823000000-6h-enfo-cf",
+    "ecmwf-s3-503-untimed-20260823000000-6h-enfo-pf",
+    "ecmwf-s3-first-attempts-unretained-20260929",
+    "ecmwf-s3-status-unretained-20260929-pre-repair"
+   ],
+   "later_successes_clear_hold": false,
+   "note": "All S3 503s with bodies are SlowDown ('Please reduce your request rate'); CloudFront fronts the same bucket (server AmazonS3); the portal returned 429. No Retry-After anywhere.",
+   "origins": [
+    "https://d2zvc0wgha4k2l.cloudfront.net",
+    "https://data.ecmwf.int",
+    "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com"
+   ],
+   "providers": [
+    "AIFS",
+    "IFS"
+   ],
+   "resumption_review": null,
+   "scope_independence_review": null,
+   "status": "HELD"
+  },
+  "NOAA_GEFS": {
+   "hold_basis": [
+    "noaa-nomads-302-20261004T154451Z-KATL-2026-10-05",
+    "noaa-nomads-302-20261004T154515Z-KAUS-2026-10-05",
+    "noaa-nomads-302-20261004T154617Z-KDAL-2026-10-05",
+    "noaa-nomads-302-20261004T154640Z-KHOU-2026-10-05",
+    "noaa-nomads-302-20261004T154703Z-KLAX-2026-10-05",
+    "noaa-s3-first-attempts-unretained-20260929"
+   ],
+   "later_successes_clear_hold": false,
+   "note": "P1's proposed origin noaa-gefs-pds S3 was contacted 33 minutes after NOMADS 302s; no reviewed evidence separates NOMADS (Akamai) and the S3 bucket. P1 restriction-history.json omits all NOAA records.",
+   "origins": [
+    "https://noaa-gefs-pds.s3.amazonaws.com",
+    "https://nomads.ncep.noaa.gov"
+   ],
+   "providers": [
+    "GEFS"
+   ],
+   "resumption_review": null,
+   "scope_independence_review": null,
+   "status": "HELD"
+  }
+ },
+ "custody_observations": [
+  "2026-10-07: raw ECMWF files cited by the P1 binding are absent from their recorded paths; no copy found by hash under /home/alphaadmin.",
+  "2026-10-07: the 2026-09-24 NOAA probe result (sha256 2e9eb774...fc1f) is not retained; only its prose summary survives.",
+  "2026-10-07: read-only inventory found 15,510 NOMADS SOURCE_RESULT rows across Shadow ledgers, all SUCCESS with one attempt, and four NOMADS GET reservations without completion records (unfinished intents); spot-checked on daily-2026-10-06.sqlite (4,635 SUCCESS, one IN_PROGRESS reservation at 09:24:15Z). Live ledgers are not bound into this package.",
+  "2026-10-07: Gamma (non-G3-L) retained one HTTP 429 on /markets/5270640 without time or headers; it is outside this package's control domains."
+ ],
+ "evidence_sources": [
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 75340,
+   "note": "Public export of ECMWF exploratory captures capture-v1 and capture-current-1c8836a.",
+   "path": "config/v11/r09_ecmwf_extrema_public_evidence.json",
+   "sha256": "6fd3fc1defd4b9d10459903a9543c3118cbc34e27e3665588463d68140cb6f11",
+   "source_id": "ecmwf_public_export"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 59867,
+   "note": "Accepted-scope A5/A6 retained-source audit; recovered the 07:48:13 S3 503.",
+   "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+   "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+   "source_id": "a5a6_audit"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 20274,
+   "note": "Evidence-only preflight protocol P1: limits, hold carry-forward and GEFS scope rule.",
+   "path": "docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md",
+   "sha256": "ae59812fa58ec41895b87408f0ea175988ae6d20a1f4d5dabcd96a01c2dd3a68",
+   "source_id": "p1_protocol"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 7416,
+   "note": "Public binding of the PREPARED_BLOCKED P1 package and its raw restriction sources.",
+   "path": "docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PACKAGE_20261002.json",
+   "sha256": "4e9af52d3e2f6f9037e38fb7570c1d43a3984ed25c34090aedecfc1d2549e361",
+   "source_id": "p1_binding"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 4133,
+   "note": "Private P1 snapshot of three ECMWF denials (INCOMPLETE_INVENTORY_NOT_LIVE_LEDGER).",
+   "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/restriction-history.json",
+   "sha256": "fcf4c751a9d591c09e397afd6633efa8a4a6f70312d037d6b64c619579d55636",
+   "source_id": "p1_restriction_history"
+  },
+  {
+   "binding": "RECORD_DIGEST_ONLY",
+   "byte_length": 632,
+   "note": "Raw 07:48:13 S3 503 manifest; absent from its recorded path on 2026-10-07.",
+   "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/aws-retry.json",
+   "sha256": "de578a0c51a8811d5bd5c84dcef4e6ece3969b3f631cd43585240c24176b6e19",
+   "source_id": "ecmwf_raw_aws_retry_json"
+  },
+  {
+   "binding": "RECORD_DIGEST_ONLY",
+   "byte_length": 20811,
+   "note": "Raw capture-v1 manifest; absent from its recorded path on 2026-10-07.",
+   "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-v1/capture.json",
+   "sha256": "443b4ad67c8ef71e80db2ec4eca6047032509495fc4ed39311f3913609d69806",
+   "source_id": "ecmwf_raw_capture_v1"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 1465365,
+   "note": "R09 extrema agent transcript (2026-09-30): printed responses, bodies and headers.",
+   "path": "/home/alphaadmin/AlphaV11_R09Extrema/codex.log",
+   "sha256": "5a2cae71b1a455ecaae8ad602004cbf417d758ead283e90dcee93cad0cfa3ea8",
+   "source_id": "r09_transcript"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 7897088,
+   "note": "2026-09-29 ECMWF S3 backfill coordinator ledger (one field FAILED HTTP_503 after 3 attempts).",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill_coordinator.sqlite",
+   "sha256": "f7769de312aa46fdb6c45e7856380e77120751324523c248d0ba0adf549b916f",
+   "source_id": "ecmwf_coordinator_db"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 18316,
+   "note": "Coordinator client: trust_env=False, follow_redirects=False, up to 3 attempts, concurrency 4.",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill_coordinator_20260929.py",
+   "sha256": "0a7bbf1b7e69c2b8f43b7d3113f89ef6fc39dfbce65aa2d0156e84efadf50a80",
+   "source_id": "ecmwf_coordinator_code"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 77934592,
+   "note": "Snapshot before targeted repair: 459 ECMWF_HTTP_STATUS_OR_RANGE_IGNORED failures, status not retained.",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_pre_repair_r1_20260929T212621Z.sqlite",
+   "sha256": "8b8f571dc2dc8393a67374be30986874d6aa645c79bf60825455374002400f57",
+   "source_id": "ecmwf_pre_repair_db"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 78983168,
+   "note": "Final 2026-09-29 ECMWF S3 backfill ledger: 55,488 DONE, 385 needed retries.",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill.sqlite",
+   "sha256": "dc007dc2c4482f7170b9b0ab2a1805738d2d04f91bd733507bf142b3f3426725",
+   "source_id": "ecmwf_backfill_db"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 27751,
+   "note": "ECMWF backfill worker client: trust_env=False, follow_redirects=False, up to 3 attempts, concurrency 4.",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill_worker.py",
+   "sha256": "808d7606ba51660579aa6ed291e255bec19354080efb9192d92d4f6c9d4e7a65",
+   "source_id": "ecmwf_backfill_code"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 30044160,
+   "note": "2026-09-29 noaa-gefs-pds S3 backfill ledger: 33,759 DONE, 264 needed a second attempt.",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_gefs_backfill.sqlite",
+   "sha256": "af2802f4cf204f76fa62c8ba231599ac0596a0e07cbaaf209b7b31a95c00e36e",
+   "source_id": "gefs_s3_backfill_db"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 10601,
+   "note": "GEFS S3 backfill client: trust_env=False, follow_redirects=True, up to 3 attempts, concurrency 6.",
+   "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_gefs_backfill_worker.py",
+   "sha256": "a91eca8fe96b5aaca879467126772d4e57b3e4f5e96d5e0c4acb54a2ffb167f9",
+   "source_id": "gefs_s3_backfill_code"
+  },
+  {
+   "binding": "APPEND_ONLY_PREFIX",
+   "byte_length": 24562,
+   "note": "Brain-universe harvest error log prefix through the last 2026-10-04 NOMADS 302 traceback.",
+   "path": "/home/alphaadmin/AlphaV11_BrainForwardUniverse/errors.log",
+   "sha256": "8c682313e975c6a0d45ebe8b44ec15edd8a8ae4b1833e97b697c2ba1d0ef5655",
+   "source_id": "nomads_errors_prefix"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 12045,
+   "note": "Repo copy, byte-identical to the deployed NOMADS harvest.py (2026-10-05 17:44 version).",
+   "path": "tools/v11_brain_forward_universe_harvest.py",
+   "sha256": "f68ef2ffca02d0f3cee44fbc967479a0f6838a743b9bd1e5331e4b58fd0c5424",
+   "source_id": "nomads_harvest_code"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 11505,
+   "note": "NOMADS harvest saved 2026-10-04 15:50:27, after the 302s; the version that ran during them is not retained.",
+   "path": "/home/alphaadmin/AlphaV11_BrainForwardUniverse/harvest.py.bak-20261005T174411Z",
+   "sha256": "aad532e7c64b69afd44cef421edffaa941be74a78aa8bb27507efeafe495cfce",
+   "source_id": "nomads_harvest_code_1550"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 1002,
+   "note": "Diagnostic NOMADS GET written 2026-10-04 15:46:36; whether and how often it ran is not retained.",
+   "path": "/home/alphaadmin/AlphaV11_BrainForwardUniverse/check_redirect.py",
+   "sha256": "b8d5f35dfbaf25eb229f3b4d9e3613875cf41711f760dbcf64dee57e481dcbbc",
+   "source_id": "nomads_check_redirect"
+  },
+  {
+   "binding": "FILE_SET_MANIFEST",
+   "byte_length": 186887,
+   "note": "The 21 NOMADS harvest capture.json files (field_count, feature_ready_at).",
+   "path": "/home/alphaadmin/AlphaV11_BrainForwardUniverse/pairs",
+   "sha256": "4ac85f7830f2de58ed87c51b9b647d638c5fefd11c8d5dee59c6c517710f807b",
+   "source_id": "nomads_capture_manifests"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 14509,
+   "note": "noaa-gefs-pds S3 harvest written 2026-10-04 16:08, after the NOMADS 302s.",
+   "path": "/home/alphaadmin/AlphaV11_BrainForwardUniverseS3/harvest_s3.py",
+   "sha256": "9e8c7dd4ca561b863a271c07f360957d53fc5bc593999904a59cfb73391091dd",
+   "source_id": "s3_harvest_code"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 1757184,
+   "note": "S3 harvest message table: 589 messages, one idx GET plus one Range GET each.",
+   "path": "/home/alphaadmin/AlphaV11_BrainForwardUniverseS3/forward.sqlite",
+   "sha256": "6494d834cb19c5d04820309be395d98c1c7eda9eddad958ef8fd28ed040f6fed",
+   "source_id": "s3_harvest_db"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 14132,
+   "note": "Shadow PublicCollector: allowlist, anonymity checks, 429/Retry-After and retry policy.",
+   "path": "polymarket_scanner/v11/collection.py",
+   "sha256": "16651c8e44fd640a732af0734468d89f1b8beb0ca8874717a6305516a9add1a0",
+   "source_id": "collector_code"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 15084,
+   "note": "Deployed KATL continuous Shadow client construction (httpx default trust_env).",
+   "path": "tools/v11_continuous_day_manager.py",
+   "sha256": "b53ee4919e6fc191acf40354266ad8bd77a93467fdc795a62279815c86241bf3",
+   "source_id": "continuous_day_manager"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 12260,
+   "note": "Deployed Brain source client construction (httpx default trust_env).",
+   "path": "tools/v11_perpetual_brain_preparer.py",
+   "sha256": "f850af0493b912f4236ac784cf5a2264217c30a3dba6f85a53f1cd045447f151",
+   "source_id": "perpetual_brain_preparer"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 7748,
+   "note": "NOMADS adapter scope, NWS/NCEP references cited as links only, 2026-09-24 pre-HTTP proxy refusal.",
+   "path": "docs/V11_GEFS_SOURCE.md",
+   "sha256": "be0706b29d284e16c61ca14168440ce935694072b468a0965bb2b411cfb4d38d",
+   "source_id": "gefs_source_doc"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 27237,
+   "note": "Read-only Oct 5-7 Shadow ledger counts of real NOMADS GEFS captures.",
+   "path": "docs/V11_FORWARD_EVIDENCE_HARVEST_20261007.md",
+   "sha256": "b370fb232d7f253a83d67219b0504cccd7b36ddd98031f4ee496a636b60f407e",
+   "source_id": "forward_harvest_doc"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 278,
+   "note": "Recovered denial body; equals a retained digest or is transcript text as labelled on its event.",
+   "path": "docs/review-evidence/provider-rights-lineage-20261007/0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460.body",
+   "sha256": "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460",
+   "source_id": "recovered_body_0986be0818f5"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 278,
+   "note": "Recovered denial body; equals a retained digest or is transcript text as labelled on its event.",
+   "path": "docs/review-evidence/provider-rights-lineage-20261007/1de430c06d6fe99b24fb4c0608436ddb2833706c73a66b023af7cc2816686ad2.body",
+   "sha256": "1de430c06d6fe99b24fb4c0608436ddb2833706c73a66b023af7cc2816686ad2",
+   "source_id": "recovered_body_1de430c06d6f"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 17,
+   "note": "Recovered denial body; equals a retained digest or is transcript text as labelled on its event.",
+   "path": "docs/review-evidence/provider-rights-lineage-20261007/3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507.body",
+   "sha256": "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507",
+   "source_id": "recovered_body_3850dfdbf448"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 278,
+   "note": "Recovered denial body; equals a retained digest or is transcript text as labelled on its event.",
+   "path": "docs/review-evidence/provider-rights-lineage-20261007/3e375eb1db6ff582c8f2b105c83bf08debe236b61b9a667f13da109e04b74538.body",
+   "sha256": "3e375eb1db6ff582c8f2b105c83bf08debe236b61b9a667f13da109e04b74538",
+   "source_id": "recovered_body_3e375eb1db6f"
+  },
+  {
+   "binding": "WHOLE_FILE",
+   "byte_length": 278,
+   "note": "Recovered denial body; equals a retained digest or is transcript text as labelled on its event.",
+   "path": "docs/review-evidence/provider-rights-lineage-20261007/7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28.body",
+   "sha256": "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28",
+   "source_id": "recovered_body_7c21325b9a8c"
+  }
+ ],
+ "execution_authority": false,
+ "g3l": "NO_GO",
+ "identity_assessment": {
+  "network.anonymous_no_retry_credential_policy": {
+   "basis": "Envelope evaluator refuses credential/retry/redirect/proxy vectors offline, but actual adapter enforcement does not exist (finding T1-T3).",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FUTURE_IMPLEMENTATION_AND_REVIEW",
+   "remaining_external_or_forward": "New implementation plus independent exact-commit review."
+  },
+  "network.dns_tls_build_peer_policy": {
+   "basis": "No concrete Gate-3 transport exists; historical clients evidence nothing about DNS/TLS/peer enforcement.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FUTURE_IMPLEMENTATION_AND_REVIEW",
+   "remaining_external_or_forward": "New implementation plus independent exact-commit review."
+  },
+  "network.ecmwf_503_429_expiry_resumption_review": {
+   "basis": "Retained evidence carries no Retry-After or expiry; offline review can only adjudicate HELD with UNKNOWN expiry. Resumption needs provider-side evidence.",
+   "closable_offline_on_independent_review": true,
+   "disposition": "OFFLINE_ADJUDICABLE_AS_HELD_ONLY",
+   "remaining_external_or_forward": "Any resumption needs provider expiry/permission evidence obtained under an owner-approved route."
+  },
+  "network.exact_origin_path_purpose_allowlist": {
+   "basis": "Reviewed origins/paths need reviewed permission; this package lists only unqualified candidates and observed shapes.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "network.preflight_approval_receipts_if_used": {
+   "basis": "Owner no-request-before-G3-L rule; no approval or receipt may be invented.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "OWNER_DECISION_REQUIRED",
+   "remaining_external_or_forward": "Owner/protocol decision."
+  },
+  "network.restriction_domain_lineage": {
+   "basis": "This package: every retained denial, unretained-status failure and later success across both domains, bound to pinned bytes, all HELD.",
+   "closable_offline_on_independent_review": true,
+   "disposition": "OFFLINE_CANDIDATE_REQUIRES_INDEPENDENT_REVIEW",
+   "remaining_external_or_forward": "Independent exact-commit review of this package, then private sealing."
+  },
+  "sources.aifs_control_perturbed_mapping": {
+   "basis": "Operational control/perturbed attestation; adapter grammar and observed headers are insufficient.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.aifs_current_run_index_object_range": {
+   "basis": "Run-scoped readiness/index/object/range receipts at or after the selected run.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FORWARD_RUN_OBSERVATION",
+   "remaining_external_or_forward": "Fresh selected-run observation after G3-L-compatible authorization."
+  },
+  "sources.aifs_grib_identity_decoder_build": {
+   "basis": "Qualified A2-A7 decoder/build plus independent pre-acquisition pins.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FUTURE_IMPLEMENTATION_AND_REVIEW",
+   "remaining_external_or_forward": "New implementation plus independent exact-commit review."
+  },
+  "sources.aifs_licence_anonymous_access": {
+   "basis": "No licence/access-term bytes retained; observed anonymous access is not permission; restriction adjudication is unresolved.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.aifs_operational_release_dossier": {
+   "basis": "Original operational release bytes and effective interval; none retained.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.aifs_publication_attestation_or_absence_reason": {
+   "basis": "Provider attestation, or an absence reason grounded in provider documentation not retained.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.aifs_purpose_endpoint_contracts": {
+   "basis": "Real-purpose contracts need reviewed rights and mappings; V4 deliberately refuses them.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.aifs_release_document_retrieval": {
+   "basis": "Retrieval provenance of original documents; only links are retained and retrieval is a provider request.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.gefs_control_perturbed_mapping": {
+   "basis": "Operational control/perturbed attestation; adapter grammar and observed headers are insufficient.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.gefs_current_run_index_object_range": {
+   "basis": "Run-scoped readiness/index/object/range receipts at or after the selected run.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FORWARD_RUN_OBSERVATION",
+   "remaining_external_or_forward": "Fresh selected-run observation after G3-L-compatible authorization."
+  },
+  "sources.gefs_grib_identity_decoder_build": {
+   "basis": "Qualified A2-A7 decoder/build plus independent pre-acquisition pins.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FUTURE_IMPLEMENTATION_AND_REVIEW",
+   "remaining_external_or_forward": "New implementation plus independent exact-commit review."
+  },
+  "sources.gefs_licence_anonymous_access": {
+   "basis": "No licence/access-term bytes retained; observed anonymous access is not permission; restriction adjudication is unresolved.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.gefs_operational_release_dossier": {
+   "basis": "Original operational release bytes and effective interval; none retained.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.gefs_publication_attestation_or_absence_reason": {
+   "basis": "Provider attestation, or an absence reason grounded in provider documentation not retained.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.gefs_purpose_endpoint_contracts": {
+   "basis": "Real-purpose contracts need reviewed rights and mappings; V4 deliberately refuses them.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.gefs_release_document_retrieval": {
+   "basis": "Retrieval provenance of original documents; only links are retained and retrieval is a provider request.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.ifs_control_perturbed_mapping": {
+   "basis": "Operational control/perturbed attestation; adapter grammar and observed headers are insufficient.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.ifs_current_run_index_object_range": {
+   "basis": "Run-scoped readiness/index/object/range receipts at or after the selected run.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FORWARD_RUN_OBSERVATION",
+   "remaining_external_or_forward": "Fresh selected-run observation after G3-L-compatible authorization."
+  },
+  "sources.ifs_grib_identity_decoder_build": {
+   "basis": "Qualified A2-A7 decoder/build plus independent pre-acquisition pins.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "FUTURE_IMPLEMENTATION_AND_REVIEW",
+   "remaining_external_or_forward": "New implementation plus independent exact-commit review."
+  },
+  "sources.ifs_licence_anonymous_access": {
+   "basis": "No licence/access-term bytes retained; observed anonymous access is not permission; restriction adjudication is unresolved.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.ifs_operational_release_dossier": {
+   "basis": "Original operational release bytes and effective interval; none retained.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.ifs_publication_attestation_or_absence_reason": {
+   "basis": "Provider attestation, or an absence reason grounded in provider documentation not retained.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.ifs_purpose_endpoint_contracts": {
+   "basis": "Real-purpose contracts need reviewed rights and mappings; V4 deliberately refuses them.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  },
+  "sources.ifs_release_document_retrieval": {
+   "basis": "Retrieval provenance of original documents; only links are retained and retrieval is a provider request.",
+   "closable_offline_on_independent_review": false,
+   "disposition": "EXTERNAL_PROVIDER_DOCUMENT_OR_RIGHT",
+   "remaining_external_or_forward": "Authentic provider documents/rights acquired or supplied outside this offline lane."
+  }
+ },
+ "identity_impact": {
+  "audit_missing_after": 77,
+  "audit_missing_before": 77,
+  "closed_by_this_package": 0,
+  "offline_adjudicable_as_held_only": [
+   "network.ecmwf_503_429_expiry_resumption_review"
+  ],
+  "offline_candidates_on_independent_review": [
+   "network.restriction_domain_lineage"
+  ],
+  "qualification_credit": 0,
+  "remaining_future_or_external": 28,
+  "statement": "No identity is closed. One network identity becomes an offline candidate on independent review; one can only be adjudicated HELD; 28 remain external, forward or implementation-bound."
+ },
+ "permission_rule": "Observed public anonymous access is never permission. A request needs a reviewed permission bound to licence/access-term bytes, an unheld domain with reviewed expiry for every restriction, and a reviewed origin/path/purpose spec.",
+ "permissions": {
+  "AIFS": {
+   "basis": "No retained licence/access-term bytes; the only references are URLs. Successful historical responses are observations, not permission.",
+   "licence_document_bytes": null,
+   "observed_public_anonymous_access": [
+    "ecmwf-capture-v1-data",
+    "ecmwf-s3-backfill-20260929"
+   ],
+   "reviewed_permissions": [],
+   "status": "NO_REVIEWED_PERMISSION"
+  },
+  "GEFS": {
+   "basis": "No retained licence/access-term bytes; the only references are URLs. Successful historical responses are observations, not permission.",
+   "licence_document_bytes": null,
+   "observed_public_anonymous_access": [
+    "noaa-nomads-brain-universe-20261004",
+    "noaa-nomads-shadow-collector-20261006-ledger",
+    "noaa-s3-backfill-20260929",
+    "noaa-s3-brain-universe-20261004"
+   ],
+   "reviewed_permissions": [],
+   "status": "NO_REVIEWED_PERMISSION"
+  },
+  "IFS": {
+   "basis": "No retained licence/access-term bytes; the only references are URLs. Successful historical responses are observations, not permission.",
+   "licence_document_bytes": null,
+   "observed_public_anonymous_access": [
+    "ecmwf-capture-current-1c8836a-data",
+    "ecmwf-capture-v1-data",
+    "ecmwf-r09-origin-probe-data",
+    "ecmwf-s3-backfill-20260929"
+   ],
+   "reviewed_permissions": [],
+   "status": "NO_REVIEWED_PERMISSION"
+  }
+ },
+ "provider_requests_by_this_package": 0,
+ "qualification_credit": 0,
+ "request_envelope": {
+  "campaign_limits": {
+   "attempts": 8,
+   "body_bytes": 33554432
+  },
+  "candidate_origin_path_specs": [
+   {
+    "basis": "P1 proposal; mapping, rights and NOAA hold unresolved.",
+    "origin": "https://noaa-gefs-pds.s3.amazonaws.com",
+    "path_shape": "/gefs.<YYYYMMDD>/<HH>/atmos/pgrb2ap5/gec00.t<HH>z.pgrb2a.0p50.f<HHH>.idx",
+    "provider": "GEFS",
+    "purpose": "INDEX",
+    "status": "UNQUALIFIED_PROPOSAL"
+   },
+   {
+    "basis": "V4 adapter grammar only; ECMWF domain HELD.",
+    "origin": "https://data.ecmwf.int",
+    "path_shape": "/forecasts/<run>/<HH>z/ifs/0p25/<stream>/<run>-<step>h-<stream>-<type>.grib2",
+    "provider": "IFS",
+    "purpose": "FIELD",
+    "status": "UNQUALIFIED_PROPOSAL"
+   },
+   {
+    "basis": "V4 adapter grammar only; ECMWF domain HELD.",
+    "origin": "https://data.ecmwf.int",
+    "path_shape": "/forecasts/<run>/<HH>z/aifs-ens/0p25/<stream>/<run>-<step>h-<stream>-<type>.grib2",
+    "provider": "AIFS",
+    "purpose": "FIELD",
+    "status": "UNQUALIFIED_PROPOSAL"
+   }
+  ],
+  "forbidden": [
+   "AMBIENT_ENVIRONMENT",
+   "CLIENT_CERTIFICATE",
+   "CONCURRENCY",
+   "COOKIES",
+   "CREDENTIALS",
+   "FAILOVER",
+   "NETRC",
+   "NON_GET_METHOD",
+   "OPEN_OR_MULTI_RANGE",
+   "PROXY",
+   "QUERY",
+   "REDIRECT",
+   "REQUEST_BODY",
+   "RETRY",
+   "SIGNED_URL"
+  ],
+  "methods": [
+   "GET"
+  ],
+  "per_request_limits": {
+   "attempts": 1,
+   "deadline_seconds": 30,
+   "field_body_bytes": {
+    "AIFS": 4194304,
+    "GEFS": 2097152,
+    "IFS": 4194304
+   },
+   "header_bytes": 4096,
+   "header_count": 32,
+   "in_flight": 1,
+   "index_body_bytes": 3145728
+  },
+  "reviewed_origin_path_specs": []
+ },
+ "restriction_events": [
+  {
+   "body_bytes": 278,
+   "body_custody": "LENGTH_ONLY_IN_TRANSCRIPT",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-untimed-20260823000000-3h-enfo-ef",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_503_BODY_LENGTH_ONLY",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260823/00z/ifs/0p25/enfo/20260823000000-3h-enfo-ef.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": null,
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "UNRETAINED_TRANSCRIPT_ORDER_BEFORE_2026-09-30T07:46:43Z"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "LENGTH_ONLY_IN_TRANSCRIPT",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-untimed-20260823000000-3h-oper-fc",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_503_BODY_LENGTH_ONLY",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": null,
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "UNRETAINED_TRANSCRIPT_ORDER_BEFORE_2026-09-30T07:46:43Z"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "LENGTH_ONLY_IN_TRANSCRIPT",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-untimed-20260823000000-6h-enfo-cf",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_503_BODY_LENGTH_ONLY",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260823/00z/aifs-ens/0p25/enfo/20260823000000-6h-enfo-cf.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": null,
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "UNRETAINED_TRANSCRIPT_ORDER_BEFORE_2026-09-30T07:46:43Z"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "LENGTH_ONLY_IN_TRANSCRIPT",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-untimed-20260823000000-6h-enfo-pf",
+   "evidence": [
+    "r09_transcript"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_503_BODY_LENGTH_ONLY",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260823/00z/aifs-ens/0p25/enfo/20260823000000-6h-enfo-pf.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": null,
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "UNRETAINED_TRANSCRIPT_ORDER_BEFORE_2026-09-30T07:46:43Z"
+  },
+  {
+   "body_bytes": null,
+   "body_custody": "NOT_RETAINED",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-20260929T095724Z",
+   "evidence": [
+    "ecmwf_coordinator_db",
+    "ecmwf_coordinator_code"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_503_AFTER_THREE_ATTEMPTS",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "UNRETAINED:ECMWF_AIFS_ENS|2026-08-23|00|006|20",
+   "post_event_requests": "The same coordinator retried this field three times; the 2026-09-29 backfill continued to 10:14:38-21:35:30Z with 55,488 completed messages.",
+   "received_at_utc": "2026-09-29T09:57:24.248188Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "LOCAL_LEDGER_UPDATED_AT"
+  },
+  {
+   "body_bytes": null,
+   "body_custody": "NOT_RETAINED",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-first-attempts-unretained-20260929",
+   "evidence": [
+    "ecmwf_backfill_db",
+    "ecmwf_backfill_code"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "FAILED_ATTEMPT_STATUS_NOT_RETAINED_MAY_OVERLAP_PRE_REPAIR",
+   "occurrences": 533,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "UNRETAINED:385 messages completed only after retry",
+   "post_event_requests": "Each failed attempt was retried within the same run (2^n backoff).",
+   "received_at_utc": "2026-09-29T10:14:52.331706Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": null,
+   "time_basis": "AGGREGATE_COMPLETION_TIMES_TO_2026-09-29T21:33:24.436521Z"
+  },
+  {
+   "body_bytes": null,
+   "body_custody": "NOT_RETAINED",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-status-unretained-20260929-pre-repair",
+   "evidence": [
+    "ecmwf_pre_repair_db",
+    "ecmwf_backfill_code"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "NON_SUCCESS_STATUS_NOT_RETAINED_NOT_401_403_404_410",
+   "occurrences": 459,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "UNRETAINED:459 field Range GETs",
+   "post_event_requests": "Targeted repair runs r1/r2 then re-requested failed fields; final ledger reached 55,488 DONE.",
+   "received_at_utc": "2026-09-29T12:07:05.074357Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": null,
+   "time_basis": "AGGREGATE_FIRST_OF_SPAN_TO_2026-09-29T21:25:23.383271Z"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "RECOVERED_FROM_TRANSCRIPT_TEXT_NO_ORIGINAL_DIGEST",
+   "body_sha256": "1de430c06d6fe99b24fb4c0608436ddb2833706c73a66b023af7cc2816686ad2",
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-20260930T074643Z",
+   "evidence": [
+    "r09_transcript",
+    "recovered_body_1de430c06d6f"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {
+    "date": "Wed, 30 Sep 2026 07:46:43 GMT",
+    "x-amz-request-id": "MRTQHTPR43KKPS2B"
+   },
+   "kind": "HTTP_503_S3_SLOWDOWN",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260929/00z/ifs/0p25/oper/20260929000000-6h-oper-fc.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": "2026-09-30T07:46:43Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "HTTP_DATE_HEADER_SECOND_RESOLUTION"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "RECOVERED_FROM_TRANSCRIPT_TEXT_NO_ORIGINAL_DIGEST",
+   "body_sha256": "3e375eb1db6ff582c8f2b105c83bf08debe236b61b9a667f13da109e04b74538",
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-cloudfront-503-20260930T074644Z",
+   "evidence": [
+    "r09_transcript",
+    "recovered_body_3e375eb1db6f"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {
+    "date": "Wed, 30 Sep 2026 07:46:44 GMT",
+    "x-cache": "Error from cloudfront"
+   },
+   "kind": "HTTP_503_S3_SLOWDOWN",
+   "occurrences": 1,
+   "origin": "https://d2zvc0wgha4k2l.cloudfront.net",
+   "path": "/20260929/00z/ifs/0p25/oper/20260929000000-6h-oper-fc.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": "2026-09-30T07:46:44Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "HTTP_DATE_HEADER_SECOND_RESOLUTION"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "RECOVERED_BYTE_EXACT_FROM_RETAINED_HEADERS_DIGEST_VERIFIED",
+   "body_sha256": "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28",
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-20260930T074813Z",
+   "evidence": [
+    "a5a6_audit",
+    "p1_restriction_history",
+    "r09_transcript",
+    "recovered_body_7c21325b9a8c"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {
+    "connection": "close",
+    "content-type": "application/xml",
+    "date": "Wed, 30 Sep 2026 07:48:13 GMT",
+    "server": "AmazonS3",
+    "transfer-encoding": "chunked",
+    "x-amz-id-2": "PFu5qXG/MgsE4nX1QIOndte50H568EIlXRL7CU+DYnCmpQZqIsLjms9f4KCnOqVsbEprD2az+udyoKM0KpePlgbWuruMlWWD",
+    "x-amz-request-id": "F69ZYP2JCF0639HX"
+   },
+   "kind": "HTTP_503_S3_SLOWDOWN",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": "2026-09-30T07:48:13.707996Z",
+   "retained_record": {
+    "capture": "earlier-loose-aws-retry",
+    "response": {
+     "headers": {
+      "connection": "close",
+      "content-type": "application/xml",
+      "date": "Wed, 30 Sep 2026 07:48:13 GMT",
+      "server": "AmazonS3",
+      "transfer-encoding": "chunked",
+      "x-amz-id-2": "PFu5qXG/MgsE4nX1QIOndte50H568EIlXRL7CU+DYnCmpQZqIsLjms9f4KCnOqVsbEprD2az+udyoKM0KpePlgbWuruMlWWD",
+      "x-amz-request-id": "F69ZYP2JCF0639HX"
+     },
+     "received_at": "2026-09-30T07:48:13.707996+00:00",
+     "sha256": "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28",
+     "status": 503,
+     "url": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index"
+    }
+   },
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "RECEIPT_CLOCK"
+  },
+  {
+   "body_bytes": 278,
+   "body_custody": "RECOVERED_BYTE_EXACT_FROM_TRANSCRIPT_DIGEST_VERIFIED",
+   "body_sha256": "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460",
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-503-20260930T075439Z",
+   "evidence": [
+    "a5a6_audit",
+    "p1_restriction_history",
+    "r09_transcript",
+    "recovered_body_0986be0818f5"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {
+    "date": "Wed, 30 Sep 2026 07:54:39 GMT"
+   },
+   "kind": "HTTP_503_S3_SLOWDOWN",
+   "occurrences": 1,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": "2026-09-30T07:54:39.435641Z",
+   "retained_record": {
+    "capture": "capture-v1",
+    "response": {
+     "bytes": 278,
+     "evidence_class": "PUBLIC_OBSERVED",
+     "headers": {
+      "date": "Wed, 30 Sep 2026 07:54:39 GMT"
+     },
+     "path": "/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index",
+     "received_at": "2026-09-30T07:54:39.435641+00:00",
+     "sha256": "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460",
+     "source": "aws",
+     "status": 503
+    }
+   },
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 503,
+   "time_basis": "RECEIPT_CLOCK"
+  },
+  {
+   "body_bytes": 17,
+   "body_custody": "RECOVERED_BYTE_EXACT_FROM_TRANSCRIPT_DIGEST_VERIFIED",
+   "body_sha256": "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507",
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-portal-429-20260930T075515Z",
+   "evidence": [
+    "a5a6_audit",
+    "p1_restriction_history",
+    "r09_transcript",
+    "recovered_body_3850dfdbf448"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_429_TOO_MANY_REQUESTS",
+   "occurrences": 1,
+   "origin": "https://data.ecmwf.int",
+   "path": "/forecasts/20260928/00z/ifs/0p25/enfo/20260928000000-12h-enfo-ef.index",
+   "post_event_requests": "Same-domain requests continued after every 2026-09-30 denial: CloudFront and portal at 07:46:43-44Z after S3 SlowDown, a delayed S3 retry at 07:48:13Z, capture-v1 portal index GETs 07:54:40-07:55:14Z after the 07:54:39Z S3 SlowDown, and capture-current-1c8836a portal requests 08:04:37-08:05:59Z after the 07:55:15Z 429. Later 200s do not clear holds.",
+   "received_at_utc": "2026-09-30T07:55:15.376499Z",
+   "retained_record": {
+    "capture": "capture-v1",
+    "response": {
+     "bytes": 17,
+     "evidence_class": "PUBLIC_OBSERVED",
+     "headers": {},
+     "path": "/20260928/00z/ifs/0p25/enfo/20260928000000-12h-enfo-ef.index",
+     "received_at": "2026-09-30T07:55:15.376499+00:00",
+     "sha256": "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507",
+     "source": "portal",
+     "status": 429
+    }
+   },
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 429,
+   "time_basis": "RECEIPT_CLOCK"
+  },
+  {
+   "body_bytes": null,
+   "body_custody": "NOT_RETAINED",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "NOAA_GEFS",
+   "event_id": "noaa-s3-first-attempts-unretained-20260929",
+   "evidence": [
+    "gefs_s3_backfill_db",
+    "gefs_s3_backfill_code"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "FAILED_ATTEMPT_STATUS_NOT_RETAINED",
+   "occurrences": 264,
+   "origin": "https://noaa-gefs-pds.s3.amazonaws.com",
+   "path": "UNRETAINED:264 idx+Range message fetches completed on a second attempt",
+   "post_event_requests": "Each failed attempt was retried after 2^n seconds within the same run; 33,759 messages completed.",
+   "received_at_utc": "2026-09-29T05:56:39.095333Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": null,
+   "time_basis": "AGGREGATE_COMPLETION_TIMES_TO_2026-09-29T13:28:09.651395Z"
+  },
+  {
+   "body_bytes": 742,
+   "body_custody": "LENGTH_ONLY_IN_LOG",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "NOAA_GEFS",
+   "event_id": "noaa-nomads-302-20261004T154451Z-KATL-2026-10-05",
+   "evidence": [
+    "nomads_errors_prefix",
+    "nomads_harvest_code",
+    "nomads_harvest_code_1550",
+    "nomads_check_redirect"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_302_BODY_UNRETAINED_LATER_CODED_AS_AKAMAI_OVER_RATE_LIMIT",
+   "occurrences": 1,
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path": "/cgi-bin/filter_gefs_atmos_0p50a.pl",
+   "post_event_requests": "Same-origin NOMADS harvest captures completed 2026-10-04T15:45:39Z-2026-10-05T17:56:32Z, Shadow NOMADS collection continued through 2026-10-07, and the other NOAA GEFS origin (noaa-gefs-pds S3) was contacted 2026-10-04T16:20Z (1,178 GETs, concurrency 6) after a harvest written at 16:08Z. The code version running during the 302s is not retained; its traceback shows a retry loop.",
+   "received_at_utc": "2026-10-04T15:44:51.962971Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 302,
+   "time_basis": "LOCAL_LOG_EPOCH_AT_TERMINAL_FAILURE"
+  },
+  {
+   "body_bytes": 742,
+   "body_custody": "LENGTH_ONLY_IN_LOG",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "NOAA_GEFS",
+   "event_id": "noaa-nomads-302-20261004T154515Z-KAUS-2026-10-05",
+   "evidence": [
+    "nomads_errors_prefix",
+    "nomads_harvest_code",
+    "nomads_harvest_code_1550",
+    "nomads_check_redirect"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_302_BODY_UNRETAINED_LATER_CODED_AS_AKAMAI_OVER_RATE_LIMIT",
+   "occurrences": 1,
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path": "/cgi-bin/filter_gefs_atmos_0p50a.pl",
+   "post_event_requests": "Same-origin NOMADS harvest captures completed 2026-10-04T15:45:39Z-2026-10-05T17:56:32Z, Shadow NOMADS collection continued through 2026-10-07, and the other NOAA GEFS origin (noaa-gefs-pds S3) was contacted 2026-10-04T16:20Z (1,178 GETs, concurrency 6) after a harvest written at 16:08Z. The code version running during the 302s is not retained; its traceback shows a retry loop.",
+   "received_at_utc": "2026-10-04T15:45:15.475725Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 302,
+   "time_basis": "LOCAL_LOG_EPOCH_AT_TERMINAL_FAILURE"
+  },
+  {
+   "body_bytes": 742,
+   "body_custody": "LENGTH_ONLY_IN_LOG",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "NOAA_GEFS",
+   "event_id": "noaa-nomads-302-20261004T154617Z-KDAL-2026-10-05",
+   "evidence": [
+    "nomads_errors_prefix",
+    "nomads_harvest_code",
+    "nomads_harvest_code_1550",
+    "nomads_check_redirect"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_302_BODY_UNRETAINED_LATER_CODED_AS_AKAMAI_OVER_RATE_LIMIT",
+   "occurrences": 1,
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path": "/cgi-bin/filter_gefs_atmos_0p50a.pl",
+   "post_event_requests": "Same-origin NOMADS harvest captures completed 2026-10-04T15:45:39Z-2026-10-05T17:56:32Z, Shadow NOMADS collection continued through 2026-10-07, and the other NOAA GEFS origin (noaa-gefs-pds S3) was contacted 2026-10-04T16:20Z (1,178 GETs, concurrency 6) after a harvest written at 16:08Z. The code version running during the 302s is not retained; its traceback shows a retry loop.",
+   "received_at_utc": "2026-10-04T15:46:17.205466Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 302,
+   "time_basis": "LOCAL_LOG_EPOCH_AT_TERMINAL_FAILURE"
+  },
+  {
+   "body_bytes": 742,
+   "body_custody": "LENGTH_ONLY_IN_LOG",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "NOAA_GEFS",
+   "event_id": "noaa-nomads-302-20261004T154640Z-KHOU-2026-10-05",
+   "evidence": [
+    "nomads_errors_prefix",
+    "nomads_harvest_code",
+    "nomads_harvest_code_1550",
+    "nomads_check_redirect"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_302_BODY_UNRETAINED_LATER_CODED_AS_AKAMAI_OVER_RATE_LIMIT",
+   "occurrences": 1,
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path": "/cgi-bin/filter_gefs_atmos_0p50a.pl",
+   "post_event_requests": "Same-origin NOMADS harvest captures completed 2026-10-04T15:45:39Z-2026-10-05T17:56:32Z, Shadow NOMADS collection continued through 2026-10-07, and the other NOAA GEFS origin (noaa-gefs-pds S3) was contacted 2026-10-04T16:20Z (1,178 GETs, concurrency 6) after a harvest written at 16:08Z. The code version running during the 302s is not retained; its traceback shows a retry loop.",
+   "received_at_utc": "2026-10-04T15:46:40.465525Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 302,
+   "time_basis": "LOCAL_LOG_EPOCH_AT_TERMINAL_FAILURE"
+  },
+  {
+   "body_bytes": 742,
+   "body_custody": "LENGTH_ONLY_IN_LOG",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "NOAA_GEFS",
+   "event_id": "noaa-nomads-302-20261004T154703Z-KLAX-2026-10-05",
+   "evidence": [
+    "nomads_errors_prefix",
+    "nomads_harvest_code",
+    "nomads_harvest_code_1550",
+    "nomads_check_redirect"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "HTTP_302_BODY_UNRETAINED_LATER_CODED_AS_AKAMAI_OVER_RATE_LIMIT",
+   "occurrences": 1,
+   "origin": "https://nomads.ncep.noaa.gov",
+   "path": "/cgi-bin/filter_gefs_atmos_0p50a.pl",
+   "post_event_requests": "Same-origin NOMADS harvest captures completed 2026-10-04T15:45:39Z-2026-10-05T17:56:32Z, Shadow NOMADS collection continued through 2026-10-07, and the other NOAA GEFS origin (noaa-gefs-pds S3) was contacted 2026-10-04T16:20Z (1,178 GETs, concurrency 6) after a harvest written at 16:08Z. The code version running during the 302s is not retained; its traceback shows a retry loop.",
+   "received_at_utc": "2026-10-04T15:47:03.798328Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": 302,
+   "time_basis": "LOCAL_LOG_EPOCH_AT_TERMINAL_FAILURE"
+  }
+ ],
+ "schema": "ALPHA_V11_G3_PROVIDER_RIGHTS_LINEAGE_V1",
+ "transport_findings": [
+  {
+   "consequence": "Historical NOMADS contacts cannot prove absence of ambient proxy/CA configuration. They are not evidence for network.anonymous_no_retry_credential_policy.",
+   "evidence": [
+    "continuous_day_manager",
+    "perpetual_brain_preparer",
+    "nomads_harvest_code",
+    "collector_code",
+    "gefs_source_doc"
+   ],
+   "fact": "continuous_day_manager, perpetual_brain_preparer and the NOMADS universe harvest build httpx.AsyncClient without trust_env=False, and PublicCollector's anonymity check does not refuse an environment-trusting client. Process environments at contact time are not retained; the 2026-09-24 off-host probe environment had a socks5h proxy and its result file is no longer retained.",
+   "finding_id": "T1-ambient-environment-trusted",
+   "subject": "Shadow and Brain NOMADS clients"
+  },
+  {
+   "consequence": "Retained retry behaviour is incompatible with the zero-retry Gate-3 envelope and expands the denial history with unretained statuses.",
+   "evidence": [
+    "ecmwf_coordinator_db",
+    "ecmwf_backfill_code",
+    "gefs_s3_backfill_code",
+    "nomads_harvest_code",
+    "collector_code"
+   ],
+   "fact": "The ECMWF coordinator retried a field three times ending in HTTP 503; ECMWF and NOAA S3 backfills retry up to three times with 2^n backoff; the NOMADS harvest retries up to five times; PublicCollector retries non-GEFS 5xx within a cycle. GEFS through PublicCollector uses one attempt.",
+   "finding_id": "T2-retries-after-restriction",
+   "subject": "All historical bulk clients"
+  },
+  {
+   "consequence": "Their 2xx outcomes do not bind the answering origin; no redirect-free S3 access is evidenced.",
+   "evidence": [
+    "gefs_s3_backfill_code",
+    "s3_harvest_code"
+   ],
+   "fact": "Both noaa-gefs-pds clients set follow_redirects=True; redirect hops and final hosts are not retained.",
+   "finding_id": "T3-redirects-followed",
+   "subject": "NOAA S3 backfill and S3 harvest"
+  },
+  {
+   "consequence": "Historical volume and parallelism exceed every Gate-3 budget and are part of the control-domain history a resumption review must consider.",
+   "evidence": [
+    "ecmwf_backfill_db",
+    "gefs_s3_backfill_db",
+    "s3_harvest_code"
+   ],
+   "fact": "ECMWF S3 backfill moved about 35.6 GB at concurrency 4 on 2026-09-29; NOAA S3 backfill about 5.2 GB at concurrency 6; the Oct 4 S3 harvest ran at concurrency 6. S3 SlowDown 503s followed on 2026-09-30.",
+   "finding_id": "T4-concurrency-and-volume",
+   "subject": "Sep 29 bulk backfills and Oct 4 S3 harvest"
+  },
+  {
+   "consequence": "Origin switching after a denial is failover. The protocol forbids inferring separate control domains from hostnames, so both NOAA origins and all three ECMWF origins share their domain's hold.",
+   "evidence": [
+    "r09_transcript",
+    "nomads_errors_prefix",
+    "s3_harvest_code",
+    "s3_harvest_db"
+   ],
+   "fact": "After S3 SlowDown the 2026-09-30 work probed CloudFront and the portal and then queried the portal; after the 2026-10-04 NOMADS 302s a new noaa-gefs-pds S3 harvest was written and run 33 minutes later.",
+   "finding_id": "T5-origin-switch-after-restriction",
+   "subject": "ECMWF and NOAA GEFS"
+  },
+  {
+   "consequence": "Historical access was anonymous as far as retained code shows. It is OBSERVED access only and grants no permission.",
+   "evidence": [
+    "collector_code",
+    "ecmwf_backfill_code",
+    "gefs_s3_backfill_code",
+    "gefs_source_doc"
+   ],
+   "fact": "No retained record or client carries Authorization, cookies, API keys or signed URLs; PublicCollector refuses auth/cookie/proxy-authorization headers and clears cookies; ECMWF and S3 clients set trust_env=False. No reviewed licence or access-term bytes are retained for any provider.",
+   "finding_id": "T6-no-credential-evidence",
+   "subject": "All retained contacts"
+  },
+  {
+   "consequence": "Missing statuses remain UNKNOWN holds; recovery restores bodies, not original receipts or clocks.",
+   "evidence": [
+    "p1_binding",
+    "p1_restriction_history",
+    "r09_transcript",
+    "gefs_source_doc"
+   ],
+   "fact": "The P1 binding's raw ECMWF files under AlphaV11_R09Extrema/Alpha are absent. All three pinned denial bodies are recovered byte-exact and digest-verified (two from the transcript, one from retained headers). The 2026-09-24 NOAA probe result, NOMADS 302 bodies and many backfill failure statuses are not retained.",
+   "finding_id": "T7-custody-gaps",
+   "subject": "Raw restriction evidence"
+  }
+ ]
+}
