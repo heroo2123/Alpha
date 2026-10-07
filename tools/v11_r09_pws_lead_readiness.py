@@ -178,17 +178,13 @@ def evaluate_pws_lead_readiness(
             payout_admission_ids=payout_admission_ids)
         preconfirmation_revalidates = True
     except EvidenceError as exc:
+        # Retained pin/reference shapes are checked at their read sites. A raw
+        # exception from revalidation must propagate: this reader cannot tell
+        # an unhandled malformed shape from a defect in admission or inference
+        # by exception class alone.
         assessment = None
         preconfirmation_revalidates = False
         reasons.append("PRECONFIRMATION_DOES_NOT_REVALIDATE:" + str(exc))
-    except (KeyError, TypeError, ValueError, AttributeError):
-        # The stored pin's own envelope (its ``assessment``/``request`` fields)
-        # is read by ``revalidate`` without first checking its shape; a
-        # retained-but-malformed row raises a raw parser error here rather
-        # than ``EvidenceError``. Treat that exactly like a refused pin.
-        assessment = None
-        preconfirmation_revalidates = False
-        reasons.append("MALFORMED_PWS_PRECONFIRMATION_EVIDENCE")
 
     pws_never_settlement_authority = False
     if assessment is not None:

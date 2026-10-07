@@ -16,6 +16,7 @@ import pytest
 
 from polymarket_scanner.v11.evidence import EvidenceError
 from polymarket_scanner.v11.pws_admission import PWSPreconfirmation
+from polymarket_scanner.v11.strategy_admission import StrategyAdmission
 from polymarket_scanner.v11.pws_lead import LeadPolicy, PWSObservationLead
 from test_v11_certification_rules import setup
 from test_v11_model_artifacts import bundle
@@ -151,7 +152,7 @@ def test_malformed_pws_pin_envelope_is_typed_refusal(joined, defect):
     result = probe(joined, c, preconfirmation_id=row['id'])
     assert result.outcome == OUTCOME_NOT_DEMONSTRATED
     assert result.preconfirmation_revalidates is False
-    assert 'MALFORMED_PWS_PRECONFIRMATION_EVIDENCE' in result.reasons
+    assert any(r.startswith('PRECONFIRMATION_DOES_NOT_REVALIDATE:') for r in result.reasons)
     assert result.financial_authority is False
 
 
@@ -171,6 +172,51 @@ def test_malformed_pws_pin_sibling_does_not_affect_genuine_pair(joined):
     assert result.preconfirmation_revalidates is True
     assert result.genuine_pws_reservation_present is True
     assert result.financial_authority is False
+
+
+@pytest.mark.parametrize('location', [
+    'lead_id', 'observation_admission_id', 'horizon_seconds',
+    'max_pws_age_seconds', 'feature_ready_at',
+])
+def test_wrong_type_reference_and_oversized_lead_number_refuse(joined, location):
+    c = coordinator(joined)
+    c.coordinate('batch', (synthetic_proposal(joined),))
+    pin = c.store.get('paired-pin')
+    details = deepcopy(pin['body']['details'])
+    if location in {'lead_id', 'observation_admission_id'}:
+        details['request'][location] = [] if location == 'lead_id' else {}
+    else:
+        lead = c.store.get('lead')
+        lead_details = deepcopy(lead['body']['details'])
+        if location == 'feature_ready_at':
+            lead_details[location] = 10**400
+        else:
+            lead_details['request']['policy'][location] = 10**400
+        bad_lead = c.store.audit('bad-lead', event_id=lead['event_id'], kind=lead['kind'], details=lead_details)
+        assert c.store.get('bad-lead') == bad_lead
+        details['request']['lead_id'] = 'bad-lead'
+    bad_pin = c.store.audit('bad-pin', event_id=pin['event_id'], kind=pin['kind'], details=details)
+    assert c.store.get('bad-pin') == bad_pin
+    result = probe(joined, c, preconfirmation_id='bad-pin')
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is False
+    assert any(r.startswith('PRECONFIRMATION_DOES_NOT_REVALIDATE:') for r in result.reasons)
+    assert result.financial_authority is False
+
+
+@pytest.mark.parametrize('error', [KeyError, TypeError, ValueError, AttributeError])
+def test_valid_pin_does_not_hide_admission_revalidation_defect(joined, monkeypatch, error):
+    c = coordinator(joined)
+    c.coordinate('batch', (synthetic_proposal(joined),))
+    sentinel = error('VALID_PIN_ADMISSION_DEFECT')
+
+    def faulty(*args, **kwargs):
+        raise sentinel
+
+    monkeypatch.setattr(StrategyAdmission, 'revalidate', faulty)
+    with pytest.raises(error) as caught:
+        probe(joined, c)
+    assert caught.value is sentinel
 
 
 def test_result_is_deterministic_on_replay(joined):
