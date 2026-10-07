@@ -14,7 +14,14 @@ import pytest
 from tools import v11_gate3_current_executable_binding as binding
 
 REPO = Path(__file__).resolve().parents[1]
-SOURCE = "d1c5602aa77e0d835e416d281b4a78754a3a79df"
+SOURCE = "58e63fc8409f49d60b2c4a06efa377a6b30ee195"
+PREVIOUS_SOURCE = "d1c5602aa77e0d835e416d281b4a78754a3a79df"
+REPIN_CHANGES = {
+    "polymarket_scanner/v11/learning_capture.py": "90d2d6446155e928d66c16660b5e90fda3a77fb0",
+    "polymarket_scanner/v11/forecast_features.py": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",
+    "polymarket_scanner/v11/model_artifacts.py": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",
+    "polymarket_scanner/v11/physical_inference.py": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",
+}
 MODULE_ROOTS = {
     "tools/v11_r09_gate3_collector.py",
     "tools/v11_r09_gate3_runtime.py",
@@ -90,12 +97,12 @@ def test_source_local_import_closure_is_pinned():
             pytest.fail(f"closure scan missed direct or transitive import: {path}")
 
 
-def test_formerly_unpinned_local_import_drift_refuses_live_and_committed(tmp_path):
+@pytest.mark.parametrize("target", ["tools/v11_multimodel_panel.py", *REPIN_CHANGES])
+def test_local_import_drift_refuses_live_and_committed(tmp_path, target):
     clone = tmp_path / "checkout"
     subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (clone / binding.MANIFEST).write_bytes((REPO / binding.MANIFEST).read_bytes())
-    target = "tools/v11_multimodel_panel.py"
     source = (clone / target).read_bytes()
     (clone / target).write_bytes(source + b"\n# adverse local import drift\n")
     for committed in (False, True):
@@ -198,13 +205,13 @@ def _altered(tmp_path, change):
     return path
 
 
-def test_exact_candidate_pins_all_three_and_dependent_protocol_tests():
+def test_exact_candidate_pins_seven_histories_and_dependent_protocol_tests():
     result = binding.verify(REPO)
     assert result == {"source_commit": binding.SOURCE_COMMIT,
                       "source_tree": binding.SOURCE_TREE,
                       "verified_files": len(binding.PATHS),
                       "launchable": False, "qualification_credit": 0}
-    assert len(binding.HISTORICAL) == 3
+    assert len(binding.HISTORICAL) == 7
     assert len(binding.PATHS) == 92
     assert {p for p in binding.PATHS if p.startswith("tests/")} == {
         "tests/test_v11_r09_gate3_collector.py",
@@ -293,3 +300,45 @@ def test_manifest_duplicate_key_refuses(tmp_path):
                                 '"launchable": false, "launchable": false,', 1))
     with pytest.raises(ValueError, match="duplicate manifest key"):
         binding.verify(REPO, path)
+
+
+def test_repin_preserves_coverage_and_accounts_for_every_changed_blob():
+    previous = json.loads(_source_git("show", f"{SOURCE}:{binding.MANIFEST}"))
+    current = _manifest()
+    if set(current["files"]) != set(previous["files"]):
+        pytest.fail("repin changed the 92-path coverage")
+    changed = {p for p in current["files"] if current["files"][p] != previous["files"][p]}
+    if changed != set(REPIN_CHANGES):
+        pytest.fail(f"unexpected repinned paths: {sorted(changed)}")
+    for path, commit in REPIN_CHANGES.items():
+        expected = {"commit": PREVIOUS_SOURCE, "tree": previous["source_tree"],
+                    **previous["files"][path]}
+        if current["historical_baselines"][path] != expected:
+            pytest.fail(f"previous frozen observation not retained: {path}")
+        history = _source_git("log", "--format=%H", "--no-merges",
+                              f"{PREVIOUS_SOURCE}..{SOURCE}", "--", path).decode().splitlines()
+        if history != [commit] or binding.DRIFT_COMMITS[path] != (commit,):
+            pytest.fail(f"real path-change history differs: {path}: {history}")
+    for key in ("historical_baselines", "drift_commits"):
+        for path, value in previous[key].items():
+            if current[key][path] != value:
+                pytest.fail(f"prior provenance changed: {key}: {path}")
+
+
+@pytest.mark.parametrize("target", REPIN_CHANGES)
+def test_repinned_dependency_provenance_tampering_refuses(tmp_path, target):
+    for change, reason in (
+        (lambda m: m["historical_baselines"].pop(target), "coverage or authority"),
+        (lambda m: m["historical_baselines"][target].update(commit=SOURCE),
+         "historical review baseline changed"),
+        (lambda m: m["drift_commits"][target].clear(), "partial drift trace"),
+        (lambda m: m["drift_commits"][target][0].update(commit=PREVIOUS_SOURCE),
+         "partial drift trace"),
+        (lambda m: m["drift_commits"][target][0].update(classification=""),
+         "unclassified drift commit"),
+    ):
+        with pytest.raises(ValueError) as exc:
+            binding.verify(REPO, _altered(tmp_path, change))
+        # pytest.raises(match=...) alone loses its regex assertion under -O.
+        if reason not in str(exc.value):
+            pytest.fail(f"unexpected provenance refusal: {exc.value}")

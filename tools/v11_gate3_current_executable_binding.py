@@ -16,14 +16,27 @@ from functools import cache
 from pathlib import Path
 
 MANIFEST = "docs/V11_GATE3_CURRENT_EXECUTABLE_BINDING_20261007.json"
-SOURCE_COMMIT = "d1c5602aa77e0d835e416d281b4a78754a3a79df"
-SOURCE_TREE = "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+SOURCE_COMMIT = "58e63fc8409f49d60b2c4a06efa377a6b30ee195"
+SOURCE_TREE = "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
 HISTORICAL = {
+    # Previous frozen source observation for the four repinned dependencies.
+    "polymarket_scanner/v11/forecast_features.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+    "polymarket_scanner/v11/learning_capture.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+    "polymarket_scanner/v11/model_artifacts.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+    "polymarket_scanner/v11/physical_inference.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "tools/v11_r09_gate3_collector.py": "95e07fab75a3818560378d71556efc55ce122a56",
     "tools/v11_r09_gate3_runtime.py": "6340cb455eebae374039c9bae23cd806681dacb0",
     "tools/v11_r09_gate3_ledgers.py": "6340cb455eebae374039c9bae23cd806681dacb0",
 }
 DRIFT_COMMITS = {
+    "polymarket_scanner/v11/forecast_features.py": (
+        "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",),
+    "polymarket_scanner/v11/learning_capture.py": (
+        "90d2d6446155e928d66c16660b5e90fda3a77fb0",),
+    "polymarket_scanner/v11/model_artifacts.py": (
+        "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",),
+    "polymarket_scanner/v11/physical_inference.py": (
+        "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",),
     "tools/v11_r09_gate3_collector.py": (
         "ef7b47030259b79d19b2db3817b5ae660a0b4f64",),
     "tools/v11_r09_gate3_runtime.py": (
