@@ -5143,3 +5143,6 @@ Independent Claude Opus exact-commit review of the provisional RAW `read_bytes` 
 ## 2026-10-07 01:20 UTC RAW `read_bytes` refusal tests reviewed and integrated
 
 Test-only `7927067` (nine tampered-closure refusal cases) passed independent Opus exact review with mutant evidence (`docs/V11_GATE3_RAW_READBYTES_TESTS_REVIEW_7927067.*`) and was integrated as `ddef4aa`; post-merge RAW 60/60 normal and `-O`. Closes the LOW finding from the `36e769b` review. No requirement boundary crossed. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+## 2026-10-07 11:37 UTC evidence boundary
+
+PAPER V11 READY remains **9/11 strict PASS**; requirements 8 and 9 remain PARTIAL. Independent exact review of `bc2c29d` returned `CHANGES_REQUIRED` for two P2 false-demonstration paths in reservation provenance and PWS-pair binding; a sole isolated repair is live. Gate-3 current-executable candidate `897d064` is under different-provider exact review, with zero identity credit pending PASS and genuine qualification evidence. G3-L remains NO-GO with 77 missing identities; historical C/J/E/A score remains 91/200, formal 1/50. READY_TO_FUND=false. See the current work checkpoint for process and artifact bindings.
