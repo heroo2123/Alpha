@@ -5356,3 +5356,7 @@ Gate-3 current executable binding `be30ef2` and current-byte combined R1/R2 slic
 ## 2026-10-07 20:27 UTC be30ef2 merged; still no G3-L identity qualifies
 
 Closed 6/7 mutation-testing survivors on the `be30ef2` current-executable binding repin with a new committed regression file (37/37 pass, both Python modes) and merged it into main as `be265bf`. The merged candidate itself still carries `qualification_credit=0` and `launchable=false` at 92 pinned paths; the seventh residual (M5, an equivalent-mutant ancestry-check finding with no demonstrated exploitable gap) is documented, not a qualification blocker, and not a requirement change. Still 0 of 77 unqualified G3-L identities can be assembled from frozen Git bytes alone. No acceptance boundary crosses: Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, **G3-L NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
+## 2026-10-07 21:30 UTC fb37ac0 closed as superseded, no requirement change
+
+`fb37ac0` was confirmed a dead duplicate of already-merged `a071216`; no repair/merge/credit follows and no safety gate was weakened (receipt-time staleness bound unchanged on main; only generation-timestamp check correctly narrowed to a causality bound). Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, **G3-L NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
