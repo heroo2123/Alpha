@@ -17,13 +17,12 @@ corroboration outcome.
 """
 from __future__ import annotations
 
-import math
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .evidence import EvidenceError, finite, identity, sha
 
-ATTESTATION_VERSION = "alpha_v11_label_attestation_v2"
+ATTESTATION_VERSION = "alpha_v11_label_attestation_v3"
 GAMMA_LABEL_PROVIDER = "GAMMA_CLOSED_MARKET_EXACT_TOKEN_PAYOUT"
 OFFICIAL_OBSERVATION_PROVIDER = "NOAA_AWC"
 WHOLE_DEGREE_PRECISION = "WHOLE_DEGREE_F"
@@ -121,24 +120,19 @@ def _collect_target_day_observations(
             if local_dt.date() != target_date:
                 continue
             temp_c = finite(obs["temperature_c"], nonnegative=False)
-            key = round(observed_at, 3)
-            if key in by_time and not math.isclose(by_time[key], temp_c, abs_tol=1e-9):
+            key = observed_at
+            if key in by_time and by_time[key] != temp_c:
                 raise EvidenceError("ATTESTATION_OFFICIAL_OBSERVATION_CONFLICT")
             by_time[key] = temp_c
     return by_time
-
-
-def _local_hour(observed_at: float, tz_name: str) -> float:
-    dt = _station_local_datetime(observed_at, tz_name)
-    return dt.hour + dt.minute / 60.0 + dt.second / 3600.0
 
 
 def attest_resolved_day(
     *, rule_fingerprint_payload: dict, label_records: dict[str, dict],
     official_observation_records: list[dict], now: float,
 ) -> dict:
-    """Prove (or fail to prove) that an independently sourced OFFICIAL_OBSERVATION
-    agrees with the Gamma-settled LABEL set for one station/day.
+    """Check whether a NOAA AWC proxy observation agrees with the Gamma LABEL
+    set for one station/day. This does not attest settlement truth.
 
     `label_records` and `official_observation_records` must be full evidence
     records (as returned by EvidenceStore.get/records), not bare payloads, so
@@ -164,10 +158,8 @@ def attest_resolved_day(
     if now < label_knowable_at:
         raise EvidenceError("ATTESTATION_CLOCK_INVALID")
 
-    # sha() rejects a missing/empty/malformed digest outright, so a forged or
-    # absent hash on either side can never silently pass as "distinct" (or
-    # coincidentally collide as "not distinct") the way two unchecked `None`s
-    # from `.get()` could.
+    # sha() rejects malformed digests. The archive runner resolves both
+    # references and verifies their content before calling this pure check.
     gamma_raw_shas = {sha(record["body"]["payload"].get("source_capture_sha256"))
                       for record in label_records.values()}
     by_time = _collect_target_day_observations(
@@ -188,11 +180,14 @@ def attest_resolved_day(
         return dict(base_result, state="ATTESTATION_BLOCKED_MISSING_OFFICIAL_OBSERVATION",
                     needed_observation=_needed_observation_spec(station, tz_name, target_date))
 
-    local_hours = sorted(_local_hour(t, tz_name) for t in by_time)
-    earliest, latest = local_hours[0], local_hours[-1]
-    max_interior_gap = max((b - a for a, b in zip(local_hours, local_hours[1:])), default=0.0)
-    if (earliest > COVERAGE_MARGIN_HOURS or latest < 24 - COVERAGE_MARGIN_HOURS
-            or max_interior_gap > COVERAGE_MARGIN_HOURS):
+    zone = ZoneInfo(tz_name)
+    day_start = datetime.combine(target_date, time.min, zone).timestamp()
+    day_end = datetime.combine(target_date + timedelta(days=1), time.min, zone).timestamp()
+    times = sorted(by_time)
+    max_interior_gap = max((b - a for a, b in zip(times, times[1:])), default=0.0)
+    margin = COVERAGE_MARGIN_HOURS * 3600
+    if (times[0] - day_start > margin or day_end - times[-1] > margin
+            or max_interior_gap > margin):
         return dict(base_result, state="ATTESTATION_BLOCKED_INSUFFICIENT_COVERAGE",
                     needed_observation=_needed_observation_spec(station, tz_name, target_date))
 

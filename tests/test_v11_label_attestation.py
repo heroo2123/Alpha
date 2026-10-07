@@ -180,6 +180,27 @@ def test_duplicate_observation_is_idempotent():
     assert result["state"] == "OFFICIAL_OBSERVATION_PROXY_CORROBORATION_CONSISTENT"
 
 
+def test_near_duplicate_boundary_readings_refuse_in_either_order():
+    low = (74.5 - 1e-8 - 32) * 5 / 9
+    high = (74.5 + 1e-8 - 32) * 5 / 9
+    observations = full_day_observations(low)
+    other = obs(STATION, local_epoch(14), high)
+    for order in (observations + [other], [other] + observations):
+        with pytest.raises(EvidenceError, match="ATTESTATION_OFFICIAL_OBSERVATION_CONFLICT"):
+            attest_resolved_day(rule_fingerprint_payload=rule_payload(), label_records=labels_m1_wins(),
+                                official_observation_records=[official_record(order)], now=NOW)
+
+
+def test_fall_back_gap_uses_elapsed_hours():
+    rule = rule_payload(target_date="2026-11-01")
+    observations = [obs(STATION, datetime(2026, 11, 1, hour,
+                                          tzinfo=ZoneInfo(TZ_NAME)).timestamp(), F72_C)
+                    for hour in range(0, 24, 3)]
+    result = attest_resolved_day(rule_fingerprint_payload=rule, label_records=labels_m1_wins(),
+                                 official_observation_records=[official_record(observations)], now=NOW)
+    assert result['state'] == 'ATTESTATION_BLOCKED_INSUFFICIENT_COVERAGE'
+
+
 def test_conflicting_replay_at_same_timestamp_is_rejected():
     observations = full_day_observations(F72_C)
     peak_at = local_epoch(14)
