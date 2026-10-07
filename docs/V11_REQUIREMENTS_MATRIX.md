@@ -1,3 +1,7 @@
+## 2026-10-07 14:40 UTC live review state
+
+Current-executable re-pin author is active for four documented drift paths; the verifier remains fail-closed and G3-L remains NO-GO/zero credit pending candidate, independent exact review and post-merge verification. Clean PAPER R08/R09 successor `0df7612` is under frozen independent review; requirements 8/9 remain PARTIAL and strict PAPER remains 9/11. No score or funding-readiness boundary crossed.
+
 ## 2026-10-07 15:25 UTC G3-L binding drift found (4/92 files); re-pin pending independent review
 
 `tools/v11_gate3_current_executable_binding.py`'s 92-file byte pin at `SOURCE_COMMIT=d1c5602` is violated by 4 files: `learning_capture.py` (pre-existing, predates this session) and `forecast_features.py`/`model_artifacts.py`/`physical_inference.py` (from this session's `fd965a9`). The gate fails closed (raises/refuses) on drift, so this is a detection gap, not a permitted bypass; G3-L stays NO-GO/HOLD/0 credit. A re-pin candidate extending the existing documented-drift mechanism is in progress in an isolated worktree and needs independent review before merge. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11; READY_TO_FUND=false.

@@ -1,3 +1,7 @@
+## 2026-10-07 14:40 UTC two isolated critical-path lanes resumed
+
+Recovered a writer-free G3-L re-pin worktree and launched its sole Astra/high author with terminal marker. Launched a separate frozen exact review of unmerged PAPER successor `0df7612`, including prior adverse findings and normal/optimized offline tests. Both lanes are review/engineering only; no deployment, provider access, qualification credit or financial action.
+
 ## 2026-10-07 14:16 UTC two PASS candidates merged; two more CHANGES_REQUIRED repairs resubmitted
 
 Merged `fd965a9` (KATL PWS/economic plan) as `e89d126` and InventoryTransform receipt-preflight `23be1c5`, both previously reviewed PASS_IN_SCOPE, into main; reconciliation needed resolving one colliding import-line conflict against the already-merged forward-qualification integration (no logic touched), and both post-merge focused suites passed in full (103/103, then 43/43) in both Python modes. Repaired EvidenceStore budget test `e334290`->`7d91a85` (tests now patch ample disk-free space instead of depending on real host space) and Brain label-attestation `5a0ab1e5`->`d614d9d` (closed the `events`-sibling gap at wrapper and top-level payload scope); both repairs passed their full focused suites in both modes and now have independent re-reviews live. No PAPER/transaction-qualification/financial credit was granted by any of this; it is lineage integration and defect repair only.
