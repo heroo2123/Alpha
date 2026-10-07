@@ -41,7 +41,10 @@ class PhysicalFeatureContract:
     @property
     def schema(self):
         base = ForecastFeatureContract(self.model_widths,self.unit,self.family)
-        return FeatureSchema('physical-members:'+digest([asdict(base),self.input_target,PHYSICAL_SCHEMA.sha256]),
+        # Preserve the established physical schema identity when the forecast
+        # contract acquires an explicit prediction target for commissioning.
+        base_identity = {k: v for k, v in asdict(base).items() if k != 'prediction_target'}
+        return FeatureSchema('physical-members:'+digest([base_identity,self.input_target,PHYSICAL_SCHEMA.sha256]),
                              base.schema.features+PHYSICAL_SCHEMA.features)
 
     @property

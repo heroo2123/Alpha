@@ -20,6 +20,8 @@ from .certification import CapabilityScope, StationRegistry
 from .evidence import EvidenceError, EvidenceStore, canonical, digest, finite, identity, sha
 from .forecast_features import ForecastFeatureContract
 from .forward_qualification import VERSION as FORWARD_VERSION, grouped_outcome
+from .physical_inference import PhysicalFeatureContract
+from ..weather_only_contracts import DAILY_HIGH, DAILY_LOW
 from .gefs_sources import MODEL_ID as GEFS_MODEL_ID
 from .rules import RuleFingerprint, RuleGuard
 
@@ -44,6 +46,38 @@ def require_shadow_namespace(namespace):
 
 
 @dataclass(frozen=True)
+class PinnedFeatureContract:
+    """Exact schema/target contract for a separately protected model bundle."""
+    unit: str
+    family: str
+    target: str
+    feature_schema_sha256: str
+    model_ids: tuple[str, ...]
+
+    def __post_init__(self):
+        if (self.unit not in {'C', 'F'} or self.family not in {DAILY_HIGH, DAILY_LOW}
+                or self.target not in {'FINAL_CONTRACT_PAYOUT', 'NEXT_OFFICIAL_OBSERVATION'}
+                or type(self.model_ids) is not tuple or not 1 <= len(self.model_ids) <= 16
+                or len(set(self.model_ids)) != len(self.model_ids)):
+            raise EvidenceError('SHADOW_PINNED_FEATURE_CONTRACT_INVALID')
+        sha(self.feature_schema_sha256)
+        for model_id in self.model_ids:
+            identity(model_id)
+
+    def require_bundle(self, pinned):
+        from .model_artifacts import PinnedBundle
+        if not isinstance(pinned, PinnedBundle):
+            raise EvidenceError('SHADOW_PINNED_BUNDLE_REQUIRED')
+        value = pinned.payload
+        if (value['bundle']['target'] != self.target
+                or value['bundle']['feature_schema_sha256'] != self.feature_schema_sha256
+                or digest(value['components']['FEATURES']['parameters']) != self.feature_schema_sha256
+                or {m['model_id'] for m in value['components']['PROBABILITY']['parameters']['models']} != set(self.model_ids)):
+            raise EvidenceError('SHADOW_PINNED_FEATURE_CONTRACT_MISMATCH')
+        return value
+
+
+@dataclass(frozen=True)
 class ShadowScopeTarget:
     scope: CapabilityScope
     unit: str
@@ -51,7 +85,7 @@ class ShadowScopeTarget:
     event_id: str
     model_epoch: int
     model_state_sha256: str
-    feature_contract: ForecastFeatureContract
+    feature_contract: ForecastFeatureContract | PhysicalFeatureContract | PinnedFeatureContract
 
     def __post_init__(self):
         if not isinstance(self.scope, CapabilityScope):
@@ -64,7 +98,7 @@ class ShadowScopeTarget:
         if type(self.model_epoch) is not int or not 1 <= self.model_epoch <= 1000:
             raise EvidenceError('SHADOW_TARGET_MODEL_EPOCH_INVALID')
         sha(self.model_state_sha256)
-        if (not isinstance(self.feature_contract, ForecastFeatureContract)
+        if (not isinstance(self.feature_contract, (ForecastFeatureContract, PhysicalFeatureContract, PinnedFeatureContract))
                 or self.feature_contract.unit != self.unit):
             raise EvidenceError('SHADOW_TARGET_FEATURE_CONTRACT_REQUIRED')
 
@@ -120,7 +154,9 @@ class ShadowCommissionPlan:
                     or payload['family'] != t.feature_contract.family
                     or scope.family != ('HIGH' if payload['family'] == 'daily_high_temperature' else 'LOW')):
                 raise EvidenceError('SHADOW_PLAN_COHORT_BINDING_MISMATCH')
-            if key[1] in self.cohort.gefs_events and t.feature_contract.model_widths != ((GEFS_MODEL_ID, 31),):
+            if (key[1] in self.cohort.gefs_events and scope.strategy == 'FUTURE_FORECAST'
+                    and (not isinstance(t.feature_contract, ForecastFeatureContract)
+                         or t.feature_contract.model_widths != ((GEFS_MODEL_ID, 31),))):
                 raise EvidenceError('SHADOW_GEFS_FEATURE_CONTRACT_MISMATCH')
         if actual != set(targets):
             raise EvidenceError('SHADOW_PLAN_COHORT_BINDING_MISMATCH')
@@ -162,8 +198,13 @@ def load_plan(path):
             t = dict(t)
             t['scope'] = CapabilityScope(**t['scope'])
             fc = dict(t['feature_contract'])
-            fc['model_widths'] = tuple(tuple(row) for row in fc['model_widths'])
-            t['feature_contract'] = ForecastFeatureContract(**fc)
+            if 'model_widths' in fc:
+                fc['model_widths'] = tuple(tuple(row) for row in fc['model_widths'])
+            if 'model_ids' in fc:
+                fc['model_ids'] = tuple(fc['model_ids'])
+            t['feature_contract'] = (PinnedFeatureContract(**fc) if 'feature_schema_sha256' in fc
+                                     else PhysicalFeatureContract(**fc) if 'input_target' in fc
+                                     else ForecastFeatureContract(**fc))
             targets.append(ShadowScopeTarget(**t))
         cohort = dict(value['cohort'])
         cohort['gefs_events'] = tuple(cohort['gefs_events'])

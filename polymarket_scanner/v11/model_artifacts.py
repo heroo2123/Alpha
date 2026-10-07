@@ -286,7 +286,8 @@ def predict_with_bundle(pinned: PinnedBundle, rule, components: tuple, *, as_of:
     if value['components']['FEATURES']['parameters']['version'].startswith('forecast-cuts:'):
         from .forecast_features import ForecastFeatureContract
         ForecastFeatureContract(tuple((c.model_id,len(c.members)) for c in components),
-                                rule.payload['unit'],rule.payload['family']).require_bundle(pinned)
+                                rule.payload['unit'],rule.payload['family'],
+                                prediction_target=value['bundle']['target']).require_bundle(pinned)
     physical = params['family']=='GAUSSIAN_PHYSICAL_MEMBER_MIXTURE'
     if physical:
         from .physical_inference import PhysicalFeatureContract

@@ -1,0 +1,12 @@
+--- a/katl_continuous_shadow.py
++++ b/katl_continuous_shadow.py
+@@ -40,0 +41 @@
++from polymarket_scanner.v11.katl_live_plan import commission_targets, upgrade_host_plan
+@@ -122,0 +124,3 @@
++    # The local per-day specification and its commission identities require separate review.
++    pws_config=json.loads((ROOT/f"candidate-pws-config-{rule.payload['target_date']}.json").read_text())
++    plan=upgrade_host_plan(plan,official=metadata,pws_config=pws_config)
+@@ -138 +142,2 @@
+-        'KATL continuous decision Shadow; nonfinancial and uncalibrated', (target,),candidate_cohort(runner))
++        'KATL continuous decision Shadow; nonfinancial and uncalibrated',
++        commission_targets(plan,target,pws_config),candidate_cohort(runner))
