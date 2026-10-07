@@ -1,0 +1,35 @@
+{
+  "schema": "g3l_historical_exact_byte_candidate_v1",
+  "identity": "protocol.g3p_original_review_terminal",
+  "scope": "UNTRUSTED_HISTORICAL_G3P_PROTOCOL_ONLY",
+  "reviewed_protocol_commit": "117830a9b418cdf2a1b1f5146e074343623b8e3f",
+  "reviewed_protocol_tree": "07c4d72fcafb4897896e27dfbcc415e7ab078ee9",
+  "reviewed_document": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+  "recovery_commit": "5a06629c34577c14c2fffd5ced1fda7bd62ab7f2",
+  "artifacts": {
+    "document": {
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "commit": "117830a9b418cdf2a1b1f5146e074343623b8e3f",
+      "tree": "07c4d72fcafb4897896e27dfbcc415e7ab078ee9",
+      "git_blob": "107f160a1498cd871a2ae5bb6fff076acb3753b3",
+      "byte_length": 20041,
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    "report": {
+      "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+      "commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "tree": "a8c4ed31fe8c75af923b5b2b54913cc67081ed6e",
+      "git_blob": "852057d620b1c9df634313b72ba95c0c77f471be",
+      "byte_length": 13657,
+      "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+    },
+    "terminal": {
+      "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json",
+      "commit": "5a06629c34577c14c2fffd5ced1fda7bd62ab7f2",
+      "tree": "a1411f46f1dfd014b5e84895960a820c155b9563",
+      "git_blob": "58e55a77b604f57ad9baa04250f5965076f1d11b",
+      "byte_length": 383,
+      "sha256": "414aef99c0576a0e96b86aa9244ad1ca4ffe4b02f161c69e0193f78498d3db22"
+    }
+  }
+}
