@@ -1,3 +1,7 @@
+## 2026-10-07 16:48 UTC forward checker review does not qualify protected interval
+
+Unused offline checker `a525f5e` is `CHANGES_REQUIRED` for four structural/typed-refusal defects and has a sole repair writer. Current forward protected-interval proof remains UNPROVEN, and the live admission gate remains closed. G3-L wiring `b27031e` awaits exact review; seven historical rows remain unqualified. Gate-3 91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO; PAPER 9/11; READY_TO_FUND=false.
+
 ## 2026-10-07 16:44 UTC test and rehearsal integration, no acceptance credit
 
 Reviewed refusal-code tests for Gate-3, PAPER and forward Shadow plus the reviewed synthetic offline pre-funding rehearsal are integrated on local main `f7faedd`; focused post-main suites passed 225/225 and 61/61 in each Python mode. These strengthen test evidence only. Gate-3 wiring successor `b27031e` and unused forward journal checker `a525f5e` await independent exact verdicts; seven prepared historical WEATHER rows remain unqualified. Gate-3 stays **91/200 (formal 1/50)** with **77 unqualified identities**, G3-L **NO-GO**; PAPER stays **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
