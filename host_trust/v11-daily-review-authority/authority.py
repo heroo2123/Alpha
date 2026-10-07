@@ -5,321 +5,210 @@ from datetime import date,datetime,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-POLICY_VERSION='alpha_v11_daily_review_rollforward_policy_v1'
-REQUEST_VERSION='alpha_v11_daily_review_rollforward_request_v1'
+POLICY_VERSION='alpha_v11_daily_review_rollforward_policy_v2'
+REQUEST_VERSION='alpha_v11_daily_review_rollforward_request_v2'
 MANIFEST_VERSION='alpha_v11_certification_reviews_v1'
-REQUIRED_CAPS=(
- 'ACCOUNTING','CONSERVATIVE_CONTRACT_VALUATION','EXECUTION_MECHANICS',
+REQUIRED_CAPS=('ACCOUNTING','CONSERVATIVE_CONTRACT_VALUATION','EXECUTION_MECHANICS',
  'FORECAST_IDENTITY','IDENTITY','PROTECTED_RISK','RULE_SEMANTICS','SOURCE_INTEGRITY')
 HEX64=re.compile(r'^[0-9a-f]{64}$')
 DECIMAL=re.compile(r'^[0-9]{1,90}$')
 CONDITION=re.compile(r'^0x[0-9a-f]{64}$')
 
 class Refusal(RuntimeError): pass
-
+def need(v,c):
+    if not v: raise Refusal(c)
 def canonical(v): return json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=True)
 def digest(v): return hashlib.sha256(canonical(v).encode()).hexdigest()
-def need(cond,code):
-    if not cond: raise Refusal(code)
-def load(path):
-    with open(path,'rb') as f:return json.load(f)
-def shafile(path):
+def load(p):
+    with open(p,'rb') as f:return json.load(f)
+def shafile(p):
     h=hashlib.sha256()
-    with open(path,'rb') as f:
-        while True:
-            b=f.read(1024*1024)
-            if not b:return h.hexdigest()
-            h.update(b)
+    with open(p,'rb') as f:
+        for b in iter(lambda:f.read(1024*1024),b''):h.update(b)
+    return h.hexdigest()
 def norm(s): return re.sub(r'\s+',' ',str(s or '').strip().lower())
 
-def regular_nosymlink(path):
-    p=Path(path);info=p.lstat()
-    need(stat.S_ISREG(info.st_mode),'FILE_NOT_REGULAR')
-    need(not p.is_symlink(),'FILE_SYMLINK_REFUSED')
-    return info
-
-def root_custody_file(path):
-    p=Path(path);info=regular_nosymlink(p)
-    need(info.st_uid==0 and not (info.st_mode & 0o022),'ROOT_FILE_CUSTODY')
-    for parent in p.parents:
-        pi=parent.lstat()
-        need(stat.S_ISDIR(pi.st_mode) and pi.st_uid==0 and not (pi.st_mode & 0o022),'ROOT_PARENT_CUSTODY')
-        if str(parent)=='/': break
-    return info
-
-def request_custody(path,policy):
-    p=Path(path).resolve();root=Path(policy['allowed_request_root']).resolve()
-    need(root in p.parents,'REQUEST_ROOT');info=regular_nosymlink(p)
-    expected_uid=int(policy['request_owner_uid'])
-    need(info.st_uid==expected_uid and not (info.st_mode & 0o022),'REQUEST_FILE_CUSTODY')
+def regular_file(p):
+    p=Path(p);i=p.lstat();need(stat.S_ISREG(i.st_mode),'FILE_NOT_REGULAR');need(not p.is_symlink(),'FILE_SYMLINK_REFUSED');return p,i
+def root_file(p):
+    p,i=regular_file(p);need(i.st_uid==0 and not(i.st_mode&0o022),'ROOT_FILE_CUSTODY')
+    for q in p.parents:
+        j=q.lstat();need(stat.S_ISDIR(j.st_mode) and j.st_uid==0 and not(j.st_mode&0o022),'ROOT_PARENT_CUSTODY')
+        if str(q)=='/':break
+    return p
+def user_file(p,root,uid,readonly=False):
+    p=Path(p).resolve();root=Path(root).resolve();need(root in p.parents,'USER_FILE_ROOT');_,i=regular_file(p)
+    need(i.st_uid==int(uid),'USER_FILE_OWNER')
+    need((i.st_mode&0o222)==0 if readonly else not(i.st_mode&0o022),'USER_FILE_MODE')
     return p
 
-def record(row):
-    body=json.loads(row['body'])
-    need(digest(body)==row['body_sha256'],'EVIDENCE_BODY_HASH')
-    need(body.get('record_id')==row['record_id'] and body.get('kind')==row['kind']
-         and body.get('event_id')==row['event_id'],'EVIDENCE_IDENTITY')
-    need(body.get('recorded_at')==row['recorded_at'] and body.get('available_at')==row['available_at'],
-         'EVIDENCE_TIME_IDENTITY')
-    return {'seq':row['seq'],'id':row['record_id'],'kind':row['kind'],
-            'event_id':row['event_id'],'sha256':row['body_sha256'],'body':body}
-
+def rec(row):
+    b=json.loads(row['body']);need(digest(b)==row['body_sha256'],'EVIDENCE_BODY_HASH')
+    need(b.get('record_id')==row['record_id'] and b.get('kind')==row['kind'] and b.get('event_id')==row['event_id'],'EVIDENCE_IDENTITY')
+    need(b.get('recorded_at')==row['recorded_at'] and b.get('available_at')==row['available_at'],'EVIDENCE_TIME')
+    return {'seq':row['seq'],'id':row['record_id'],'kind':row['kind'],'event_id':row['event_id'],'sha256':row['body_sha256'],'body':b}
 def get(db,rid):
-    row=db.execute('SELECT * FROM v11_records WHERE record_id=?',(rid,)).fetchone()
-    need(row is not None,'EVIDENCE_MISSING:'+rid);return record(row)
+    r=db.execute('select * from v11_records where record_id=?',(rid,)).fetchone();need(r is not None,'EVIDENCE_MISSING:'+rid);return rec(r)
 
-def daily_date_token(d):
-    x=date.fromisoformat(d)
-    return f"{x.day} {calendar.month_abbr[x.month].lower()} '{x.year%100:02d}"
-
-def full_month(d):
+def month_day(d):
     x=date.fromisoformat(d);return calendar.month_name[x.month].lower(),x.day
-
-def gamma_slug(target_date):
-    x=date.fromisoformat(target_date)
-    return f"highest-temperature-in-atlanta-on-{calendar.month_name[x.month].lower()}-{x.day}-{x.year}"
-
-def live_gamma_event(target_date):
-    host='gamma-api.polymarket.com'
-    slug=gamma_slug(target_date)
-    path='/events?'+urllib.parse.urlencode({'slug':slug})
-    conn=http.client.HTTPSConnection(host,443,context=ssl.create_default_context(),timeout=10)
-    try:
-        conn.request('GET',path,headers={'Host':host,'User-Agent':'Alpha-V11-root-daily-review/1.0',
-                                         'Accept':'application/json','Connection':'close'})
-        r=conn.getresponse()
-        need(r.status==200,'GAMMA_HTTP_STATUS')
-        need(r.getheader('Location') is None,'GAMMA_REDIRECT_REFUSED')
-        raw=r.read(4*1024*1024+1)
-        need(len(raw)<=4*1024*1024,'GAMMA_RESPONSE_SIZE')
-    finally:
-        conn.close()
-    try: rows=json.loads(raw)
-    except Exception as exc: raise Refusal('GAMMA_JSON') from exc
-    need(isinstance(rows,list) and len(rows)==1 and isinstance(rows[0],dict),'GAMMA_EXACT_EVENT_REQUIRED')
-    event=rows[0]
-    need(event.get('slug')==slug,'GAMMA_SLUG_BINDING')
-    return event
-
-def bind_live_event(payload,event):
-    need(str(event.get('id'))==str(payload.get('event_id')),'LIVE_EVENT_ID')
-    need(norm(event.get('title'))==norm(payload.get('title')),'LIVE_EVENT_TITLE')
-    need(str(event.get('eventDate') or '')==str(payload.get('target_date')),'LIVE_EVENT_DATE')
-    need(event.get('active') is True and event.get('closed') is False and event.get('archived') is False,
-         'LIVE_EVENT_NOT_OPEN')
-    sc=payload.get('strict_contract',{})
-    need(isinstance(sc,dict),'STRICT_CONTRACT')
-    core=dict(sc);claimed=core.pop('sha256',None)
-    need(HEX64.fullmatch(str(claimed or '')) and digest(core)==claimed,'STRICT_CONTRACT_SHA')
-    need(norm(event.get('description'))==norm(sc.get('operative_rules')),'LIVE_EVENT_RULE_TEXT')
-    markets=event.get('markets')
-    need(isinstance(markets,list) and len(markets)==len(payload.get('partition',[])),'LIVE_MARKET_COUNT')
-    byid={str(m.get('id')):m for m in markets if isinstance(m,dict)}
-    need(len(byid)==len(markets),'LIVE_MARKET_ID_UNIQUE')
-    for row in payload.get('partition',[]):
-        m=byid.get(str(row.get('market_id')));need(m is not None,'LIVE_MARKET_ID')
-        need(str(m.get('conditionId') or '').lower()==str(row.get('condition_id') or '').lower(),'LIVE_CONDITION_ID')
-        need(norm(m.get('question'))==norm(row.get('question')),'LIVE_MARKET_QUESTION')
-        need(norm(m.get('description'))==norm(sc.get('operative_rules')),'LIVE_MARKET_RULE_TEXT')
-        need(str(m.get('resolutionSource') or '')==str(sc.get('operative_source') or ''),'LIVE_MARKET_SOURCE')
-        try: tokens=json.loads(m.get('clobTokenIds'))
-        except Exception as exc: raise Refusal('LIVE_TOKEN_JSON') from exc
-        need(tokens==[row.get('yes_token'),row.get('no_token')],'LIVE_TOKEN_BINDING')
-        try: outcomes=json.loads(m.get('outcomes'))
-        except Exception as exc: raise Refusal('LIVE_OUTCOME_JSON') from exc
-        need(outcomes==['Yes','No'],'LIVE_BINARY_OUTCOMES')
-        need(m.get('active') is True and m.get('closed') is False and m.get('enableOrderBook') is True,
-             'LIVE_MARKET_NOT_OPEN')
-    return True
-
-def partition_shape(part,unit):
+def short_date(d):
+    x=date.fromisoformat(d);return f"{x.day} {calendar.month_abbr[x.month].lower()} '{x.year%100:02d}"
+def partition(part):
     need(isinstance(part,list) and len(part)==11,'PARTITION_COUNT')
-    ordered=sorted(part,key=lambda x:-10**9 if x.get('lower') is None else float(x['lower']))
-    need(ordered[0].get('lower') is None and ordered[-1].get('upper') is None,'PARTITION_TAILS')
-    ids=set();prev=None;widths=[]
-    for i,x in enumerate(ordered):
-        need(x.get('unit')==unit,'PARTITION_UNIT')
+    rows=sorted(part,key=lambda x:-1e9 if x.get('lower') is None else float(x['lower']))
+    need(rows[0].get('lower') is None and rows[-1].get('upper') is None,'PARTITION_TAILS')
+    seen=set();prev=None;widths=[]
+    for i,x in enumerate(rows):
+        need(x.get('unit')=='F','PARTITION_UNIT')
         for k,rx in (('market_id',DECIMAL),('condition_id',CONDITION),('yes_token',DECIMAL),('no_token',DECIMAL)):
-            v=str(x.get(k,'')).lower();need(bool(rx.fullmatch(v)),'PARTITION_ID:'+k);need(v not in ids,'PARTITION_DUPLICATE_ID');ids.add(v)
-        lo=x.get('lower');hi=x.get('upper')
+            v=str(x.get(k,'')).lower();need(rx.fullmatch(v) is not None,'PARTITION_ID_'+k);need(v not in seen,'PARTITION_DUPLICATE');seen.add(v)
+        lo,hi=x.get('lower'),x.get('upper')
         if lo is not None: need(float(lo).is_integer(),'PARTITION_NONINTEGER')
         if hi is not None: need(float(hi).is_integer(),'PARTITION_NONINTEGER')
-        if i>0: need(lo is not None and prev is not None and float(lo)==float(prev)+1,'PARTITION_GAP')
-        if lo is not None and hi is not None:
-            need(float(hi)>=float(lo),'PARTITION_ORDER');widths.append(float(hi)-float(lo)+1)
+        if i: need(lo is not None and prev is not None and float(lo)==float(prev)+1,'PARTITION_GAP')
+        if lo is not None and hi is not None: need(float(hi)>=float(lo),'PARTITION_ORDER');widths.append(float(hi)-float(lo)+1)
         if hi is not None:prev=hi
-    need(widths and len(set(widths))==1 and widths[0]==2.0,'PARTITION_WIDTH')
-    return ordered
-
-def expected_questions(part,target_date):
-    month,day=full_month(target_date);out=[]
-    for x in partition_shape(part,'F'):
-        lo=x.get('lower');hi=x.get('upper')
-        if lo is None:s=f'will the highest temperature in atlanta be {int(hi)}°f or below on {month} {day}?'
-        elif hi is None:s=f'will the highest temperature in atlanta be {int(lo)}°f or higher on {month} {day}?'
-        else:s=f'will the highest temperature in atlanta be between {int(lo)}-{int(hi)}°f on {month} {day}?'
-        out.append(norm(s))
+    need(widths and set(widths)=={2.0},'PARTITION_WIDTH')
+    return rows
+def questions(rows,d):
+    m,day=month_day(d);out=[]
+    for x in partition(rows):
+        lo,hi=x.get('lower'),x.get('upper')
+        if lo is None:q=f'will the highest temperature in atlanta be {int(hi)}°f or below on {m} {day}?'
+        elif hi is None:q=f'will the highest temperature in atlanta be {int(lo)}°f or higher on {m} {day}?'
+        else:q=f'will the highest temperature in atlanta be between {int(lo)}-{int(hi)}°f on {m} {day}?'
+        out.append(norm(q))
     return out
-
-def normalize_rules(text,target_date):
-    token=re.escape(daily_date_token(target_date))
-    n=norm(text)
-    n,repl=re.subn(r'\b'+token+r'\b','<target-date>',n)
-    need(repl>=1,'OPERATIVE_RULE_DATE_TOKEN')
-    return n
-
-def normalized_payload(payload):
-    p=json.loads(canonical(payload));d=p.get('target_date')
-    need(isinstance(d,str),'TARGET_DATE_MISSING');date.fromisoformat(d)
-    need(p.get('event_id') and DECIMAL.fullmatch(str(p['event_id'])),'EVENT_ID')
-    need(norm(p.get('title'))==f"highest temperature in atlanta on {full_month(d)[0]} {full_month(d)[1]}?",
-         'TITLE_TEMPLATE')
-    part=partition_shape(p.get('partition'),'F')
-    qs=expected_questions(part,d)
-    need([norm(x) for x in p.get('strict_contract',{}).get('questions',[])]==qs,'QUESTION_TEMPLATE')
-    for i,x in enumerate(part):
-        x['market_id']=f'<market-{i}>';x['condition_id']=f'<condition-{i}>'
-        x['yes_token']=f'<yes-{i}>';x['no_token']=f'<no-{i}>';x['question']=f'<question-{i}>'
-        x['lower']=None if i==0 else '<lower>';x['upper']=None if i==len(part)-1 else '<upper>'
-    p['partition']=part;p['event_id']='<event>';p['target_date']='<date>';p['title']='<title>'
-    sc=p.get('strict_contract');need(isinstance(sc,dict),'STRICT_CONTRACT')
-    need(sc.get('event_id')==payload['event_id'] and sc.get('target_date')==d,'STRICT_DATE_EVENT_BINDING')
-    need(HEX64.fullmatch(str(sc.get('sha256',''))),'STRICT_SHA_FORMAT')
-    sc['event_id']='<event>';sc['target_date']='<date>';sc['sha256']='<strict-sha>'
-    sc['questions']=[f'<question-{i}>' for i in range(len(part))]
-    sc['operative_rules']=normalize_rules(sc.get('operative_rules'),d)
+def normalized_rule(p):
+    p=json.loads(canonical(p));d=p.get('target_date');date.fromisoformat(d)
+    need(DECIMAL.fullmatch(str(p.get('event_id',''))) is not None,'EVENT_ID')
+    m,day=month_day(d);need(norm(p.get('title'))==f'highest temperature in atlanta on {m} {day}?','TITLE_TEMPLATE')
+    rows=partition(p.get('partition'));sc=p.get('strict_contract');need(isinstance(sc,dict),'STRICT_CONTRACT')
+    need([norm(x) for x in sc.get('questions',[])]==questions(rows,d),'QUESTION_TEMPLATE')
+    claimed=sc.get('sha256');need(HEX64.fullmatch(str(claimed or '')) is not None,'STRICT_SHA_FORMAT')
+    core=dict(sc);core.pop('sha256',None);need(digest(core)==claimed,'STRICT_SHA_MISMATCH')
+    need(sc.get('event_id')==p['event_id'] and sc.get('target_date')==d,'STRICT_BINDING')
+    n=norm(sc.get('operative_rules'));n,c=re.subn(r'\b'+re.escape(short_date(d))+r'\b','<target-date>',n);need(c>=1,'OPERATIVE_DATE')
+    for i,x in enumerate(rows):
+        x.update(market_id=f'<market-{i}>',condition_id=f'<condition-{i}>',yes_token=f'<yes-{i}>',no_token=f'<no-{i}>',
+                 question=f'<question-{i}>',lower=None if i==0 else '<lower>',upper=None if i==len(rows)-1 else '<upper>')
+    p['partition']=rows;p['event_id']='<event>';p['target_date']='<date>';p['title']='<title>'
+    sc['event_id']='<event>';sc['target_date']='<date>';sc['sha256']='<strict-sha>';sc['questions']=[f'<question-{i}>' for i in range(len(rows))];sc['operative_rules']=n
     return p
 
-def bind_raw_event(payload,event):
-    need(str(event.get('id'))==str(payload.get('event_id')),'RAW_EVENT_ID')
-    need(norm(event.get('title'))==norm(payload.get('title')),'RAW_EVENT_TITLE')
-    sc=payload.get('strict_contract',{});rules=norm(sc.get('operative_rules'));source=norm(sc.get('operative_source'))
-    need(norm(event.get('description'))==rules,'RAW_EVENT_RULES')
-    markets=event.get('markets');need(isinstance(markets,list) and len(markets)==len(payload.get('partition',[])),'RAW_MARKET_COUNT')
-    byid={str(x.get('id')):x for x in markets if isinstance(x,dict)}
-    need(len(byid)==len(markets),'RAW_MARKET_IDS')
-    for row in payload['partition']:
-        m=byid.get(str(row['market_id']));need(m is not None,'RAW_MARKET_MISSING')
-        need(str(m.get('conditionId','')).lower()==str(row['condition_id']).lower(),'RAW_CONDITION_ID')
-        need(norm(m.get('question'))==norm(row.get('question')),'RAW_QUESTION')
-        need(norm(m.get('description'))==rules and norm(m.get('resolutionSource'))==source,'RAW_MARKET_RULE_OR_SOURCE')
-        try: outcomes=json.loads(m.get('outcomes'));tokens=json.loads(m.get('clobTokenIds'))
-        except Exception as exc: raise Refusal('RAW_BINARY_SCHEMA') from exc
-        need(outcomes==['Yes','No'] and tokens==[str(row['yes_token']),str(row['no_token'])],'RAW_TOKEN_BINDING')
-    return True
+def gamma_slug(d):
+    m,day=month_day(d);return f'highest-temperature-in-atlanta-on-{m}-{day}-{date.fromisoformat(d).year}'
+def live_event(d):
+    host='gamma-api.polymarket.com';slug=gamma_slug(d);path='/events?'+urllib.parse.urlencode({'slug':slug})
+    c=http.client.HTTPSConnection(host,443,context=ssl.create_default_context(),timeout=10)
+    try:
+        c.request('GET',path,headers={'Host':host,'User-Agent':'Alpha-V11-root-rollforward/2','Accept':'application/json','Connection':'close'})
+        r=c.getresponse();need(r.status==200,'GAMMA_HTTP');need(r.getheader('Location') is None,'GAMMA_REDIRECT')
+        raw=r.read(4*1024*1024+1);need(len(raw)<=4*1024*1024,'GAMMA_SIZE')
+    finally:c.close()
+    try: rows=json.loads(raw)
+    except Exception as e: raise Refusal('GAMMA_JSON') from e
+    need(isinstance(rows,list) and len(rows)==1 and isinstance(rows[0],dict),'GAMMA_EXACT_EVENT');need(rows[0].get('slug')==slug,'GAMMA_SLUG')
+    return rows[0]
+def bind_event(p,e,open_required):
+    need(str(e.get('id'))==str(p.get('event_id')),'EVENT_ID_BINDING');need(norm(e.get('title'))==norm(p.get('title')),'EVENT_TITLE_BINDING')
+    need(str(e.get('eventDate') or '')==str(p.get('target_date')),'EVENT_DATE_BINDING')
+    if open_required:need(e.get('active') is True and e.get('closed') is False and e.get('archived') is False,'EVENT_NOT_OPEN')
+    sc=p['strict_contract'];need(norm(e.get('description'))==norm(sc.get('operative_rules')),'EVENT_RULE_TEXT')
+    ms=e.get('markets');need(isinstance(ms,list) and len(ms)==len(p['partition']),'MARKET_COUNT');by={str(x.get('id')):x for x in ms}
+    need(len(by)==len(ms),'MARKET_IDS')
+    for row in p['partition']:
+        m=by.get(str(row['market_id']));need(m is not None,'MARKET_MISSING')
+        need(str(m.get('conditionId','')).lower()==str(row['condition_id']).lower(),'CONDITION_BINDING')
+        need(norm(m.get('question'))==norm(row['question']),'MARKET_QUESTION');need(norm(m.get('description'))==norm(sc['operative_rules']),'MARKET_RULE_TEXT')
+        need(str(m.get('resolutionSource') or '')==str(sc.get('operative_source') or ''),'MARKET_SOURCE')
+        try: toks=json.loads(m.get('clobTokenIds'));outs=json.loads(m.get('outcomes'))
+        except Exception as e2: raise Refusal('MARKET_BINARY_SCHEMA') from e2
+        need(toks==[str(row['yes_token']),str(row['no_token'])] and outs==['Yes','No'],'MARKET_TOKEN_BINDING')
+        if open_required:need(m.get('active') is True and m.get('closed') is False and m.get('enableOrderBook') is True,'MARKET_NOT_OPEN')
 
-def validate_rule_against_policy(payload,rule_sha,policy):
-    need(HEX64.fullmatch(rule_sha or ''),'RULE_SHA_FORMAT')
-    need(digest(payload)==rule_sha,'RULE_SHA_MISMATCH')
-    need(payload.get('financial_authority') is False,'RULE_FINANCIAL_AUTHORITY')
-    anchor=policy['anchor_rule_payload']
-    need(normalized_payload(payload)==normalized_payload(anchor),'RULE_ENVELOPE_MISMATCH')
-    need(digest(normalized_payload(anchor))==policy['envelope_sha256'],'POLICY_ENVELOPE_HASH')
-    target=date.fromisoformat(payload['target_date']);today=datetime.now(ZoneInfo('America/New_York')).date()
-    need(today-timedelta(days=1)<=target<=today+timedelta(days=int(policy['maximum_target_days_ahead'])),
-         'TARGET_DATE_WINDOW')
-    return target
-
-def verify_db(policy,request):
-    rawp=Path(request['evidence_db']);regular_nosymlink(rawp);dbp=rawp.resolve();root=Path(policy['allowed_evidence_root']).resolve()
-    need(root in dbp.parents,'EVIDENCE_DB_ROOT');need(re.fullmatch(r'daily-\d{4}-\d{2}-\d{2}\.sqlite',dbp.name) is not None,'EVIDENCE_DB_NAME')
-    db=sqlite3.connect(dbp);db.row_factory=sqlite3.Row
-    meta=dict(db.execute('SELECT key,value FROM v11_meta'))
-    need(meta.get('namespace')==policy['namespace'],'DB_NAMESPACE')
-    rr=get(db,request['rule_record_id']);need(rr['kind']=='RULE_STATE','RULE_RECORD_KIND')
-    rd=rr['body'].get('details',{});need(rd.get('quarantined') is False and rd.get('changed') is False,'RULE_QUARANTINED')
-    payload=rd.get('preimage');need(isinstance(payload,dict),'RULE_PREIMAGE')
-    target=validate_rule_against_policy(payload,rd.get('fingerprint'),policy)
-    need(dbp.name==f'daily-{target.isoformat()}.sqlite','DB_DATE_BINDING')
-    live=live_gamma_event(target.isoformat())
-    bind_live_event(payload,live)
-    need(rd.get('source_event_sha256') and HEX64.fullmatch(rd['source_event_sha256']),'SOURCE_EVENT_SHA')
-    evidence=rr['body'].get('evidence',[]);need(len(evidence)==1,'RULE_SOURCE_EVIDENCE_COUNT')
-    raw=get(db,evidence[0]['id']);need(raw['sha256']==evidence[0]['sha256'] and raw['kind']=='RULES','RULE_SOURCE_EVIDENCE')
-    event=raw['body'].get('payload',{}).get('event');need(isinstance(event,dict),'RAW_EVENT')
-    need(digest(event)==rd['source_event_sha256'],'RAW_EVENT_HASH')
-    bind_raw_event(payload,event)
-    metas=[]
-    rows=[record(x) for x in db.execute("SELECT * FROM v11_records WHERE kind='REGISTRY' AND event_id='station:KATL' ORDER BY seq")]
-    for x in rows:
-        dd=x['body'].get('details',{})
-        if dd.get('action')=='METADATA' and dd.get('metadata_fingerprint')==policy['metadata_fingerprint']:metas.append(x)
-    need(metas and metas[-1]['body']['details'].get('material_changed') is False,'METADATA_BINDING')
-    failures=[x for x in rows if (x['body'].get('details',{}).get('action')=='DEMOTION' and
-              x['body']['details'].get('scope_key')==policy['scope_key'])]
-    need(not failures,'SCOPE_DEMOTION_PRESENT')
-    proofmap={};through=0
+def verify_snapshot(policy,req):
+    snap=user_file(req['evidence_snapshot'],policy['allowed_snapshot_root'],policy['snapshot_owner_uid'],True)
+    need(HEX64.fullmatch(str(req.get('evidence_snapshot_sha256',''))) is not None,'SNAPSHOT_SHA');need(shafile(snap)==req['evidence_snapshot_sha256'],'SNAPSHOT_HASH')
+    need(re.fullmatch(r'daily-\d{4}-\d{2}-\d{2}\.sqlite',snap.name) is not None,'SNAPSHOT_NAME')
+    db=sqlite3.connect('file:'+str(snap)+'?mode=ro&immutable=1',uri=True);db.row_factory=sqlite3.Row
+    meta=dict(db.execute('select key,value from v11_meta'));need(meta.get('namespace')==policy['namespace'],'DB_NAMESPACE')
+    rr=get(db,req['rule_record_id']);need(rr['kind']=='RULE_STATE','RULE_KIND');rd=rr['body'].get('details',{})
+    need(rd.get('changed') is False and rd.get('quarantined') is False,'RULE_QUARANTINED')
+    maxage=float(policy['maximum_request_age_seconds']);now=time.time();received=float(rd.get('source_received_at',-1));need(0<=now-received<=maxage,'RULE_RECEIPT_STALE')
+    p=rd.get('preimage');need(isinstance(p,dict),'RULE_PREIMAGE');need(digest(p)==rd.get('fingerprint'),'RULE_HASH')
+    need(normalized_rule(p)==normalized_rule(policy['anchor_rule_payload']),'RULE_ENVELOPE');need(digest(normalized_rule(policy['anchor_rule_payload']))==policy['envelope_sha256'],'POLICY_ENVELOPE')
+    target=p['target_date'];need(req.get('target_date')==target and snap.name==f'daily-{target}.sqlite','TARGET_BINDING')
+    today=datetime.now(ZoneInfo('America/New_York')).date();td=date.fromisoformat(target);need(today-timedelta(days=1)<=td<=today+timedelta(days=int(policy['maximum_target_days_ahead'])),'TARGET_WINDOW')
+    bind_event(p,live_event(target),True)
+    ev=rr['body'].get('evidence',[]);need(len(ev)==1,'RULE_EVIDENCE_COUNT');raw=get(db,ev[0]['id']);need(raw['sha256']==ev[0]['sha256'] and raw['kind']=='RULES','RULE_EVIDENCE')
+    stored=raw['body'].get('payload',{}).get('event');need(isinstance(stored,dict) and digest(stored)==rd.get('source_event_sha256'),'RAW_EVENT_HASH');bind_event(p,stored,False)
+    fixed=policy['fixed_evidence'];fr={}
+    for name in ('station_raw','station_metadata','technical_readiness'):
+        ref=fixed[name];x=get(db,ref['id']);need(x['sha256']==ref['sha256'],'FIXED_'+name);fr[name]=x
+    tr=fr['technical_readiness']['body'].get('details',{});need(tr.get('financial_authority') is False and tr.get('real_orders') is False,'READINESS_NONFINANCIAL')
+    rows=[rec(x) for x in db.execute("select * from v11_records where kind='REGISTRY' and event_id='station:KATL' order by seq")]
+    need(not any(x['body'].get('details',{}).get('action')=='DEMOTION' and x['body']['details'].get('scope_key')==policy['scope_key'] for x in rows),'DEMOTION')
+    refs={'IDENTITY':[{'id':fr['station_metadata']['id'],'sha256':fr['station_metadata']['sha256']},{'id':rr['id'],'sha256':rr['sha256']}],
+          'RULE_SEMANTICS':[{'id':rr['id'],'sha256':rr['sha256']},{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}],
+          'SOURCE_INTEGRITY':[{'id':fr['station_raw']['id'],'sha256':fr['station_raw']['sha256']},{'id':raw['id'],'sha256':raw['sha256']},{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}]}
+    default=[{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}];proofs={};through=0
     for cap in REQUIRED_CAPS:
-        candidates=[]
-        for x in rows:
-            dd=x['body'].get('details',{})
-            if (dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
-                and dd.get('capability')==cap and dd.get('metadata_fingerprint')==policy['metadata_fingerprint']
-                and dd.get('rule_fingerprint')==rd['fingerprint']):
-                if dd.get('result')!='PASS':raise Refusal('CAPABILITY_NOT_PASS:'+cap)
-                candidates.append(x)
-        need(candidates,'CAPABILITY_MISSING:'+cap)
-        x=candidates[-1];proofmap[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
-    return dict(target_date=target.isoformat(),rule_fingerprint=rd['fingerprint'],proofs=proofmap,
-                reviewed_through_seq=through,rule_record_id=rr['id'],rule_record_sha256=rr['sha256'])
-
-def build_review(policy,verified,now):
-    ttl=min(float(policy['review_ttl_seconds']),7*86400.)
-    return {'scope_key':policy['scope_key'],'namespace':policy['namespace'],'stage':'SHADOW',
-      'metadata_fingerprint':policy['metadata_fingerprint'],'rule_fingerprint':verified['rule_fingerprint'],
-      'reviewer':policy['reviewer'],'review_id':f"katl-shadow-auto-{verified['target_date']}-{verified['rule_fingerprint'][:12]}",
-      'approved_at':now,'expires_at':now+ttl,'reviewed_through_seq':verified['reviewed_through_seq'],
-      'capability_proofs':verified['proofs']}
+        rid=f"rollforward:capability:{p['event_id']}:{rr['seq']}:{cap.lower()}";x=get(db,rid);dd=x['body'].get('details',{})
+        need(dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('result')=='PASS','PROOF_RESULT_'+cap)
+        need(dd.get('checker_version')==policy['checker_version'] and dd.get('scope_key')==policy['scope_key'],'PROOF_POLICY_'+cap)
+        need(dd.get('metadata_fingerprint')==policy['metadata_fingerprint'] and dd.get('rule_fingerprint')==rd['fingerprint'],'PROOF_BINDING_'+cap)
+        need(canonical(dd.get('scope'))==canonical(policy['scope']),'PROOF_SCOPE_'+cap);need(canonical(x['body'].get('evidence',[]))==canonical(refs.get(cap,default)),'PROOF_EVIDENCE_'+cap)
+        need(x['body'].get('financial_authority') is False,'PROOF_FINANCIAL_'+cap);proofs[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
+    db.close();return {'target_date':target,'rule_fingerprint':rd['fingerprint'],'proofs':proofs,'reviewed_through_seq':through}
 
 def verify(policy_path,request_path):
-    policy=load(policy_path);req=load(request_path)
-    need(policy.get('version')==POLICY_VERSION,'POLICY_VERSION');need(req.get('version')==REQUEST_VERSION,'REQUEST_VERSION')
-    need(policy.get('namespace')=='CHALLENGER:katl-shadow' and policy.get('stage')=='SHADOW','POLICY_SCOPE')
-    need(set(policy.get('required_capabilities',[]))==set(REQUIRED_CAPS),'POLICY_CAPABILITIES')
-    need(HEX64.fullmatch(policy.get('scope_key','')) and HEX64.fullmatch(policy.get('metadata_fingerprint','')),'POLICY_HASHES')
-    need(isinstance(policy.get('allowed_request_root'),str) and isinstance(policy.get('request_owner_uid'),int),'POLICY_REQUEST_CUSTODY')
-    manifest=Path(policy['review_manifest']);need(shafile(manifest)==req['expected_manifest_sha256'],'MANIFEST_RACE')
-    v=verify_db(policy,req);review=build_review(policy,v,time.time())
-    return {'verified':v,'review':review,'current_manifest_sha256':req['expected_manifest_sha256'],
-            'financial_authority':False,'activation_authorized':False}
+    policy=load(policy_path);req=load(request_path);need(policy.get('version')==POLICY_VERSION and req.get('version')==REQUEST_VERSION,'VERSION')
+    need(policy.get('namespace')=='CHALLENGER:katl-shadow' and policy.get('stage')=='SHADOW','POLICY_STAGE')
+    need(set(policy.get('required_capabilities',[]))==set(REQUIRED_CAPS),'POLICY_CAPS');need(digest(policy['scope'])==policy['scope_key'],'POLICY_SCOPE')
+    need(30<=float(policy['maximum_request_age_seconds'])<=900,'POLICY_AGE');age=time.time()-float(req.get('prepared_at',-1));need(0<=age<=float(policy['maximum_request_age_seconds']),'REQUEST_STALE')
+    current=shafile(policy['review_manifest']);need(req.get('expected_manifest_sha256')==current,'MANIFEST_RACE')
+    v=verify_snapshot(policy,req);now=time.time();review={'scope_key':policy['scope_key'],'namespace':policy['namespace'],'stage':'SHADOW',
+      'metadata_fingerprint':policy['metadata_fingerprint'],'rule_fingerprint':v['rule_fingerprint'],'reviewer':policy['reviewer'],
+      'review_id':f"katl-shadow-auto-{v['target_date']}-{v['rule_fingerprint'][:12]}",'approved_at':now,
+      'expires_at':now+min(float(policy['review_ttl_seconds']),7*86400),'reviewed_through_seq':v['reviewed_through_seq'],'capability_proofs':v['proofs']}
+    return {'verified':v,'review':review,'current_manifest_sha256':current,'financial_authority':False,'activation_authorized':False}
 
 def publish(policy_path,request_path):
-    root_custody_file(policy_path);policy=load(policy_path)
-    root_custody_file(policy['review_manifest']);request_custody(request_path,policy)
-    result=verify(policy_path,request_path);mp=Path(policy['review_manifest'])
-    today=datetime.now(ZoneInfo('America/New_York')).date().isoformat()
-    need(result['verified']['target_date']==today,'PUBLISH_ONLY_ON_TARGET_LOCAL_DATE')
-    lock=Path(policy['lock_path'])
-    need(str(lock).startswith('/var/lock/alpha-v11/'),'LOCK_PATH_POLICY')
-    lock.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
+    root_file(policy_path);policy=load(policy_path);root_file(policy['review_manifest'])
+    user_file(request_path,policy['allowed_request_root'],policy['request_owner_uid'],False)
+    result=verify(policy_path,request_path);need(result['verified']['target_date']==datetime.now(ZoneInfo('America/New_York')).date().isoformat(),'PUBLISH_ONLY_TARGET_DATE')
+    lock=Path(policy['lock_path']);need(str(lock).startswith('/var/lock/alpha-v11/'),'LOCK_PATH');lock.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
     fd=os.open(lock,os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW,0o600)
     try:
-        fcntl.flock(fd,fcntl.LOCK_EX)
-        need(shafile(mp)==result['current_manifest_sha256'],'MANIFEST_RACE_AFTER_LOCK')
-        m=load(mp);need(m.get('version')==MANIFEST_VERSION and isinstance(m.get('reviews'),list),'MANIFEST_SCHEMA')
-        review=result['review'];exact=[r for r in m['reviews'] if r.get('namespace')==review['namespace'] and r.get('stage')=='SHADOW'
-               and r.get('scope_key')==review['scope_key'] and r.get('metadata_fingerprint')==review['metadata_fingerprint']
-               and r.get('rule_fingerprint')==review['rule_fingerprint']]
+        fcntl.flock(fd,fcntl.LOCK_EX);mp=Path(policy['review_manifest']);need(shafile(mp)==result['current_manifest_sha256'],'MANIFEST_RACE_AFTER_LOCK')
+        m=load(mp);need(m.get('version')==MANIFEST_VERSION and isinstance(m.get('reviews'),list),'MANIFEST_SCHEMA');r=result['review']
+        exact=[x for x in m['reviews'] if x.get('namespace')==r['namespace'] and x.get('stage')=='SHADOW' and x.get('scope_key')==r['scope_key'] and x.get('metadata_fingerprint')==r['metadata_fingerprint'] and x.get('rule_fingerprint')==r['rule_fingerprint']]
         if exact:
-            need(len(exact)==1 and exact[0].get('capability_proofs')==review['capability_proofs'],'EXISTING_REVIEW_CONFLICT')
-            result['published']=False;result['review']=exact[0];return result
-        need(len(m['reviews'])<1000,'MANIFEST_REVIEW_BOUND')
-        m['reviews'].append(review)
-        raw=canonical(m).encode();parent=mp.parent
-        tmp=parent/('.daily-review.'+str(os.getpid())+'.tmp')
-        outfd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
-        try:
-            os.write(outfd,raw);os.fsync(outfd)
-        finally:os.close(outfd)
-        os.replace(tmp,mp);dfd=os.open(parent,os.O_RDONLY|os.O_DIRECTORY);os.fsync(dfd);os.close(dfd)
-        result['published']=True;result['new_manifest_sha256']=hashlib.sha256(raw).hexdigest();return result
+            need(len(exact)==1 and float(exact[0].get('expires_at',0))>time.time(),'EXISTING_REVIEW_CONFLICT')
+            result.update(published=False,state='ALREADY_EXACT_REVIEW_PRESENT',review=exact[0]);return result
+        need(len(m['reviews'])<1000,'MANIFEST_BOUND');m['reviews'].append(r);raw=canonical(m).encode();tmp=mp.parent/('.daily-review.'+str(os.getpid())+'.tmp')
+        f=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
+        try:os.write(f,raw);os.fsync(f)
+        finally:os.close(f)
+        os.replace(tmp,mp);dd=os.open(mp.parent,os.O_RDONLY|os.O_DIRECTORY);os.fsync(dd);os.close(dd)
+        result.update(published=True,state='PUBLISHED',new_manifest_sha256=hashlib.sha256(raw).hexdigest());return result
     finally:os.close(fd)
 
+def current(policy_path):
+    policy=load(policy_path);today=datetime.now(ZoneInfo('America/New_York')).date().isoformat();p=Path(policy['allowed_request_root'])/(today+'.json')
+    if not p.exists():return {'published':False,'state':'NO_CURRENT_DAY_REQUEST','target_date':today,'financial_authority':False,'activation_authorized':False}
+    try:return publish(policy_path,str(p))
+    except Refusal as e:
+        if str(e) in {'VERSION','REQUEST_STALE','MANIFEST_RACE'}:return {'published':False,'state':str(e),'target_date':today,'financial_authority':False,'activation_authorized':False}
+        raise
+
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('mode',choices=('verify','publish'));ap.add_argument('--policy',required=True);ap.add_argument('--request',required=True)
-    a=ap.parse_args()
-    try:r=verify(a.policy,a.request) if a.mode=='verify' else publish(a.policy,a.request)
-    except Exception as exc:
-        print(json.dumps({'ok':False,'reason':str(exc),'type':type(exc).__name__},sort_keys=True));raise SystemExit(2)
+    ap=argparse.ArgumentParser();ap.add_argument('mode',choices=('verify','publish','publish-current'));ap.add_argument('--policy',required=True);ap.add_argument('--request');a=ap.parse_args()
+    try:
+        if a.mode=='publish-current':need(a.request is None,'REQUEST_FORBIDDEN');r=current(a.policy)
+        else:need(bool(a.request),'REQUEST_REQUIRED');r=verify(a.policy,a.request) if a.mode=='verify' else publish(a.policy,a.request)
+    except Exception as e:print(json.dumps({'ok':False,'type':type(e).__name__,'reason':str(e)},sort_keys=True));raise SystemExit(2)
     print(json.dumps({'ok':True,**r},sort_keys=True))
 if __name__=='__main__':main()
