@@ -5376,3 +5376,7 @@ Brain label, InventoryTransform SHADOW and forward admission read-only maps now 
 ## 2026-10-07 23:53 UTC G3-L map and automatic-start preparation
 
 Sealed read-only identity map confirms all seven staged historical rows remain unqualified; two exact reviews and the F3 survivor-test repair remain live. A separate read-only automatic selected-window readiness map is now live from frozen d4f51d5. This adds no evidence or C/J/E/A credit: Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, **G3-L NO-GO**; PAPER **9/11**, **READY_TO_FUND=false**.
+
+## 2026-10-07 23:54 UTC exact binding verdict and InventoryTransform review debt
+
+Independent 5c40f96 binding review is CHANGES_REQUIRED for two P2 defects; its sole repair writer is live and no G3-L credit follows. Read-only InventoryTransform map confirmed dormant/unqualified status and the prior L-B cffi isolation follow-up; an isolated repair writer is live. No C/J/E/A row crosses: Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, **G3-L NO-GO**; PAPER **9/11**, **READY_TO_FUND=false**.
