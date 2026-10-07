@@ -1,3 +1,7 @@
+## 2026-10-07 12:25 UTC evidence audit and pending reviews
+
+The independently completed read-only 77-row G3-L audit confirms 77 unqualified PRE_REVIEW identities in the retained October 2 and October 8 screens. A historical G3-P terminal package author is live, but creates no qualified entry or G3-L credit. The offline microcanary `54b49fc` repair is under a separately retained different-model exact review; no integration or READY_TO_FUND claim follows. Gate-3 remains 91/200 (formal 1/50), PAPER strict 9/11, requirements 8/9 PARTIAL, READY_TO_FUND=false.
+
 ## 2026-10-07 11:58 UTC review status
 
 PAPER requirements 8 and 9 remain PARTIAL. Clean successor `9889483` addressing the two P2 readiness-probe provenance findings is under different-model exact review; its author tests and merge-tree preflight do not qualify live evidence. Gate-3 remains 91/200 (formal 1/50), PAPER strict 9/11, READY_TO_FUND=false. The `5ceae7f` Gate-3 review tool refused without a verdict; no identity or acceptance credit was granted.
