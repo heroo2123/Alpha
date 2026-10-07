@@ -1570,3 +1570,106 @@ def test_cli_check_self_authored_manifest_cannot_upgrade_authority(tmp_path, cap
     out = json.loads(capsys.readouterr().out)
     assert rc == 0
     assert out["problems"] == [] and out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"
+
+
+def _reference_bearing_cli_artifact(tmp_path, monkeypatch):
+    """Route the real CLI through a synthetic artifact with actual local refs."""
+    doc, root, manifest = _positive_seam(tmp_path)
+    artifact_root = tmp_path / "cli-artifact"
+    artifact_path = artifact_root / ARTIFACT
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_bytes(canonical_bytes(doc))
+    monkeypatch.setattr(lineage_mod, "ROOT", artifact_root)
+    return doc, root, manifest
+
+
+def _cli_report(capsys, *args):
+    rc = lineage_mod.main(["check", *args])
+    output = capsys.readouterr()
+    if output.err or not output.out:
+        raise AssertionError(f"CLI did not emit a JSON receipt: {output!r}")
+    report = json.loads(output.out)
+    if report["g3l"] != "NO_GO" or report["qualification_credit"] != 0:
+        raise AssertionError(report)
+    return rc, report
+
+
+@pytest.mark.parametrize("supplied", ["neither", "root", "manifest"])
+def test_cli_reference_bearing_artifact_refuses_omitted_inputs(tmp_path, monkeypatch, capsys, supplied):
+    _, root, manifest = _reference_bearing_cli_artifact(tmp_path, monkeypatch)
+    manifest_path = _manifest_path(tmp_path, manifest)
+    flags = {"neither": (), "root": ("--trusted-evidence-root", str(root)),
+             "manifest": ("--review-manifest", str(manifest_path))}[supplied]
+    rc, report = _cli_report(capsys, *flags)
+    if rc != 1 or "REVIEWED_REF_TRUSTED_INPUTS_REQUIRED" not in report["problems"]:
+        raise AssertionError(report)
+
+
+def test_cli_reference_bearing_artifact_resolves_all_refs(tmp_path, monkeypatch, capsys):
+    _, root, manifest = _reference_bearing_cli_artifact(tmp_path, monkeypatch)
+    rc, report = _cli_report(capsys, "--trusted-evidence-root", str(root),
+                             "--review-manifest", str(_manifest_path(tmp_path, manifest)))
+    if rc != 0 or report["problems"] != []:
+        raise AssertionError(report)
+
+
+def test_cli_reference_bearing_artifact_refuses_missing_review_file(tmp_path, monkeypatch, capsys):
+    doc, root, manifest = _reference_bearing_cli_artifact(tmp_path, monkeypatch)
+    (root / doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"]).unlink()
+    rc, report = _cli_report(capsys, "--trusted-evidence-root", str(root),
+                             "--review-manifest", str(_manifest_path(tmp_path, manifest)))
+    if rc != 1 or not any("SOURCE_UNAVAILABLE" in p for p in report["problems"]):
+        raise AssertionError(report)
+
+
+@pytest.mark.parametrize("missing", ["manifest", "root"])
+def test_cli_reference_bearing_artifact_refuses_missing_trusted_file_or_root(
+        tmp_path, monkeypatch, capsys, missing):
+    _, root, manifest = _reference_bearing_cli_artifact(tmp_path, monkeypatch)
+    manifest_path = _manifest_path(tmp_path, manifest)
+    if missing == "manifest":
+        manifest_path.unlink()
+        expected = "REVIEW_MANIFEST_FILE_UNAVAILABLE:"
+    else:
+        root = tmp_path / "absent-trusted-root"
+        expected = "TRUSTED_ROOT_UNAVAILABLE:"
+    rc, report = _cli_report(capsys, "--trusted-evidence-root", str(root),
+                             "--review-manifest", str(manifest_path))
+    if rc != 1 or not any(p.startswith(expected) for p in report["problems"]):
+        raise AssertionError(report)
+
+
+def test_cli_fixed_manifest_refuses_forged_review(tmp_path, monkeypatch, capsys):
+    doc, root, manifest = _reference_bearing_cli_artifact(tmp_path, monkeypatch)
+    fixed_manifest = _manifest_path(tmp_path, manifest)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE",
+                    reviewer_identity="candidate-author", reviewer_is_self_interested=False)
+    (lineage_mod.ROOT / ARTIFACT).write_bytes(canonical_bytes(doc))
+    rc, report = _cli_report(capsys, "--trusted-evidence-root", str(root),
+                             "--review-manifest", str(fixed_manifest))
+    if rc != 1 or not any("REVIEW_RECORD_NOT_IN_MANIFEST" in p for p in report["problems"]):
+        raise AssertionError(report)
+
+
+@pytest.mark.parametrize("raw,expected", [
+    (b'{"a":1,"a":2}', "duplicate key"),
+    (b'{"x":' + b'[' * 20000 + b'0' + b']' * 20000 + b'}', "JSON_TOO_DEEP"),
+])
+def test_cli_reference_bearing_artifact_refuses_malformed_manifest(
+        tmp_path, monkeypatch, capsys, raw, expected):
+    _, root, _ = _reference_bearing_cli_artifact(tmp_path, monkeypatch)
+    manifest_path = tmp_path / "malformed-manifest.json"
+    manifest_path.write_bytes(raw)
+    rc, report = _cli_report(capsys, "--trusted-evidence-root", str(root),
+                             "--review-manifest", str(manifest_path))
+    if rc != 1 or not any(p.startswith("REVIEW_MANIFEST_FILE_UNAVAILABLE:") and expected in p
+                              for p in report["problems"]):
+        raise AssertionError(report)
+
+
+def test_cli_nul_manifest_path_yields_structured_refusal(tmp_path, capsys):
+    rc, report = _cli_report(capsys, "--trusted-evidence-root", str(tmp_path),
+                             "--review-manifest", str(tmp_path / "manifest.json") + "\x00")
+    if rc != 1 or "REVIEW_MANIFEST_FILE_UNAVAILABLE:INVALID_PATH" not in report["problems"]:
+        raise AssertionError(report)

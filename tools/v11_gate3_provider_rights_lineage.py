@@ -2020,6 +2020,21 @@ def _load_review_manifest_file(path_str: str) -> tuple[Optional[Any], list[str]]
         return strict_loads(raw), []
     except LineageError as exc:
         return None, [f"REVIEW_MANIFEST_FILE_UNAVAILABLE:{exc}"]
+    except RecursionError:
+        return None, ["REVIEW_MANIFEST_FILE_UNAVAILABLE:JSON_TOO_DEEP"]
+    except ValueError:
+        return None, ["REVIEW_MANIFEST_FILE_UNAVAILABLE:INVALID_PATH"]
+
+
+def _has_reviewed_refs(doc: Mapping) -> bool:
+    """Identify the reviewed-reference fields after a successful shape check."""
+    return (
+        any(dom["scope_independence_review"] is not None or dom["resumption_review"] is not None
+            for dom in doc["control_domains"].values())
+        or any(event["expiry_adjudication"] is not None for event in doc["restriction_events"])
+        or any(permission["reviewed_permissions"] for permission in doc["permissions"].values())
+        or bool(doc["request_envelope"]["reviewed_origin_path_specs"])
+    )
 
 
 def main(argv: Optional[list] = None) -> int:
@@ -2039,10 +2054,12 @@ def main(argv: Optional[list] = None) -> int:
     if args.command == "check":
         raw = read_regular(committed_path, 4 * 1024 * 1024)
         doc = strict_loads(raw)
-        problems = check_lineage(doc) + verify_recovered_bodies(doc)
+        shape_problems = check_lineage(doc)
+        problems = shape_problems + verify_recovered_bodies(doc)
         if canonical_bytes(doc) != raw:
             problems.append("ARTIFACT_NOT_CANONICAL")
-        if args.trusted_evidence_root is not None or args.review_manifest is not None:
+        if (args.trusted_evidence_root is not None or args.review_manifest is not None
+                or (not shape_problems and _has_reviewed_refs(doc))):
             manifest, manifest_ok = None, True
             if args.review_manifest is not None:
                 manifest, manifest_problems = _load_review_manifest_file(args.review_manifest)
