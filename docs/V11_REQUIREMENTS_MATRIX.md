@@ -5239,3 +5239,6 @@ Read-only forward audit found zero qualifying same-ledger groups; the protected-
 ## 2026-10-07 14:56 UTC InventoryTransform test candidate under review
 
 Clean test-only `7b0839a` adds receipt-log negative controls and has author-reported 67/67 focused tests in both Python modes. A separate different-model exact review is live; no qualification or requirement credit follows. Gate-3 and PAPER scores and READY_TO_FUND remain unchanged.
+## 2026-10-07 14:59 UTC offline mechanics and recovery preparation
+
+Frozen PAPER offline mechanics passed 177/177 in normal and optimized Python; this adds no current-input R08/R09 acceptance. A disposable pre-funding stop/recovery rehearsal writer and read-only current G3-L inventory audit are live, each isolated with a terminal marker. Gate-3 stays 91/200 (formal 1/50), 77 identities unqualified and G3-L NO-GO; PAPER stays 9/11 with R08/R09 PARTIAL; READY_TO_FUND=false.
