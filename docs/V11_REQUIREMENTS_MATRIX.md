@@ -5360,3 +5360,7 @@ Closed 6/7 mutation-testing survivors on the `be30ef2` current-executable bindin
 ## 2026-10-07 21:30 UTC fb37ac0 closed as superseded, no requirement change
 
 `fb37ac0` was confirmed a dead duplicate of already-merged `a071216`; no repair/merge/credit follows and no safety gate was weakened (receipt-time staleness bound unchanged on main; only generation-timestamp check correctly narrowed to a causality bound). Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, **G3-L NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
+## 2026-10-07 23:48 UTC F3 coverage debt under isolated repair
+
+The Gate-3 binding survivor negative control can skip under packed Git objects; an isolated test-only repair is live. The separate whole-closure `0090c1f` and binding `5c40f96` exact reviews remain pending. No requirement, C/J/E/A, G3-L, PAPER, forward or funding-readiness credit follows: Gate-3 **91/200 (formal 1/50)**, **77 unqualified identities**, **G3-L NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
