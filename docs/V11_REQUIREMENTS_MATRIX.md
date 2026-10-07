@@ -1,3 +1,7 @@
+## 2026-10-07 13:46 UTC provider restriction and URL findings pending repair
+
+Independent provider-rights review of `196b34c` requires repair for unmapped appended restrictions and URL control-character normalization. The Gate-3 test-only postbinding candidate `38f0ae8` is under exact review and can prove only HOLD/zero-credit composition. No provider-rights acceptance or G3-L identity follows. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11; READY_TO_FUND=false.
+
 ## 2026-10-07 13:41 UTC Brain and receipt preflight findings remain open
 
 Independent reviews of `72846d1` and `6a310fd` require repair: nested contradictory Gamma event IDs can falsely yield proxy consistency; receipt preflight can miss inconsistent extra logs, numeric removed=0, and impossible capture timestamps. Separate sole-writer repairs are live; no Brain settlement label or InventoryTransform transaction qualification follows. EvidenceStore budget tests `e334290` are under independent exact review, not host retention proof. Gate-3 remains 91/200 (formal 1/50), 77 unqualified identities; PAPER 9/11; READY_TO_FUND=false.

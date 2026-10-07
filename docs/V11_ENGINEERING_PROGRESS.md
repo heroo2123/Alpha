@@ -1,3 +1,7 @@
+## 2026-10-07 13:46 UTC provider repair and Gate-3 negative-control review active
+
+Intook independent `CHANGES_REQUIRED` for provider-rights `196b34c`, with two reproduced parser/restriction findings and a separate automatic approval rejection for CLI `build`. Launched a sole Sol/high repair in its original clean worktree without retrying the rejected action. Intook clean Gate-3 postbinding test candidate `38f0ae8` and launched frozen Astra/high exact review. Eight specialist lanes remain active; no merge, provider request, runtime/V10 change, authority or financial action followed.
+
 ## 2026-10-07 13:41 UTC adverse exact reviews recycled immediately
 
 Intook independent `CHANGES_REQUIRED` verdicts for Brain `72846d1` and InventoryTransform receipt preflight `6a310fd`, reproduced and documented in retained reports. Started one Sol/high repair writer per original clean author worktree with retained terminal markers. Clean test-only EvidenceStore budget candidate `e334290` entered a frozen Astra/high exact review. The other four exact reviewers and Gate-3 test author remain active, restoring eight specialist lanes. No candidate was merged or credited, and no provider, runtime/V10 or financial action occurred.
