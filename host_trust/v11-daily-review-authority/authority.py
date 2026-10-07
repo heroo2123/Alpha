@@ -202,8 +202,20 @@ def verify_snapshot(policy,req):
             # let two disagreeing proofs both count as valid.
             sigs={(canonical(h['body'].get('evidence',[])),h['body'].get('details',{}).get('result')) for h in hits}
             need(len(sigs)==1,'CAPABILITY_CONFLICTING_PROOFS_'+cap)
-        x=max(hits,key=lambda h:h['seq'])
-        proofs[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
+        x=max(hits,key=lambda h:h['seq']);dd=x['body'].get('details',{})
+        # content_sha256 is a semantic-claim signature, independent of this proof record's own
+        # id/sha256 (which the live preparer re-mints every ~5 minutes even when nothing substantive
+        # changed): it binds result, financial_authority, checker_version, scope, the rule content
+        # (rule_fingerprint), the live event content (source_event_sha256) and the fixed evidence's
+        # own sha256 (station_raw/station_metadata/technical_readiness, which are pinned once in the
+        # policy and never re-minted). Two proofs with equal content_sha256 assert the identical
+        # semantic claim even if every record_id/sha256 on the path differs cycle to cycle; publish()
+        # uses this to tell benign proof-id churn apart from a genuinely different/conflicting claim.
+        content={'result':dd.get('result'),'financial_authority':x['body'].get('financial_authority'),
+          'checker_version':dd.get('checker_version'),'scope':policy['scope'],'rule_fingerprint':rd['fingerprint'],
+          'source_event_sha256':rd.get('source_event_sha256'),
+          'fixed_evidence_sha256':{name:fr[name]['sha256'] for name in fr}}
+        proofs[cap]={'id':x['id'],'sha256':x['sha256'],'content_sha256':digest(content)};through=max(through,x['seq'])
     db.close();return {'target_date':target,'rule_fingerprint':rd['fingerprint'],'proofs':proofs,'reviewed_through_seq':through}
 
 def verify(policy_path,request_path):
@@ -241,8 +253,24 @@ def publish(policy_path,request_path):
         m=load(mp);need(m.get('version')==MANIFEST_VERSION and isinstance(m.get('reviews'),list),'MANIFEST_SCHEMA');r=result['review']
         exact=[x for x in m['reviews'] if x.get('namespace')==r['namespace'] and x.get('stage')=='SHADOW' and x.get('scope_key')==r['scope_key'] and x.get('metadata_fingerprint')==r['metadata_fingerprint'] and x.get('rule_fingerprint')==r['rule_fingerprint']]
         if exact:
-            need(len(exact)==1 and exact[0].get('capability_proofs')==r['capability_proofs'],'EXISTING_REVIEW_CONFLICT')
-            result.update(published=False,state='ALREADY_EXACT_REVIEW_PRESENT',review=exact[0]);return result
+            # Same day/rule already has a stored review. The live preparer re-mints every
+            # CAPABILITY_EVIDENCE row (and the rule/raw records a proof's evidence points at) on
+            # every ~5-minute cycle even when the underlying claim hasn't changed, so comparing raw
+            # capability_proofs id/sha would make every cycle after the first refuse with
+            # EXISTING_REVIEW_CONFLICT purely from benign id churn. Compare by content_sha256
+            # instead -- the semantic-claim signature computed in verify_snapshot() -- so a fresh
+            # re-mint of the SAME already-satisfied claim is a no-op, while a genuinely different
+            # claim (different result, checker_version, scope, rule content, live event content, or
+            # fixed evidence) still fails closed. A stored review from before this fix (or any
+            # malformed/legacy entry) has no content_sha256 to compare against and is therefore
+            # never treated as benign -- it still hard-refuses, matching the old strict behavior.
+            match=exact[0];stored=match.get('capability_proofs') or {}
+            same_claim=(len(exact)==1 and set(stored)==set(r['capability_proofs']) and all(
+              stored.get(cap,{}).get('content_sha256') is not None and
+              stored[cap]['content_sha256']==r['capability_proofs'][cap]['content_sha256']
+              for cap in r['capability_proofs']))
+            need(same_claim,'EXISTING_REVIEW_CONFLICT')
+            result.update(published=False,state='ALREADY_EXACT_REVIEW_PRESENT',review=match);return result
         need(len(m['reviews'])<1000,'MANIFEST_BOUND');m['reviews'].append(r);raw=canonical(m).encode();tmp=mp.parent/('.daily-review.'+str(os.getpid())+'.tmp')
         f=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
         try:os.write(f,raw);os.fsync(f)

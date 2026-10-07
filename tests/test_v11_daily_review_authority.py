@@ -57,7 +57,10 @@ def append(db,seq,rid,kind,event,extra):
 
 def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_offset=1,stale_receipt=False,
           proof_omit=None,proof_duplicate=None,second_rule=False,
-          metadata_material_changed=False,readiness_release_mismatch=False):
+          metadata_material_changed=False,readiness_release_mismatch=False,
+          churn_stale_cap=None,proof_financial=None,proof_checker_mismatch=None,proof_scope_mismatch=None,
+          proof_fail_then_pass=None,inject_demotion=False,readiness_financial_violation=False,
+          readiness_real_orders_violation=False,legacy_generations_cap=None,legacy_fail_gen=False):
     today=datetime.now(ZoneInfo('America/New_York')).date();target=today+timedelta(days=target_offset)
     anchor=payload(today,'1118070');cand=payload(target)
     if mutate:mutate(cand)
@@ -68,8 +71,12 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_off
     db.executemany('insert into v11_meta values(?,?)',[('version','alpha_v11_evidence_v1'),('namespace','CHALLENGER:katl-shadow')])
     sr=append(db,1,'station-raw','STATION_METADATA','station:KATL',{'payload':{'station':'KATL'},'evidence_class':'PUBLIC_OBSERVED'})
     sm=append(db,2,'station-meta','REGISTRY','station:KATL',{'details':{'action':'METADATA','metadata_fingerprint':'e'*64,'material_changed':metadata_material_changed},'evidence':[sr]})
-    ready=append(db,3,'readiness','MEASUREMENT','station:KATL',{'details':{'financial_authority':False,'real_orders':False,
+    ready=append(db,3,'readiness','MEASUREMENT','station:KATL',{'details':{
+      'financial_authority':True if readiness_financial_violation else False,
+      'real_orders':True if readiness_real_orders_violation else False,
       'release_git_sha':'0'*40 if readiness_release_mismatch else RELEASE_GIT,'release_tree_sha':RELEASE_TREE}})
+    if inject_demotion:
+        append(db,999,'demotion-row','REGISTRY','station:KATL',{'details':{'action':'DEMOTION','scope_key':scope_key,'reason':'test'}})
     raw=append(db,4,'raw','RULES',cand['event_id'],{'evidence_class':'PUBLIC_OBSERVED','payload':{'event':event}})
     received_at=time.time()-100000 if stale_receipt else time.time()
     rule=append(db,5,'rule','RULE_STATE',cand['event_id'],{'details':{'quarantined':False,'changed':False,'fingerprint':rule_sha,
@@ -81,10 +88,83 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_off
         elif cap=='RULE_SEMANTICS':refs=[rule,ready]
         elif cap=='SOURCE_INTEGRITY':refs=[sr,raw,ready]
         if proof_omit==cap:continue
+        if churn_stale_cap==cap:
+            # Real-world shape pinned directly: several fresh (seq>rule.seq), identity-matching,
+            # result/financial_authority-valid re-mints whose checker_version is superseded/stale
+            # land in scan order (seq ascending) strictly BEFORE the one true current-binding
+            # match, mirroring the live preparer's ~5-minute re-mint cadence against a long-unchanged
+            # rule_fingerprint. The staged skip-not-raise logic must still resolve the later match;
+            # the old hard-raise-inside-scan ordering (ab0a9c9) would instead poison the whole
+            # capability on the FIRST stale row, before ever reaching it.
+            for k in range(3):
+                append(db,70000+i*10+k,f'rollforward:capability:{cand["event_id"]}:stale:{cap.lower()}:{k}','REGISTRY','station:KATL',
+                  {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+                   'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+                   'checker_version':'STALE_CHECKER_VERSION_SUPERSEDED'},'evidence':refs})
+            append(db,90000+i*10,f'rollforward:capability:{cand["event_id"]}:current:{cap.lower()}','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+               'checker_version':CHECKER},'evidence':refs})
+            continue
+        if legacy_generations_cap==cap:
+            # Real live shape (T1): capabilities whose evidence references the rotating
+            # RULE_STATE/RULES records directly (IDENTITY -> rule, SOURCE_INTEGRITY -> raw) get a
+            # DIFFERENT evidence id/sha from every one of the preparer's historical ~5-minute
+            # generations for an unchanged rule_fingerprint, since each prior generation points at
+            # its own now-superseded rule/raw pair. These rows are seq-ordered strictly BEFORE the
+            # real rule record (seq 5), so the real fix's freshness filter (seq>rule.seq) drops
+            # them before evidence is ever compared -- it is seq alone that makes this safe, not
+            # evidence equality. ab0a9c9's ordering (hard evidence check over all `loose` rows
+            # before the seq filter) would instead raise PROOF_EVIDENCE on the very first one.
+            for g in range(2):
+                gseq=-100-g*10
+                oraw=append(db,gseq,f'raw-legacy-{g}','RULES',cand['event_id'],{'evidence_class':'PUBLIC_OBSERVED','payload':{'event':event}})
+                orule=append(db,gseq+1,f'rule-legacy-{g}','RULE_STATE',cand['event_id'],{'details':{'quarantined':False,'changed':False,
+                  'fingerprint':rule_sha,'preimage':cand,'source_event_sha256':source_sha,'source_received_at':received_at},'evidence':[oraw]})
+                orefs={'IDENTITY':[sm,orule],'RULE_SEMANTICS':[orule,ready],'SOURCE_INTEGRITY':[sr,oraw,ready]}.get(cap,[ready])
+                append(db,gseq+2,f'rollforward:capability:{cand["event_id"]}:legacy:{cap.lower()}:{g}','REGISTRY','station:KATL',
+                  {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+                   'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,
+                   'result':'FAIL' if (legacy_fail_gen and g==0) else 'PASS',
+                   'checker_version':CHECKER},'evidence':orefs})
+            # No `continue`: the genuine current-binding row is still appended below.
+        if proof_fail_then_pass==cap:
+            # A genuine FAIL for this exact identity (scope_key/capability/metadata_fingerprint/
+            # rule_fingerprint), followed in scan order by a later, fresh, fully-matching PASS.
+            # result/financial_authority are checked unconditionally across every identity-matching
+            # row (stage 2, hard and non-skippable), so the later PASS must never paper over the
+            # earlier FAIL.
+            append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}:failed','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'FAIL',
+               'checker_version':CHECKER},'evidence':refs})
+            append(db,i+100,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}:later_pass','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+               'checker_version':CHECKER},'evidence':refs})
+            continue
+        if proof_checker_mismatch==cap:
+            # Only a wrong-checker_version proof exists for this capability: the checker_version
+            # filter must still reject it (not silently accept), leaving zero hits.
+            append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}:wrongchecker','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+               'checker_version':'SOME_OTHER_CHECKER_VERSION'},'evidence':refs})
+            continue
+        if proof_scope_mismatch==cap:
+            # Only a wrong-scope proof exists for this capability: the scope filter must still
+            # reject it (not silently accept), leaving zero hits.
+            wrong_scope=dict(SCOPE,family='LOW')
+            append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}:wrongscope','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':wrong_scope,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+               'checker_version':CHECKER},'evidence':refs})
+            continue
         append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}','REGISTRY','station:KATL',
           {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
            'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'FAIL' if cap==proof_fail else 'PASS',
-           'checker_version':CHECKER},'evidence':refs})
+           'checker_version':CHECKER},'evidence':refs,
+          **({'financial_authority':True} if proof_financial==cap else {})})
         if proof_duplicate==cap:
             # A second, substantively IDENTICAL re-mint of the same capability/rule_fingerprint
             # identity at a later seq: this is the real-world "preparer reissues every 5 minutes"
@@ -342,3 +422,104 @@ def test_model_state_changed_post(tmp_path,monkeypatch):
     assert str(ei.value)=='MODEL_STATE_CHANGED_POST'
     manifest=json.loads(Path(policy['review_manifest']).read_text())
     assert len(manifest['reviews'])==1
+
+def test_capability_legacy_generations_then_current_accepted(tmp_path):
+    # T1 pinning test: kills mutant M3 (ab0a9c9's hard evidence check over all `loose` rows
+    # before the seq filter). On this fixture M3 raises PROOF_EVIDENCE on the first pre-rule
+    # legacy generation; the real fix (seq filter first) must pass using only the genuine row.
+    pp,rp=setup(tmp_path,legacy_generations_cap='IDENTITY')
+    out=a.verify(pp,rp)
+    assert 'legacy' not in out['review']['capability_proofs']['IDENTITY']['id']
+
+def test_capability_legacy_generation_fail_refused(tmp_path):
+    # T1 pinning test: kills mutant M4 (stage-2 result/financial_authority check applied only to
+    # the selected max-seq hit). A FAIL on an older, pre-rule generation must still hard-refuse
+    # even though the genuine current-binding row is a clean PASS.
+    pp,rp=setup(tmp_path,legacy_generations_cap='IDENTITY',legacy_fail_gen=True)
+    with pytest.raises(a.Refusal,match='PROOF_RESULT_IDENTITY'):
+        a.verify(pp,rp)
+
+def test_capability_churn_stale_checker_then_current_accepted(tmp_path):
+    # Several fresh (seq>rule.seq) re-mints with a superseded checker_version land in scan order
+    # before the one true current-binding row; the skip-not-raise checker_version filter must
+    # still resolve to the later match.
+    pp,rp=setup(tmp_path,churn_stale_cap='EXECUTION_MECHANICS')
+    out=a.verify(pp,rp)
+    assert out['review']['capability_proofs']['EXECUTION_MECHANICS']['id'].endswith(':current:execution_mechanics')
+
+def test_capability_fail_then_pass_refused(tmp_path):
+    # Stage-2's result/financial_authority check runs over every identity-matching fresh row, not
+    # just the final selected one: an earlier FAIL can never be papered over by a later fresh PASS.
+    pp,rp=setup(tmp_path,proof_fail_then_pass='CONSERVATIVE_CONTRACT_VALUATION')
+    with pytest.raises(a.Refusal,match='PROOF_RESULT_CONSERVATIVE_CONTRACT_VALUATION'):
+        a.verify(pp,rp)
+
+def test_capability_checker_mismatch_refused(tmp_path):
+    # Kills M12: a fresh, otherwise-valid PASS proof with the wrong checker_version and no
+    # correct proof must still refuse (the skip filter must not silently accept it).
+    pp,rp=setup(tmp_path,proof_checker_mismatch='FORECAST_IDENTITY')
+    with pytest.raises(a.Refusal,match='CAPABILITY_AMBIGUOUS_OR_MISSING_FORECAST_IDENTITY'):
+        a.verify(pp,rp)
+
+def test_capability_scope_mismatch_refused(tmp_path):
+    # Kills M13: a fresh, otherwise-valid PASS proof with the wrong scope and no correct proof
+    # must still refuse.
+    pp,rp=setup(tmp_path,proof_scope_mismatch='EXECUTION_MECHANICS')
+    with pytest.raises(a.Refusal,match='CAPABILITY_AMBIGUOUS_OR_MISSING_EXECUTION_MECHANICS'):
+        a.verify(pp,rp)
+
+def test_proof_financial_refused(tmp_path):
+    # Kills M5: a proof-level financial_authority claim is a hard, non-skippable refusal even
+    # though the same row is otherwise a fully matching fresh PASS.
+    pp,rp=setup(tmp_path,proof_financial='PROTECTED_RISK')
+    with pytest.raises(a.Refusal,match='PROOF_FINANCIAL_PROTECTED_RISK'):
+        a.verify(pp,rp)
+
+def test_readiness_financial_violation_refused(tmp_path):
+    pp,rp=setup(tmp_path,readiness_financial_violation=True)
+    with pytest.raises(a.Refusal,match='READINESS_NONFINANCIAL'):
+        a.verify(pp,rp)
+
+def test_readiness_real_orders_violation_refused(tmp_path):
+    pp,rp=setup(tmp_path,readiness_real_orders_violation=True)
+    with pytest.raises(a.Refusal,match='READINESS_NONFINANCIAL'):
+        a.verify(pp,rp)
+
+def test_fixed_keys_refused(tmp_path):
+    pp,rp=setup(tmp_path)
+    policy=json.loads(pp.read_text());del policy['fixed_evidence']['technical_readiness'];pp.write_text(json.dumps(policy))
+    with pytest.raises(a.Refusal,match='FIXED_KEYS'):
+        a.verify(pp,rp)
+
+def test_policy_review_ttl_refused(tmp_path):
+    pp,rp=setup(tmp_path)
+    policy=json.loads(pp.read_text());policy['review_ttl_seconds']=0;pp.write_text(json.dumps(policy))
+    with pytest.raises(a.Refusal,match='POLICY_REVIEW_TTL'):
+        a.verify(pp,rp)
+
+def test_demotion_refused(tmp_path):
+    pp,rp=setup(tmp_path,inject_demotion=True)
+    with pytest.raises(a.Refusal,match='DEMOTION'):
+        a.verify(pp,rp)
+
+def test_publish_remint_same_claim_accepted(tmp_path,monkeypatch):
+    # N1: simulates an earlier cycle's stored review for the identical semantic claim where every
+    # capability_proofs id/sha256 differs (the live preparer re-mints these every ~5 minutes) but
+    # content_sha256 -- the semantic-claim signature -- is unchanged because nothing substantive
+    # (result/financial_authority/checker_version/scope/rule content/live event/fixed evidence)
+    # actually changed. publish() must treat this as the same claim (ALREADY_EXACT_REVIEW_PRESENT),
+    # not EXISTING_REVIEW_CONFLICT.
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());verified=a.verify(pp,rp)
+    stored_proofs={cap:{'id':'remint-'+cap,'sha256':'1'*64,'content_sha256':p['content_sha256']}
+      for cap,p in verified['review']['capability_proofs'].items()}
+    review=dict(verified['review']);review['capability_proofs']=stored_proofs
+    manifest_path=Path(policy['review_manifest'])
+    manifest_path.write_text(a.canonical({'version':a.MANIFEST_VERSION,'reviews':[review]}))
+    req=json.loads(rp.read_text());req['expected_manifest_sha256']=hashlib.sha256(manifest_path.read_bytes()).hexdigest();rp.write_text(json.dumps(req))
+    out=a.publish(pp,rp)
+    assert out['published'] is False
+    assert out['state']=='ALREADY_EXACT_REVIEW_PRESENT'
+    assert out['review']['capability_proofs']==stored_proofs
