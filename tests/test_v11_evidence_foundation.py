@@ -134,6 +134,8 @@ print(json.dumps([[row['seq'], row['id'], row['sha256']]
 
 def test_low_free_space_refuses_append_atomically_and_reopens(archive, monkeypatch):
     store, _ = archive
+    ample_space = SimpleNamespace(free=store.limits.minimum_free_bytes + 256 * 1024 * 1024)
+    monkeypatch.setattr(evidence.shutil, "disk_usage", lambda path: ample_space)
     first = capture(store, "first")
     with monkeypatch.context() as patched:
         def low_space(path):
@@ -148,8 +150,10 @@ def test_low_free_space_refuses_append_atomically_and_reopens(archive, monkeypat
     assert capture(store, "later")["seq"] == 2
 
 
-def test_real_wal_growth_counts_toward_archive_budget(archive):
+def test_real_wal_growth_counts_toward_archive_budget(archive, monkeypatch):
     store, _ = archive
+    ample_space = SimpleNamespace(free=store.limits.minimum_free_bytes + 256 * 1024 * 1024)
+    monkeypatch.setattr(evidence.shutil, "disk_usage", lambda path: ample_space)
     reader = sqlite3.connect(store.path)
     try:
         reader.execute("BEGIN")
