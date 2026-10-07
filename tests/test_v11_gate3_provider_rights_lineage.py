@@ -316,6 +316,34 @@ def test_changed_origin_or_path_refuses(url, code):
     refused_with(run(good_request(url=url)), code)
 
 
+@pytest.mark.parametrize("url", [
+    NOAA_S3 + P1_PATH.replace("/gefs.", "/ge\nfs."),
+    NOAA_S3 + P1_PATH.replace("/gefs.", "/ge\rfs."),
+    NOAA_S3 + P1_PATH.replace("/gefs.", "/ge\tfs."),
+    "\x00" + NOAA_S3 + P1_PATH,
+    "\r" + NOAA_S3 + P1_PATH,
+    "\n" + NOAA_S3 + P1_PATH,
+    "\t" + NOAA_S3 + P1_PATH,
+    " " + NOAA_S3 + P1_PATH,
+    NOAA_S3 + P1_PATH + " ",
+    NOAA_S3 + P1_PATH.replace("/gefs.", "/ge\\fs."),
+    NOAA_S3 + P1_PATH.replace("/gefs.", "/ge\u00e9fs."),
+])
+def test_raw_url_wire_characters_refuse_before_parser_normalization(url):
+    refused_with(run(good_request(url=url)), "URL_WIRE_INVALID")
+
+
+@pytest.mark.parametrize("suffix,code", [("?", "URL_QUERY_FORBIDDEN"),
+                                           ("#", "URL_FRAGMENT")])
+def test_empty_url_delimiters_refuse(suffix, code):
+    refused_with(run(good_request(url=NOAA_S3 + P1_PATH + suffix)), code)
+
+
+def test_canonical_url_remains_consistent_without_execution_authority():
+    result = run(good_request(url=NOAA_S3 + P1_PATH))
+    assert result == {"outcome": ENVELOPE_OK, "reasons": [], "execution_authority": False}
+
+
 def test_failover_to_another_origin_refuses():
     refused_with(run(good_request(failover_from_origin=NOMADS)), "FAILOVER_FORBIDDEN")
 
@@ -391,6 +419,78 @@ def test_new_unadjudicated_429_503_event_reopens_hold(status):
     for code in ("CONTROL_DOMAIN_HELD", "UNRESOLVED_RESTRICTION_HISTORY",
                  "PRIOR_RATE_LIMIT_OR_UNKNOWN_DENIAL_UNADJUDICATED"):
         refused_with(result, code)
+
+
+def _appended_noaa_event(doc):
+    event = copy.deepcopy(next(e for e in doc["restriction_events"] if e["control_domain"] == "NOAA_GEFS"))
+    event.update(event_id="synthetic-appended-503", status=503,
+                 received_at_utc="2026-10-08T09:00:00Z", expiry_adjudication=None,
+                 body_sha256=None, body_bytes=None)
+    doc["restriction_events"].append(event)
+    return event
+
+
+@pytest.mark.parametrize("domain,origin", [
+    (None, None), (None, "https://unmapped.invalid"),
+    ("ECMWF", NOAA_S3), ("NOAA_GEFS", "https://unmapped.invalid"),
+    ([], NOAA_S3), ("NOAA_GEFS", []),
+])
+def test_appended_restriction_requires_recognized_domain_origin_and_hold(domain, origin):
+    doc = synthetic_resumed()
+    event = _appended_noaa_event(doc)
+    event.update(control_domain=domain, origin=origin)
+    findings = check_lineage(doc)
+    assert any(f.startswith("EVENT_DOMAIN:") for f in findings), findings
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+
+
+def test_appended_restriction_must_appear_in_its_domain_hold_basis():
+    doc = synthetic_resumed()
+    _appended_noaa_event(doc)
+    assert "EVENT_NOT_IN_HOLD_BASIS:synthetic-appended-503" in check_lineage(doc)
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+    doc["control_domains"]["NOAA_GEFS"]["hold_basis"].append("synthetic-appended-503")
+    assert "RESUMPTION_WITHOUT_REVIEWED_EXPIRY:NOAA_GEFS" in check_lineage(doc)
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+    doc["control_domains"]["NOAA_GEFS"]["status"] = "HELD"
+    assert check_lineage(doc) == []
+    refused_with(run(good_request(), doc=doc), "CONTROL_DOMAIN_HELD")
+
+
+@pytest.mark.parametrize("field,value,code", [
+    ("event_id", [], "EVENT_ID_INVALID"),
+    ("status", "503", "EVENT_STATUS"),
+    ("status", True, "EVENT_STATUS"),
+    ("body_sha256", [], "EVENT_BODY_SHA256"),
+    ("body_bytes", -1, "EVENT_BODY_BYTES"),
+    ("headers_retained", [], "EVENT_HEADERS"),
+    ("headers_retained", {"retry-after": 0}, "EVENT_HEADERS"),
+    ("retry_after", [], "EVENT_RETRY_AFTER"),
+    ("retained_record", [], "EVENT_RETAINED_RECORD"),
+])
+def test_appended_restriction_malformed_fields_refuse(field, value, code):
+    doc = synthetic_resumed()
+    event = _appended_noaa_event(doc)
+    event["expiry_adjudication"] = _ref("synthetic-new-expiry")
+    doc["control_domains"]["NOAA_GEFS"]["hold_basis"].append(event["event_id"])
+    assert check_lineage(doc) == []
+    event[field] = value
+    assert any(f.startswith(code) for f in check_lineage(doc)), check_lineage(doc)
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+
+
+def test_pinned_body_appended_event_preserves_valid_control():
+    doc = synthetic_resumed()
+    event = _appended_noaa_event(doc)
+    event["expiry_adjudication"] = _ref("synthetic-new-expiry")
+    digest, length = next(iter(lineage_mod.RECOVERED_BODY_PINS.items()))
+    source_id = f"recovered_body_{digest[:12]}"
+    event.update(body_sha256=digest, body_bytes=length)
+    event["evidence"].append(source_id)
+    doc["control_domains"]["NOAA_GEFS"]["hold_basis"].append(event["event_id"])
+    assert check_lineage(doc) == []
+    doc["permissions"]["GEFS"]["reviewed_permissions"][0]["reviewed_at_utc"] = "2026-10-08T09:30:00Z"
+    assert run(good_request(), doc=doc)["outcome"] == ENVELOPE_OK
 
 
 def test_retry_after_is_carried_forward_even_after_resumption():

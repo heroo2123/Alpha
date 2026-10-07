@@ -1065,12 +1065,23 @@ def _check_lineage(doc: Any) -> list[str]:
     for e in events:
         if not _closed(e, EVENT_KEYS, "restriction_event", out):
             continue
+        if type(e["event_id"]) is not str or REQUEST_ID_RE.fullmatch(e["event_id"]) is None:
+            out.append("EVENT_ID_INVALID")
+            continue
         if e["event_id"] in seen_ids:
             out.append(f"DUPLICATE_RESTRICTION_EVENT:{e['event_id']}")
         seen_ids.add(e["event_id"])
-        by_domain.setdefault(e["control_domain"], []).append(e)
-        if origin_owner.get(e["origin"]) != e["control_domain"]:
+        domain_name = e["control_domain"]
+        if type(domain_name) is not str or domain_name not in REQUIRED_DOMAIN_ORIGINS:
             out.append(f"EVENT_DOMAIN:{e['event_id']}")
+            continue
+        if (type(e["origin"]) is not str or origin_owner.get(e["origin"]) != domain_name):
+            out.append(f"EVENT_DOMAIN:{e['event_id']}")
+            continue
+        if type(e["path"]) is not str or not e["path"]:
+            out.append(f"EVENT_PATH:{e['event_id']}")
+        if type(e["time_basis"]) is not str or not e["time_basis"]:
+            out.append(f"EVENT_TIME_BASIS:{e['event_id']}")
         if e["received_at_utc"] is None:
             if type(e["time_basis"]) is not str or not e["time_basis"].startswith("UNRETAINED"):
                 out.append(f"EVENT_TIME:{e['event_id']}")
@@ -1080,19 +1091,44 @@ def _check_lineage(doc: Any) -> list[str]:
             out.append(f"EVENT_NOT_CARRIED_FORWARD:{e['event_id']}")
         if type(e["occurrences"]) is not int or e["occurrences"] < 1:
             out.append(f"EVENT_OCCURRENCES:{e['event_id']}")
-        if type(e["body_sha256"]) is str:
+        if e["status"] is not None and (type(e["status"]) is not int or not 100 <= e["status"] <= 599):
+            out.append(f"EVENT_STATUS:{e['event_id']}")
+        if type(e["kind"]) is not str or not e["kind"]:
+            out.append(f"EVENT_KIND:{e['event_id']}")
+        if e["body_bytes"] is not None and (type(e["body_bytes"]) is not int or e["body_bytes"] < 0):
+            out.append(f"EVENT_BODY_BYTES:{e['event_id']}")
+        if e["body_sha256"] is not None and (type(e["body_sha256"]) is not str
+                or SHA256_RE.fullmatch(e["body_sha256"]) is None):
+            out.append(f"EVENT_BODY_SHA256:{e['event_id']}")
+        elif type(e["body_sha256"]) is str:
             body_id = f"recovered_body_{e['body_sha256'][:12]}"
             if (e["body_sha256"] not in RECOVERED_BODY_PINS
                     or e["body_bytes"] != RECOVERED_BODY_PINS[e["body_sha256"]]
                     or type(e["evidence"]) is not list or body_id not in e["evidence"]):
                 out.append(f"EVENT_BODY_BINDING:{e['event_id']}")
+        if type(e["body_custody"]) is not str or not e["body_custody"]:
+            out.append(f"EVENT_BODY_CUSTODY:{e['event_id']}")
+        if (not isinstance(e["headers_retained"], dict)
+                or any(type(k) is not str or type(v) is not str
+                       for k, v in e["headers_retained"].items())):
+            out.append(f"EVENT_HEADERS:{e['event_id']}")
+        if e["retained_record"] is not None and not isinstance(e["retained_record"], dict):
+            out.append(f"EVENT_RETAINED_RECORD:{e['event_id']}")
+        if type(e["post_event_requests"]) is not str or not e["post_event_requests"]:
+            out.append(f"EVENT_POST_REQUESTS:{e['event_id']}")
         if e["expiry_adjudication"] is not None and not _is_ref(e["expiry_adjudication"]):
             out.append(f"EVENT_EXPIRY_REF:{e['event_id']}")
+        if e["retry_after"] is not None and type(e["retry_after"]) is not str:
+            out.append(f"EVENT_RETRY_AFTER:{e['event_id']}")
         if e["retry_after"] is None and e["retry_not_before_utc"] is not None:
             out.append(f"INVENTED_RETRY_AFTER:{e['event_id']}")
         if e["retry_not_before_utc"] is not None and parse_utc(e["retry_not_before_utc"]) is None:
             out.append(f"RETRY_NOT_BEFORE:{e['event_id']}")
         refs_ok(e["evidence"], f"event:{e['event_id']}")
+        by_domain.setdefault(domain_name, []).append(e)
+        hold_basis = domains[domain_name].get("hold_basis") if isinstance(domains.get(domain_name), dict) else None
+        if not isinstance(hold_basis, list) or e["event_id"] not in hold_basis:
+            out.append(f"EVENT_NOT_IN_HOLD_BASIS:{e['event_id']}")
     missing = REQUIRED_EVENT_IDS - seen_ids
     for event_id in sorted(missing):
         out.append(f"MISSING_RETAINED_RESTRICTION:{event_id}")
@@ -1349,19 +1385,25 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
     if request["method"] != "GET":
         refuse("METHOD_NOT_GET")
     url = request["url"]
-    origin = _origin(url) if type(url) is str and len(url) <= 2048 else None
+    wire_url = (type(url) is str and 0 < len(url) <= 2048
+                and all(33 <= ord(ch) <= 126 and ch != "\\" for ch in url))
+    if not wire_url:
+        refuse("URL_WIRE_INVALID")
+    origin = _origin(url) if wire_url else None
     path = None
     if origin is None:
         refuse("URL_NOT_PUBLIC_HTTPS_ORIGIN")
     else:
         parts = urlsplit(url)
-        if parts.fragment:
+        if "#" in url:
             refuse("URL_FRAGMENT")
-        if parts.query:
+        if "?" in url:
             refuse("URL_QUERY_FORBIDDEN")
             if {k.split("=", 1)[0].lower() for k in parts.query.split("&")} & SIGNED_QUERY_KEYS:
                 refuse("SIGNED_OR_CREDENTIAL_URL")
         path = parts.path
+        if url != origin + path:
+            refuse("URL_NOT_CANONICAL")
         segments = path.split("/")
         if (unquote(path) != path or not path.startswith("/") or "" in segments[1:]
                 or "." in segments or ".." in segments):
