@@ -1,9 +1,14 @@
 from dataclasses import replace
+import json
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
+from types import SimpleNamespace
 
 import pytest
 
+from polymarket_scanner.v11 import evidence
 from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, Limits, ReleaseBinding
 from polymarket_scanner.v11.measurement import executable_depth, measure_markout, score_binary
 
@@ -112,6 +117,64 @@ def test_archive_capacity_fails_without_erasing_previous_evidence(archive):
     with pytest.raises(EvidenceError,match="RECORD_LIMIT"):
         capture(store,"next")
     assert store.get("weather")["body"]["payload"]["temperature"]==32
+
+
+def _rows_after_process_reopen(path):
+    script = """from pathlib import Path
+import json, sys
+from polymarket_scanner.v11.evidence import EvidenceStore
+store = EvidenceStore(Path(sys.argv[1]), 'V11_PAPER')
+print(json.dumps([[row['seq'], row['id'], row['sha256']]
+                  for row in store.records(kind='OFFICIAL_OBSERVATION')]))
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(path)],
+                            check=True, capture_output=True, text=True)
+    return json.loads(result.stdout)
+
+
+def test_low_free_space_refuses_append_atomically_and_reopens(archive, monkeypatch):
+    store, _ = archive
+    ample_space = SimpleNamespace(free=store.limits.minimum_free_bytes + 256 * 1024 * 1024)
+    monkeypatch.setattr(evidence.shutil, "disk_usage", lambda path: ample_space)
+    first = capture(store, "first")
+    with monkeypatch.context() as patched:
+        def low_space(path):
+            assert path == store.path.parent
+            return SimpleNamespace(free=store.limits.minimum_free_bytes + 32768)
+
+        patched.setattr(evidence.shutil, "disk_usage", low_space)
+        with pytest.raises(EvidenceError, match="^ARCHIVE_DISK_HEADROOM$"):
+            capture(store, "later")
+        assert _rows_after_process_reopen(store.path) == [[1, "first", first["sha256"]]]
+
+    assert capture(store, "later")["seq"] == 2
+
+
+def test_real_wal_growth_counts_toward_archive_budget(archive, monkeypatch):
+    store, _ = archive
+    ample_space = SimpleNamespace(free=store.limits.minimum_free_bytes + 256 * 1024 * 1024)
+    monkeypatch.setattr(evidence.shutil, "disk_usage", lambda path: ample_space)
+    reader = sqlite3.connect(store.path)
+    try:
+        reader.execute("BEGIN")
+        assert reader.execute("SELECT COUNT(*) FROM v11_records").fetchone()[0] == 0
+        first = capture(store, "first")
+        wal = Path(str(store.path) + "-wal")
+        wal_bytes = wal.stat().st_size
+        assert wal_bytes > 0
+        encoded_bytes = len(evidence.canonical(first["body"]).encode())
+        database_bytes = store.path.stat().st_size
+        # Both keys have the same length, so their encoded records have equal size.
+        limit = database_bytes + encoded_bytes + 32768 + wal_bytes - 1
+        assert limit > database_bytes + encoded_bytes + 32768
+        store.limits = replace(store.limits, max_database_bytes=limit)
+        with pytest.raises(EvidenceError, match="^ARCHIVE_BYTES_LIMIT$"):
+            capture(store, "later")
+        assert _rows_after_process_reopen(store.path) == [[1, "first", first["sha256"]]]
+        store.limits = replace(store.limits, max_database_bytes=256 * 1024 * 1024)
+        assert capture(store, "later")["seq"] == 2
+    finally:
+        reader.close()
 
 
 def test_clock_regression_fails_without_backdating(archive):
