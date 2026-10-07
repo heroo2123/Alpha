@@ -5230,3 +5230,6 @@ The clean offline KATL economic/PWS plan candidate `a0fe995` and provider-rights
 ## 2026-10-07 12:31 UTC historical terminal package remains unqualified
 
 Clean offline candidate `ba8b3aa` for the recovered original G3-P terminal is under independent exact review. Even if its historical byte identity passes, the G3-L protocol row remains unqualified until separate exact-entry review and canonical private-root custody requirements pass. No score changes: Gate-3 91/200 (formal 1/50), 77 missing identities, PAPER 9/11, READY_TO_FUND=false.
+## 2026-10-07 14:50 UTC reviewed-reference and receipt-negative prerequisites
+
+Two clean read-only prerequisite maps sealed. The Gate-3 map found shape-only expiry/resumption/permission review refs insufficient for a future executable admission or G3-L PASS; a fail-closed offline resolver writer is live in an isolated worktree. The InventoryTransform map found no qualifying complete pagination, opening inventory, fee/mask, successful receipt lineage or deployed route proof in inspected local material; a separate test-only negative-control writer is live. These are engineering prerequisites, not evidence or requirement credit. Gate-3 remains 91/200 (formal 1/50) with 77 unqualified identities; PAPER strict remains 9/11, requirements 8/9 partial; READY_TO_FUND=false.
