@@ -1,3 +1,7 @@
+## 2026-10-07 16:24 UTC disk guard constrained scheduling
+
+Disk guard reports `launch_blocked` at ~4.2 GiB free / ~90% used while active exact review scratch grows. Existing workers and retained review evidence remain intact. No additional lane is launched until safe headroom returns; acceptance gates unchanged.
+
 ## 2026-10-07 16:22 UTC forward offline implementation lane
 
 The read-only forward implementation map sealed clean and its slot was recycled into a sole isolated pure-verifier implementation worker with terminal marker. Any successor needs focused normal/optimized tests and independent different-model exact review. The live Shadow runtime and financial execution mask were unchanged; no acceptance credit follows from launch.
