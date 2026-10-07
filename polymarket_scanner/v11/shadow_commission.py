@@ -2,9 +2,8 @@
 
 Plans bind the assembler's actual configuration plus exact protected model and
 feature identities. Preflight reads existing rule, certification and model gates;
-it never installs authority. Durable freezes and run links are operational audit
-records only. Forward sample qualification is unavailable until reviewed live
-causal decision lineage and grouped outcomes are supported; admissions count zero.
+it never installs authority. Forward qualification requires original same-ledger
+admission, decision lineage and explicit complete grouped payout receipts.
 """
 from __future__ import annotations
 
@@ -20,6 +19,7 @@ from .candidate_cohort import CandidateCohort, candidate_cohort
 from .certification import CapabilityScope, StationRegistry
 from .evidence import EvidenceError, EvidenceStore, canonical, digest, finite, identity, sha
 from .forecast_features import ForecastFeatureContract
+from .forward_qualification import VERSION as FORWARD_VERSION, grouped_outcome
 from .gefs_sources import MODEL_ID as GEFS_MODEL_ID
 from .rules import RuleFingerprint, RuleGuard
 
@@ -31,7 +31,7 @@ SHADOW_STAGE = 'SHADOW'
 MAX_PLAN_BYTES = 256 * 1024
 STATUS_PAGE_SIZE = 256
 STATUS_MAX_ROWS = 10000
-FORWARD_UNAVAILABLE = 'LIVE_CAUSAL_DECISION_LINEAGE_AND_GROUPED_OUTCOME_QUALIFICATION_NOT_IMPLEMENTED'
+FORWARD_UNAVAILABLE = 'NO_CAUSALLY_QUALIFIED_FORWARD_ADMISSION'
 _NAMESPACE_RE = re.compile(r'(?:CHALLENGER|ABLATION):[a-zA-Z0-9_-]{1,64}')
 _FORBIDDEN_IMPORT_PREFIXES = ('production', 'http', 'requests', 'socket', 'pickle', 'subprocess',
                               'urllib', 'ftplib', 'smtplib', 'websockets')
@@ -414,6 +414,101 @@ def _linked_outcome(plan, store, row):
         return None
 
 
+def _qualified_admission(plan, store, target, capture_id, label_ids):
+    """Recheck every original reference; a current protected pin cannot backfill one."""
+    group = grouped_outcome(store, capture_id, label_ids)
+    capture = store.get(capture_id)
+    cd = capture['body']['details']
+    ref = group['admission_ref']
+    if not isinstance(ref, dict) or set(ref) != {'id', 'sha256'}:
+        raise EvidenceError('FORWARD_ORIGINAL_ADMISSION_REF_REQUIRED')
+    admission = store.get(ref['id'])
+    ad = admission['body'].get('details', {})
+    request, assessment = ad.get('request', {}), ad.get('assessment', {})
+    matching = [s for s in json.loads(plan.cohort.inputs_json)
+                if s['context']['event_id'] == target.event_id
+                and CapabilityScope(**s['scope']).key == target.scope.key]
+    if len(matching) != 1:
+        raise EvidenceError('FORWARD_PLAN_TARGET_MISMATCH')
+    cohort = matching[0]
+    rule_heads = {tuple(head[:2]): head[2] for head in assessment.get('heads', [])}
+    rule_history, rule_coverage = _history(store, kind='RULE_STATE', event_id=target.event_id)
+    if not rule_coverage['complete']:
+        raise EvidenceError('FORWARD_RULE_HISTORY_INCOMPLETE')
+    prior_rules = [row for row in rule_history if row['seq'] <= capture['seq']]
+    current_rule = prior_rules[-1] if prior_rules else None
+    decisions = [store.get(child['decision_id']) for child in cd['rows']]
+    model_leases = {lease['evidence_id'] for lease in request.get('source_leases', [])
+                    if lease.get('role') == 'MODEL'}
+    assessed_models = {ref['id'] for ref in assessment.get('source_refs', [])
+                       if ref.get('role') == 'MODEL'}
+    assessed_hashes_match = all(store.get(ref['id'])['sha256'] == ref['sha256']
+                                for ref in assessment.get('source_refs', [])
+                                if ref.get('role') == 'MODEL')
+    if (admission['kind'] != 'REGISTRY' or admission['event_id'] != 'admission:' + target.scope.key
+            or admission['sha256'] != ref['sha256']
+            or ad.get('version') != 'alpha_v11_strategy_admission_v1'
+            or request.get('context') != cd['context']
+            or request.get('scope') != asdict(target.scope)
+            or request.get('rule') != cd['rule'] or request['rule'] != cohort['rule']
+            or request.get('binding') != cd['binding'] or request['binding'] != cohort['binding']
+            or request.get('stage') != SHADOW_STAGE
+            or cd['binding']['code_commit'] != plan.release_git_sha
+            or cd['binding']['bundle_sha256'] != assessment.get('model_bundle_sha256')
+            or cd['feature_schema_sha256'] != target.feature_contract.schema.sha256
+            or assessment.get('model_epoch') != target.model_epoch
+            or assessment.get('model_state_sha256') != target.model_state_sha256
+            or assessment.get('certification', {}).get('eligible') is not True
+            or assessment.get('rule', {}).get('passed') is not True
+            or assessment.get('financial_authority') is not False
+            or assessment.get('valid_until', 0) <= capture['body']['recorded_at']
+            or not decisions or admission['seq'] >= min(x['seq'] for x in decisions)
+            or assessment.get('valid_until', 0) <= max(x['body']['recorded_at'] for x in decisions)
+            or not assessed_hashes_match or model_leases != assessed_models
+            or model_leases != set(group['model_source_ids'])
+            or rule_heads.get(('RULE_STATE', target.event_id)) != (current_rule['seq'] if current_rule else 0)
+            or admission['body'].get('financial_authority') is not False
+            or not plan.created_at <= admission['body']['recorded_at'] <= capture['body']['recorded_at']
+            or not admission['seq'] < capture['seq']
+            or capture['event_id'] != target.event_id):
+        raise EvidenceError('FORWARD_ADMISSION_PLAN_LINEAGE_MISMATCH')
+    return dict(group, admission_id=admission['id'], admission_sha256=admission['sha256'],
+                plan_key=plan.key, scope_key=target.scope.key)
+
+
+def record_forward_admission(plan, store, *, capture_id, label_ids):
+    """Persist a reviewed data qualification in the original nonfinancial ledger."""
+    if (not isinstance(plan, ShadowCommissionPlan) or not isinstance(store, EvidenceStore)
+            or store.namespace != plan.namespace):
+        raise EvidenceError('SHADOW_TYPED_PLAN_AND_STORE_REQUIRED')
+    capture = store.get(capture_id)
+    ref = capture['body'].get('details', {}).get('admission_ref')
+    if not isinstance(ref, dict) or not isinstance(ref.get('id'), str):
+        raise EvidenceError('FORWARD_ORIGINAL_ADMISSION_REF_REQUIRED')
+    admission = store.get(ref['id'])
+    targets = [t for t in plan.targets if t.event_id == capture['event_id']
+               and admission['event_id'] == 'admission:' + t.scope.key]
+    if len(targets) != 1:
+        raise EvidenceError('FORWARD_PLAN_TARGET_MISMATCH')
+    target = targets[0]
+    qualified = _qualified_admission(plan, store, target, capture_id, label_ids)
+    key = 'forward-qualification:' + digest([plan.key, capture_id])
+    existing = None
+    try:
+        existing = store.get(key)
+    except EvidenceError as exc:
+        if str(exc) != 'EVIDENCE_MISSING':
+            raise
+    if existing is not None:
+        if existing['body'].get('details', {}).get('qualification') != qualified:
+            raise EvidenceError('FORWARD_QUALIFICATION_CONFLICT')
+        return existing
+    return store.audit(key, event_id='admission:' + target.scope.key, kind='REGISTRY',
+                       details=dict(version=FORWARD_VERSION, qualification=qualified,
+                                    label_ids=label_ids, financial_authority=False,
+                                    forward_acceptance_pending_independent_review=True))
+
+
 def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_ROWS):
     if not isinstance(plan, ShadowCommissionPlan) or not isinstance(store, EvidenceStore):
         raise EvidenceError('SHADOW_TYPED_PLAN_AND_STORE_REQUIRED')
@@ -449,14 +544,37 @@ def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_
     for target in plan.targets:
         admissions, scan = _history(store, kind='REGISTRY', event_id='admission:' + target.scope.key,
                                      maximum_rows=maximum_rows)
+        qualified = set()
+        for row in admissions:
+            details = row['body'].get('details', {})
+            if not isinstance(details, dict) or details.get('version') != FORWARD_VERSION:
+                continue
+            q = details.get('qualification', {})
+            if not isinstance(q, dict):
+                continue
+            try:
+                if (q.get('plan_key') != plan.key or q.get('scope_key') != target.scope.key
+                        or details.get('financial_authority') is not False
+                        or row['body'].get('financial_authority') is not False
+                        or row['body']['recorded_at'] > store.clock()):
+                    continue
+                checked = _qualified_admission(plan, store, target, q['capture_id'], details['label_ids'])
+                if checked == q and max(x['knowable_at'] for x in q['labels']) <= row['body']['recorded_at']:
+                    qualified.add(q['capture_id'])
+            except (EvidenceError, KeyError, TypeError, ValueError):
+                continue
+        count = len(qualified)
         targets.append(dict(scope_key=target.scope.key, event_id=target.event_id, station=target.scope.station,
             family=target.scope.family, unit=target.unit, strategy=target.scope.strategy,
-            sample_target=target.sample_target, qualifying_forward_sample_count=0,
-            forward_admission_count=0, unqualified_admission_rows_scanned=len(admissions),
-            admission_history_coverage=scan, sample_target_reached=False, reason=FORWARD_UNAVAILABLE))
+            sample_target=target.sample_target, qualifying_forward_sample_count=count,
+            forward_admission_count=count, unqualified_admission_rows_scanned=len(admissions)-count,
+            admission_history_coverage=scan, sample_target_reached=scan['complete'] and count >= target.sample_target,
+            reason=None if count else FORWARD_UNAVAILABLE))
     complete = coverage['complete'] and all(t['admission_history_coverage']['complete'] for t in targets)
+    has_forward = any(t['forward_admission_count'] for t in targets)
     return dict(version=VERSION, plan_key=plan.key, namespace=store.namespace, as_of=finite(store.clock()),
-        plan_intent_created_at=plan.created_at, forward_evidence_available=False, reason=FORWARD_UNAVAILABLE,
+        plan_intent_created_at=plan.created_at, forward_evidence_available=has_forward,
+        reason=None if has_forward else FORWARD_UNAVAILABLE,
         history_complete=complete, totals_are_lower_bounds=not complete, run_history_coverage=coverage,
         targets=targets, attempts_recorded=len(groups), refused_attempts_recorded=sum(g['refused'] for g in groups.values()),
         incomplete_attempts_recorded=sum(g['started'] and g['outcome'] is None for g in groups.values()),
