@@ -1,5 +1,29 @@
 {
   "drift_commits": {
+    "polymarket_scanner/v11/forecast_features.py": [
+      {
+        "classification": "validate explicit final-payout or next-observation prediction target and match pinned bundles; keep initial research bundles final-payout only",
+        "commit": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f"
+      }
+    ],
+    "polymarket_scanner/v11/learning_capture.py": [
+      {
+        "classification": "recheck admission after child decisions and atomically guard pinned heads at capture publication",
+        "commit": "90d2d6446155e928d66c16660b5e90fda3a77fb0"
+      }
+    ],
+    "polymarket_scanner/v11/model_artifacts.py": [
+      {
+        "classification": "pass the pinned bundle prediction target into forecast feature-contract validation",
+        "commit": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f"
+      }
+    ],
+    "polymarket_scanner/v11/physical_inference.py": [
+      {
+        "classification": "preserve physical feature-schema identity by excluding the newly added forecast prediction-target field",
+        "commit": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f"
+      }
+    ],
     "tools/v11_r09_gate3_collector.py": [
       {
         "classification": "budget and sizing refusal repair; fixes pre-request and received-byte accounting",
@@ -174,9 +198,9 @@
       "sha256": "ce300a33e42688c8b67397363d5d2539bbace3a5f0b65dc859f487c5c05e7d9c"
     },
     "polymarket_scanner/v11/forecast_features.py": {
-      "byte_length": 5427,
-      "git_blob": "108531885877c03f825db06a34ed91dae841c4b5",
-      "sha256": "8f3230c89019ac91c822a551027c9c86df127b0051f0f1cd5d626df276f9e11d"
+      "byte_length": 5730,
+      "git_blob": "76e496419f1dcb568666efc54ff2639c20439c64",
+      "sha256": "033088035e106c762f39a1803290106485ba5e320efc027341766cf2003089ba"
     },
     "polymarket_scanner/v11/forecast_sources.py": {
       "byte_length": 7299,
@@ -204,9 +228,9 @@
       "sha256": "835c40562afaa24e572b044471a9179636d2e4d0f7a1fc6be37c3d021673a292"
     },
     "polymarket_scanner/v11/learning_capture.py": {
-      "byte_length": 11525,
-      "git_blob": "60b3fd68cbf1463df428c8b1437491e56cf35397",
-      "sha256": "2be1730eb8ec999834e6fbaafa6e978205b72084ed51f2c2674f2bb6d78c2f49"
+      "byte_length": 12246,
+      "git_blob": "09b754aaf57c51594ee022732331b4c90caf1d4d",
+      "sha256": "8bd3457ab77fb4d8c1b70ec2c4d222ed3dd775596dee83c8d1d201ef7a8f759e"
     },
     "polymarket_scanner/v11/learning_sources.py": {
       "byte_length": 13009,
@@ -229,9 +253,9 @@
       "sha256": "0a71a87f89f1d9b52103b80f2ec0cb19dab115036d8e1d083e64551861460e5a"
     },
     "polymarket_scanner/v11/model_artifacts.py": {
-      "byte_length": 15817,
-      "git_blob": "b50f35cf88d69ca2213bd669e9d2e3cdffdea2ef",
-      "sha256": "4345fe6f88e0f0ea7a751b09f4ec98a75d9279f3a5ffce6b6c95003929dbae64"
+      "byte_length": 15894,
+      "git_blob": "a930b6689c3b4d0020fcd83bd58759d3eb7cd5a7",
+      "sha256": "4a5116458a936b3f98705cabe47eff788af11a876cc6db31f2186ab4e396f49c"
     },
     "polymarket_scanner/v11/model_panel.py": {
       "byte_length": 17949,
@@ -274,9 +298,9 @@
       "sha256": "c08f864b57ff0bbb0eeac4627f7cf3e4377a41ba7da2a7cd33ca9935b4215b78"
     },
     "polymarket_scanner/v11/physical_inference.py": {
-      "byte_length": 16351,
-      "git_blob": "8ac85a2e3cf629e186205283e6779e37c6853525",
-      "sha256": "1d6ba9c1cfa77778e692b73ed470eff067d877d1617ce610af674e7dede5daf4"
+      "byte_length": 16599,
+      "git_blob": "22dfcb440e91640347ab0ae32e06ca26ecb6e71a",
+      "sha256": "ffe3289137add00100b84ffbd1665c35250c1ef7eb78b1a5e9c72130af1fefdd"
     },
     "polymarket_scanner/v11/position_attribution.py": {
       "byte_length": 3555,
@@ -510,6 +534,34 @@
     }
   },
   "historical_baselines": {
+    "polymarket_scanner/v11/forecast_features.py": {
+      "byte_length": 5427,
+      "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+      "git_blob": "108531885877c03f825db06a34ed91dae841c4b5",
+      "sha256": "8f3230c89019ac91c822a551027c9c86df127b0051f0f1cd5d626df276f9e11d",
+      "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+    },
+    "polymarket_scanner/v11/learning_capture.py": {
+      "byte_length": 11525,
+      "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+      "git_blob": "60b3fd68cbf1463df428c8b1437491e56cf35397",
+      "sha256": "2be1730eb8ec999834e6fbaafa6e978205b72084ed51f2c2674f2bb6d78c2f49",
+      "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+    },
+    "polymarket_scanner/v11/model_artifacts.py": {
+      "byte_length": 15817,
+      "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+      "git_blob": "b50f35cf88d69ca2213bd669e9d2e3cdffdea2ef",
+      "sha256": "4345fe6f88e0f0ea7a751b09f4ec98a75d9279f3a5ffce6b6c95003929dbae64",
+      "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+    },
+    "polymarket_scanner/v11/physical_inference.py": {
+      "byte_length": 16351,
+      "commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+      "git_blob": "8ac85a2e3cf629e186205283e6779e37c6853525",
+      "sha256": "1d6ba9c1cfa77778e692b73ed470eff067d877d1617ce610af674e7dede5daf4",
+      "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+    },
     "tools/v11_r09_gate3_collector.py": {
       "byte_length": 39633,
       "commit": "95e07fab75a3818560378d71556efc55ce122a56",
@@ -536,6 +588,6 @@
   "qualification_credit": 0,
   "review_limit": "Candidate byte binding only. Historical exact reviews remain scoped to their original commits. Independent exact review of this candidate and separate G3-L inventory/package entry review are required; no provider, capture, runtime launch, or financial authority.",
   "schema": "V11_GATE3_CURRENT_EXECUTABLE_BINDING_V1",
-  "source_commit": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
-  "source_tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
+  "source_commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+  "source_tree": "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
 }
