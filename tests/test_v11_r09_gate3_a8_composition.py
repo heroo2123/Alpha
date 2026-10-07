@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.v11_gate3_refusal_assertions import expect_refusal
+
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_a8_composition import (
     PreparedComposition, _adapters, _component, _component_reviews, _fresh_context,
@@ -47,7 +49,7 @@ def test_composition_refuses_synthetic_manifest_before_any_adapter_use(tmp_path)
     manifest_raw = canonical(manifest)
     inventory_raw = canonical({'unfilled': True})
     review_raw = b'{}'
-    with pytest.raises(LaunchContractError, match='A8_SYNTHETIC_MANIFEST_FORBIDDEN'):
+    with expect_refusal('A8_SYNTHETIC_MANIFEST_FORBIDDEN'):
         validate_a8_composition(
             _package(manifest_raw, inventory_raw), manifest_raw=manifest_raw,
             inventory_raw=inventory_raw, review_raw=review_raw,
@@ -60,7 +62,7 @@ def test_manifest_byte_substitution_refuses_before_v4_validation(tmp_path):
     manifest_raw = canonical(private_v4_null_template('2026-10-03'))
     inventory_raw = canonical({'unfilled': True})
     review_raw = b'{}'
-    with pytest.raises(LaunchContractError, match='A8_PACKAGE_BYTES'):
+    with expect_refusal('A8_PACKAGE_BYTES'):
         validate_a8_composition(
             _package(manifest_raw, inventory_raw),
             manifest_raw=manifest_raw + b' ', inventory_raw=inventory_raw,
@@ -78,7 +80,7 @@ def test_fake_clock_synthetic_transport_and_resource_probe_refuse(tmp_path):
     components = {'transport': transport, 'clock': fake_clock,
                   'storage': object(), 'resources': fake_resource,
                   'decoder': lambda raw: raw}
-    with pytest.raises(LaunchContractError, match='A8_REAL_ADAPTERS_REQUIRED'):
+    with expect_refusal('A8_REAL_ADAPTERS_REQUIRED'):
         _adapters(tmp_path, components, {key: {} for key in components})
 
 
@@ -102,7 +104,7 @@ def test_opaque_or_synthetic_purpose_contract_refuses(tmp_path):
                        'media_type': ref['media_type']}}
                    for purpose in ('FIELD', 'INDEX', 'OBJECT_ID', 'METADATA', 'PROBE')}}
                    for p in ('GEFS', 'IFS', 'AIFS')}}
-    with pytest.raises(LaunchContractError, match='A8_PURPOSE_CONTRACT_SCHEMA'):
+    with expect_refusal('A8_PURPOSE_CONTRACT_SCHEMA'):
         _purpose_contracts(payload, tmp_path)
 
 
@@ -112,12 +114,12 @@ def test_sealed_object_rejects_symlink_and_changed_bytes(tmp_path):
     ref = _ref(source, tmp_path)
     assert _sealed(tmp_path, ref) == b'original'
     source.write_bytes(b'changed!')
-    with pytest.raises(LaunchContractError, match='A8_ARTIFACT_CHANGED'):
+    with expect_refusal('A8_ARTIFACT_CHANGED'):
         _sealed(tmp_path, ref)
     source.write_bytes(b'original')
     link = tmp_path / 'link'
     link.symlink_to(source)
-    with pytest.raises(LaunchContractError, match='A8_ARTIFACT_SYMLINK'):
+    with expect_refusal('A8_ARTIFACT_SYMLINK'):
         _sealed(tmp_path, {**ref, 'path': 'link'})
 
 
@@ -135,7 +137,7 @@ def test_a1_a7_require_distinct_accepted_review_records(tmp_path):
         refs[gate] = {'evidence': _ref(evidence, tmp_path),
                       'review': _ref(review, tmp_path)}
     assert set(_prerequisite_reviews(refs, tmp_path)) == set(refs)
-    with pytest.raises(LaunchContractError, match='A8_PREREQUISITE_SET'):
+    with expect_refusal('A8_PREREQUISITE_SET'):
         _prerequisite_reviews({k: v for k, v in refs.items() if k != 'A7'}, tmp_path)
     bad = tmp_path / 'A7-bad-review'
     bad.write_bytes(canonical({
@@ -143,7 +145,7 @@ def test_a1_a7_require_distinct_accepted_review_records(tmp_path):
         'evidence_sha256': refs['A7']['evidence']['sha256'],
         'commit_oid': '1' * 40, 'tree_oid': '2' * 40}))
     refs['A7']['review'] = _ref(bad, tmp_path)
-    with pytest.raises(LaunchContractError, match='A8_PREREQUISITE_NOT_ACCEPTED'):
+    with expect_refusal('A8_PREREQUISITE_NOT_ACCEPTED'):
         _prerequisite_reviews(refs, tmp_path)
 
 
@@ -174,11 +176,11 @@ def test_each_adapter_and_purpose_contract_needs_own_accepted_review(tmp_path):
         refs[name] = {'evidence': _ref(evidence, tmp_path),
                       'review': _ref(review, tmp_path)}
     assert set(_component_reviews(refs, payload, source_pins, tmp_path)) == set(names)
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_REVIEW_SET'):
+    with expect_refusal('A8_COMPONENT_REVIEW_SET'):
         _component_reviews({k: v for k, v in refs.items() if k != 'GEFS:INDEX'},
                            payload, source_pins, tmp_path)
     source_pins['clock']['sha256'] = '0' * 64
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_NOT_ACCEPTED'):
+    with expect_refusal('A8_COMPONENT_NOT_ACCEPTED'):
         _component_reviews(refs, payload, source_pins, tmp_path)
 
 
@@ -190,7 +192,7 @@ def test_component_source_identity_rejects_different_hash():
            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
            'qualname': '_sealed'}
     assert _component(repo, module._sealed, pin)[-1] == pin['sha256']
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_CHANGED'):
+    with expect_refusal('A8_COMPONENT_CHANGED'):
         _component(repo, module._sealed, {**pin, 'sha256': '0' * 64})
 
 
@@ -203,7 +205,7 @@ def test_adapter_method_override_refuses_even_with_same_source_hash():
     store = object.__new__(VersionedImmutableObjectStore)
     assert _component(repo, store, pin, '_check_dirs')
     store._check_dirs = lambda: None
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+    with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
         _component(repo, store, pin, '_check_dirs')
 
 
@@ -217,7 +219,7 @@ def test_foreign_class_method_refuses_pinned_source(monkeypatch):
     def foreign(self):
         return 'unreviewed implementation'
     monkeypatch.setattr(VersionedImmutableObjectStore, '_check_dirs', foreign)
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+    with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
         _component(repo, store, pin, '_check_dirs')
 
 
@@ -247,7 +249,7 @@ def test_in_place_code_change_refuses_at_recheck(monkeypatch):
                         isolated_validation)
     try:
         method.__code__ = changed.__code__
-        with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+        with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
             recheck_a8_composition(prepared, package,
                 expected_review_sha256='b' * 64, plan=plan, now_utc=2)
     finally:
@@ -320,7 +322,7 @@ def test_changed_reviewed_live_context_refuses(tmp_path, change, reason):
             store.context['policy'] = 'd' * 64
         else:
             store._failed = True
-        with pytest.raises(LaunchContractError, match=reason):
+        with expect_refusal(reason):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
     finally:
@@ -335,12 +337,12 @@ def test_store_usable_instance_override_refuses_after_genuine_accept(tmp_path):
         _fresh_context(payload, plan, components, now_utc=100,
                        repo=repo, storage_pin=storage_pin)
         store._failed = True
-        with pytest.raises(LaunchContractError, match='OBJECT_DURABILITY_UNCERTAIN'):
+        with expect_refusal('OBJECT_DURABILITY_UNCERTAIN'):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
         store._failed = False
         store._usable = lambda: None
-        with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+        with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
     finally:
@@ -359,7 +361,7 @@ def test_store_usable_class_override_refuses_after_genuine_accept(tmp_path, monk
         def foreign(self):
             return None
         monkeypatch.setattr(VersionedImmutableObjectStore, '_usable', foreign)
-        with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+        with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
     finally:
@@ -378,7 +380,7 @@ def test_store_usable_inplace_code_replacement_refuses_after_genuine_accept(tmp_
         _fresh_context(payload, plan, components, now_utc=100,
                        repo=repo, storage_pin=storage_pin)
         method.__code__ = changed.__code__
-        with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+        with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
     finally:
@@ -396,7 +398,7 @@ def test_store_directory_privacy_refusal_survives_usable_override(tmp_path):
                        repo=repo, storage_pin=storage_pin)
         os.chmod(store.root, 0o755)
         store._usable = lambda: None
-        with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+        with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
     finally:
@@ -415,7 +417,7 @@ def test_store_directory_mode_change_refuses_without_override(tmp_path):
         _fresh_context(payload, plan, components, now_utc=100,
                        repo=repo, storage_pin=storage_pin)
         os.chmod(store.root, 0o755)
-        with pytest.raises(LaunchContractError, match='OBJECT_DIRECTORY_PRIVATE'):
+        with expect_refusal('OBJECT_DIRECTORY_PRIVATE'):
             _fresh_context(payload, plan, components, now_utc=100,
                            repo=repo, storage_pin=storage_pin)
     finally:
@@ -428,13 +430,13 @@ def test_store_usable_identity_rejects_instance_class_and_inplace_replacement(mo
     store = object.__new__(VersionedImmutableObjectStore)
     assert _component(repo, store, pin, '_usable')
     store._usable = lambda: None
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+    with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
         _component(repo, store, pin, '_usable')
     del store._usable
     def foreign(self):
         return 'unreviewed implementation'
     monkeypatch.setattr(VersionedImmutableObjectStore, '_usable', foreign)
-    with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+    with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
         _component(repo, store, pin, '_usable')
     monkeypatch.undo()
     method = VersionedImmutableObjectStore._usable
@@ -443,7 +445,7 @@ def test_store_usable_identity_rejects_instance_class_and_inplace_replacement(mo
         return 'changed'
     try:
         method.__code__ = changed.__code__
-        with pytest.raises(LaunchContractError, match='A8_COMPONENT_METHOD_REPLACED'):
+        with expect_refusal('A8_COMPONENT_METHOD_REPLACED'):
             _component(repo, store, pin, '_usable')
     finally:
         method.__code__ = original_code
@@ -464,14 +466,14 @@ def test_stale_clock_and_capacity_refuse_before_storage_use(tmp_path):
     plan = SimpleNamespace(runtime_context_raw=canonical({
         'boot_id': 'boot', 'clock_method': 'reviewed_clock'}))
     repo, storage_pin = _store_pin()
-    with pytest.raises(LaunchContractError, match='A8_CLOCK_STALE_OR_DIFFERENT_HOST'):
+    with expect_refusal('A8_CLOCK_STALE_OR_DIFFERENT_HOST'):
         _fresh_context(payload, plan,
                        {'clock': clock, 'resources': resources,
                         'storage': storage}, now_utc=100,
                        repo=repo, storage_pin=storage_pin)
     clock.set(measured_mono=100)
     resources.free_disk_bytes = 199
-    with pytest.raises(LaunchContractError, match='A8_CAPACITY_STALE_OR_INSUFFICIENT'):
+    with expect_refusal('A8_CAPACITY_STALE_OR_INSUFFICIENT'):
         _fresh_context(payload, plan,
                        {'clock': clock, 'resources': resources,
                         'storage': storage}, now_utc=100,
@@ -484,7 +486,7 @@ def test_stale_clock_and_capacity_refuse_before_storage_use(tmp_path):
         storage.root_identity = (0, 0)
         storage._check_dirs = lambda: None
         plan.manifest_sha256 = '1' * 64
-        with pytest.raises(LaunchContractError, match='A8_STORAGE_CONTEXT'):
+        with expect_refusal('A8_STORAGE_CONTEXT'):
             _fresh_context(payload, plan,
                            {'clock': clock, 'resources': resources,
                             'storage': storage}, now_utc=100,
@@ -495,7 +497,7 @@ def test_stale_clock_and_capacity_refuse_before_storage_use(tmp_path):
 
 def test_review_to_use_refuses_package_and_component_substitution(monkeypatch):
     prepared = PreparedComposition('a' * 64, 'b' * 64, ((1,),), ('boot', 1, 2, 'x'))
-    with pytest.raises(LaunchContractError, match='A8_REVIEW_TO_USE_SUBSTITUTION'):
+    with expect_refusal('A8_REVIEW_TO_USE_SUBSTITUTION'):
         recheck_a8_composition(prepared, b'changed', expected_review_sha256='b' * 64)
     package = b'original'
     prepared = PreparedComposition(hashlib.sha256(package).hexdigest(),
@@ -506,9 +508,9 @@ def test_review_to_use_refuses_package_and_component_substitution(monkeypatch):
     plan = object.__new__(FrozenPlan)
     object.__setattr__(plan, 'window', SimpleNamespace(start_utc=1,
                                                        acquisition_end_utc=3))
-    with pytest.raises(LaunchContractError, match='A8_REVIEW_TO_USE_SUBSTITUTION'):
+    with expect_refusal('A8_REVIEW_TO_USE_SUBSTITUTION'):
         recheck_a8_composition(prepared, package, expected_review_sha256='b' * 64,
                                plan=plan, now_utc=2)
-    with pytest.raises(LaunchContractError, match='A8_USE_OUTSIDE_WINDOW'):
+    with expect_refusal('A8_USE_OUTSIDE_WINDOW'):
         recheck_a8_composition(prepared, package, expected_review_sha256='b' * 64,
                                plan=plan, now_utc=3)

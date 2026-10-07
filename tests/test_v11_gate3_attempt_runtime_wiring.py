@@ -54,6 +54,8 @@ import hashlib
 
 import pytest
 
+from tests.v11_gate3_refusal_assertions import expect_refusal
+
 import tools.v11_r09_gate3_runtime as runtime_module
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_launch import LaunchContractError
@@ -265,7 +267,7 @@ def test_runtime_rejects_attempt_model_on_multi_request_plan(tmp_path):
     requests = (_pilot_request(request_id='req-pilot'),
                 _pilot_request(request_id='req-pilot-2'))
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE'):
             _build_runtime(shared, session, budget, store, tmp_path,
                 requests=requests, exchange=exchange, attempt_model=guard)
 
@@ -276,7 +278,7 @@ def test_runtime_rejects_attempt_model_on_non_index_plan(tmp_path):
     guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
     field_request = _request(purpose='FIELD', provider='GEFS', reservation_bytes=32)
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE'):
             _build_runtime(shared, session, budget, store, tmp_path,
                 requests=(field_request,), exchange=exchange, attempt_model=guard)
 
@@ -286,7 +288,7 @@ def test_runtime_rejects_attempt_model_on_wrong_origin_plan(tmp_path):
     exchange = SyntheticExchange({})
     guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE'):
             _build_runtime(shared, session, budget, store, tmp_path,
                 requests=(_request(),), exchange=exchange, attempt_model=guard)
 
@@ -295,7 +297,7 @@ def test_runtime_rejects_wrong_typed_attempt_model(tmp_path):
     tmp_path = _dirs(tmp_path)
     exchange = SyntheticExchange({})
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_COMPOSITION_SHAPE'):
+        with expect_refusal('RUNTIME_COMPOSITION_SHAPE'):
             _build_runtime(shared, session, budget, store, tmp_path,
                 requests=(_request(),), exchange=exchange, attempt_model=object())
 
@@ -314,7 +316,7 @@ def test_guard_is_single_shot_in_process_second_call_refused_even_if_otherwise_v
     guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
     with _acquire(tmp_path) as (shared, session, budget, store):
         guard.require_admission(_pilot_request(), session=session)  # admits; no exception
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED'):
             guard.require_admission(_pilot_request(), session=session)
 
 
@@ -326,9 +328,9 @@ def test_guard_single_shot_consumes_even_on_first_refusal(tmp_path):
     guard = AttemptModelGuard(
         good_inputs(), genesis_checkpoint(unfinished_intents=('synthetic://intent/open',)))
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_REFUSED'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_REFUSED'):
             guard.require_admission(_pilot_request(), session=session)
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED'):
             guard.require_admission(_pilot_request(), session=session)
 
 
@@ -363,7 +365,7 @@ def test_require_admission_refuses_when_durably_consumed_across_session_reopen(t
         assert pilot.request_id in reopened_session.attempt_history
         guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
         assert guard._consumed is False
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED'):
             guard.require_admission(pilot, session=reopened_session)
     finally:
         reopened_session.close()
@@ -381,7 +383,7 @@ def test_require_admission_scope_mismatch_wrong_origin_fails_closed(tmp_path):
     guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
     mismatched = _pilot_request(origin=ORIGIN, path='/fixed/index')
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_SCOPE_MISMATCH'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_SCOPE_MISMATCH'):
             guard.require_admission(mismatched, session=session)
 
 
@@ -391,7 +393,7 @@ def test_require_admission_scope_mismatch_field_purpose_fails_closed(tmp_path):
     field_request = _request(purpose='FIELD', provider='GEFS', origin=PILOT_ORIGIN,
                               path=PILOT_PATH, reservation_bytes=32)
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_SCOPE_MISMATCH'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_SCOPE_MISMATCH'):
             guard.require_admission(field_request, session=session)
 
 
@@ -437,7 +439,7 @@ def test_require_admission_degrades_structurally_invalid_checkpoint_value_error(
     bad_checkpoint = genesis_checkpoint(expected_history_head='0' * 63)
     guard = AttemptModelGuard(good_inputs(), bad_checkpoint)
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_REFUSED'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_REFUSED'):
             guard.require_admission(_pilot_request(), session=session)
 
 
@@ -464,7 +466,7 @@ def test_require_admission_rejects_non_modelstate_admission(tmp_path, monkeypatc
     monkeypatch.setattr(runtime_module, 'attempt_model_admit_synthetic',
                          lambda *a, **k: _FakeAdmitted())
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_ATTEMPT_MODEL_REFUSED'):
+        with expect_refusal('RUNTIME_ATTEMPT_MODEL_REFUSED'):
             guard.require_admission(_pilot_request(), session=session)
 
 

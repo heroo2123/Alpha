@@ -13,10 +13,23 @@ from zoneinfo import TZPATH
 
 import pytest
 
+from tests.v11_gate3_refusal_assertions import expect_refusal
+
 from tools.v11_multimodel_panel import canonical
 from tools import v11_r09_gate3_launch as launch
 from tools.v11_r09_gate3_launch import (DurableBudget, LaunchContractError,
     SLOT_COUNT, _slot_inventory, validate_manifest)
+
+
+@pytest.mark.parametrize('wrong_code', [
+    'WRONG_REFUSAL_CODE', 'EXPECTED_REFUSAL_CODE_EXTRA',
+])
+def test_exact_refusal_helper_rejects_wrong_code(wrong_code):
+    with pytest.raises(pytest.fail.Exception) as caught:
+        with expect_refusal('EXPECTED_REFUSAL_CODE'):
+            raise LaunchContractError(wrong_code)
+    if wrong_code not in str(caught.value):
+        pytest.fail('wrong-code control did not report the actual refusal code')
 
 
 def _git(repo, *args):
@@ -290,8 +303,7 @@ def test_inherited_budget_cannot_mutate_composed_store_journal(tmp_path):
                             lambda: budget.next_read_limit(1),
                             lambda: budget.consume('child', b'X'),
                             lambda: budget.complete('child')):
-                        with pytest.raises(LaunchContractError,
-                                           match='JOURNAL_OWNER_PROCESS'):
+                        with expect_refusal('JOURNAL_OWNER_PROCESS'):
                             action()
                     return {'store_reason': store_reason,
                             'received': budget.received}
@@ -303,8 +315,7 @@ def test_inherited_budget_cannot_mutate_composed_store_journal(tmp_path):
             assert result == {'store_reason': 'STORE_OWNER_PROCESS',
                               'received': 0}
             assert (journal / 'gate3.jsonl').read_bytes() == before
-            with pytest.raises(LaunchContractError,
-                               match='JOURNAL_CONCURRENT_WRITER'):
+            with expect_refusal('JOURNAL_CONCURRENT_WRITER'):
                 DurableBudget(journal, digest, max_bytes=1,
                               boot_id='synthetic-boot')
             budget.reserve('parent', 1, started_monotonic=3)
@@ -314,7 +325,7 @@ def test_inherited_budget_cannot_mutate_composed_store_journal(tmp_path):
     with DurableBudget(journal, digest, max_bytes=1,
                        boot_id='synthetic-boot') as reopened:
         assert reopened.received == 1
-        with pytest.raises(LaunchContractError, match='NOT_ATTEMPTED_BUDGET'):
+        with expect_refusal('NOT_ATTEMPTED_BUDGET'):
             reopened.reserve('second', 1, started_monotonic=5)
 
 
@@ -338,38 +349,38 @@ def test_reviewed_protocol_pins_match_repository():
 def test_shortened_denominator_rejected(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['runs_and_slots']['slots'] = payload['runs_and_slots']['slots'][:3]
-    with pytest.raises(LaunchContractError, match='IMMUTABLE_2713_SLOT_DENOMINATOR'):
+    with expect_refusal('IMMUTABLE_2713_SLOT_DENOMINATOR'):
         validate(payload, repo, root, start)
 
 
 def test_unsealed_placeholder_and_wrong_window_rejected(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['identity']['pilot_id'] = ''
-    with pytest.raises(LaunchContractError, match='PILOT_ID'):
+    with expect_refusal('PILOT_ID'):
         validate(payload, repo, root, start)
     payload['identity']['pilot_id'] = 'synthetic_20270301'
     payload['time']['window_start_utc'] += 1
-    with pytest.raises(LaunchContractError, match='PILOT_WINDOW_FIXED'):
+    with expect_refusal('PILOT_WINDOW_FIXED'):
         validate(payload, repo, root, start)
 
 
 def test_duplicate_unknown_and_noncanonical_json_rejected(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
-    with pytest.raises(LaunchContractError, match='DUPLICATE_JSON_KEY'):
+    with expect_refusal('DUPLICATE_JSON_KEY'):
         validate_manifest(b'{"a":1,"a":2}', repo=repo, object_root=root, now_utc=start)
     payload['unreviewed'] = True
-    with pytest.raises(LaunchContractError, match='MANIFEST_GROUP_SCHEMA'):
+    with expect_refusal('MANIFEST_GROUP_SCHEMA'):
         validate(payload, repo, root, start)
 
 
 def test_git_oid_is_not_artifact_sha_and_dirty_source_rejected(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['code']['components']['collector']['commit_oid'] = 'a' * 64
-    with pytest.raises(LaunchContractError, match='GIT_COMMIT_OID'):
+    with expect_refusal('GIT_COMMIT_OID'):
         validate(payload, repo, root, start)
     payload['code']['components']['collector']['commit_oid'] = _git(repo, 'rev-parse', 'HEAD')
     (repo / 'collector.py').write_text('# edited after commit\n')
-    with pytest.raises(LaunchContractError, match='DIRTY_EXECUTABLE_CODE'):
+    with expect_refusal('DIRTY_EXECUTABLE_CODE'):
         validate(payload, repo, root, start)
 
 
@@ -377,7 +388,7 @@ def test_object_symlink_and_raw_only_full_estimate_are_not_launch_schedule(tmp_p
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['schedule']['requests'][-1]['reservation_bytes'] = 1
     payload['schedule']['reservation_total_bytes'] -= 2097151
-    with pytest.raises(LaunchContractError, match='RESERVATION_TOO_SMALL'):
+    with expect_refusal('RESERVATION_TOO_SMALL'):
         validate(payload, repo, root, start)
     payload['schedule']['requests'][-1]['reservation_bytes'] = 2097152
     payload['schedule']['reservation_total_bytes'] += 2097151
@@ -388,7 +399,7 @@ def test_object_symlink_and_raw_only_full_estimate_are_not_launch_schedule(tmp_p
     outside = tmp_path / 'outside'
     outside.write_bytes(data)
     object_path.symlink_to(outside)
-    with pytest.raises(LaunchContractError, match='ARTIFACT_LENGTH'):
+    with expect_refusal('ARTIFACT_LENGTH'):
         validate(payload, repo, root, start)
 
 
@@ -403,7 +414,7 @@ def test_budget_reservation_survives_crash_and_blocks_exhausted_next_request(tmp
         budget.complete('first')
     with DurableBudget(root, h, max_bytes=1) as budget:
         assert budget.received == 1
-        with pytest.raises(LaunchContractError, match='NOT_ATTEMPTED_BUDGET'):
+        with expect_refusal('NOT_ATTEMPTED_BUDGET'):
             budget.reserve('second', 1, started_monotonic=2)
 
 
@@ -416,7 +427,7 @@ def test_partial_receipt_charged_and_uncertain_reservation_held(tmp_path):
         budget.consume('first', b'xx')
     with DurableBudget(root, h, max_bytes=5) as budget:
         assert budget.received == 2 and budget.reserved == 4
-        with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+        with expect_refusal('UNCERTAIN_REQUEST_HELD'):
             budget.reserve('second', 1, started_monotonic=2)
 
 
@@ -427,14 +438,14 @@ def test_stream_stops_at_allowance_and_does_not_ignore_partial_bytes(tmp_path):
         budget.reserve('first', 2, started_monotonic=0)
         budget.consume('first', b'x')
         assert budget.next_read_limit(10) == 1
-        with pytest.raises(LaunchContractError, match='STREAM_ABORT_AT_ALLOWANCE'):
+        with expect_refusal('STREAM_ABORT_AT_ALLOWANCE'):
             budget.consume('first', b'xx')
         assert budget.received == 3
-        with pytest.raises(LaunchContractError, match='NO_ACTIVE_REQUEST'):
+        with expect_refusal('NO_ACTIVE_REQUEST'):
             budget.next_read_limit(10)
     with DurableBudget(root, 'c' * 64, max_bytes=2) as budget:
         assert budget.received == 3
-        with pytest.raises(LaunchContractError, match='STREAM_VIOLATION_HELD'):
+        with expect_refusal('STREAM_VIOLATION_HELD'):
             budget.reserve('second', 1, started_monotonic=2)
 
 
@@ -446,7 +457,7 @@ def test_tampered_journal_fails_closed(tmp_path):
     file = root / 'gate3.jsonl'
     data = file.read_bytes()
     file.write_bytes(data.replace(b'first', b'other'))
-    with pytest.raises(LaunchContractError, match='JOURNAL_HASH'):
+    with expect_refusal('JOURNAL_HASH'):
         DurableBudget(root, 'd' * 64, max_bytes=2)
 
 
@@ -454,7 +465,7 @@ def test_journal_rejects_concurrent_writer(tmp_path):
     root = tmp_path / 'journal'
     root.mkdir(mode=0o700)
     with DurableBudget(root, 'f' * 64, max_bytes=2):
-        with pytest.raises(LaunchContractError, match='JOURNAL_CONCURRENT_WRITER'):
+        with expect_refusal('JOURNAL_CONCURRENT_WRITER'):
             DurableBudget(root, 'f' * 64, max_bytes=2)
 
 
@@ -469,11 +480,11 @@ def test_pacing_elapsed_and_request_count_persist_across_restart(tmp_path):
         budget.complete('one')
     with DurableBudget(root, h, max_requests=2, max_bytes=4,
                        max_elapsed_seconds=3) as budget:
-        with pytest.raises(LaunchContractError, match='NOT_ATTEMPTED_BUDGET'):
+        with expect_refusal('NOT_ATTEMPTED_BUDGET'):
             budget.reserve('two', 1, started_monotonic=101)
         budget.reserve('two', 1, started_monotonic=102)
         budget.complete('two')
-        with pytest.raises(LaunchContractError, match='NOT_ATTEMPTED_BUDGET'):
+        with expect_refusal('NOT_ATTEMPTED_BUDGET'):
             budget.reserve('three', 1, started_monotonic=104)
 
 
@@ -485,7 +496,7 @@ def test_native_cycle_requires_exact_midnight(tmp_path, monkeypatch, offset):
     payload['runs_and_slots']['slots'] = _slot_inventory(payload['runs_and_slots']['run_utc'])
     payload['schedule']['slot_inventory_sha256'] = hashlib.sha256(
         canonical(payload['runs_and_slots']['slots'])).hexdigest()
-    with pytest.raises(LaunchContractError, match='RUN_TIME'):
+    with expect_refusal('RUN_TIME'):
         validate(payload, repo, root, start)
 
 
@@ -507,7 +518,7 @@ def test_native_inventory_rejects_aliases_and_digest(tmp_path, monkeypatch, muta
         payload['runs_and_slots']['slots'][0][3] = 0.0
     else:
         payload['schedule']['slot_inventory_sha256'] = 'f' * 64
-    with pytest.raises(LaunchContractError, match=reason):
+    with expect_refusal(reason):
         validate(payload, repo, root, start)
 
 
@@ -515,7 +526,7 @@ def test_latest_ready_run_selected_at_conservative_bound(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     for item in payload['runs_and_slots']['candidates']:
         item['ready_upper_utc'] = payload['time']['decision_lower_utc'] + 1
-    with pytest.raises(LaunchContractError, match='RUN_TIME'):
+    with expect_refusal('RUN_TIME'):
         validate(payload, repo, root, start)
 
 
@@ -525,12 +536,12 @@ def test_schedule_rejects_cross_provider_reuse_and_unknown_prerequisites(tmp_pat
     payload['schedule']['requests'].append(request_for_slot(
         payload, 775, 'FIELD', 4, 4194304, [0, 1, 2]))
     payload['schedule']['reservation_total_bytes'] += 4194304
-    with pytest.raises(LaunchContractError, match='FIELD_PREREQUISITES'):
+    with expect_refusal('FIELD_PREREQUISITES'):
         validate(payload, repo, root, start)
     (tmp_path / 'second').mkdir()
     payload, repo, root, start = candidate(tmp_path / 'second', monkeypatch)
     payload['schedule']['requests'][0]['prerequisites'] = [999999]
-    with pytest.raises(LaunchContractError, match='SCHEDULE_PREREQUISITES'):
+    with expect_refusal('SCHEDULE_PREREQUISITES'):
         validate(payload, repo, root, start)
 
 
@@ -538,17 +549,17 @@ def test_schedule_rejects_empty_paths_wrong_object_and_impossible_pacing(tmp_pat
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['sources']['GEFS']['path_template'] = ''
     payload['network']['path_templates']['GEFS'] = ''
-    with pytest.raises(LaunchContractError, match='SOURCE_ORIGIN'):
+    with expect_refusal('SOURCE_ORIGIN'):
         validate(payload, repo, root, start)
     payload['sources']['GEFS']['path_template'] = '/fixed/{run}/{member}/{hour}'
     payload['network']['path_templates']['GEFS'] = payload['sources']['GEFS']['path_template']
     payload['schedule']['requests'][0]['object_id'] = '0' * 64
-    with pytest.raises(LaunchContractError, match='SCHEDULE_OBJECT_BINDING'):
+    with expect_refusal('SCHEDULE_OBJECT_BINDING'):
         validate(payload, repo, root, start)
     payload['schedule']['requests'][0]['object_id'] = payload['schedule']['requests'][1]['object_id']
     payload['limits']['min_start_interval_seconds'] = 10801
     payload['limits']['request_deadline_seconds'] = 1
-    with pytest.raises(LaunchContractError, match='SCHEDULE_TIME_FEASIBILITY'):
+    with expect_refusal('SCHEDULE_TIME_FEASIBILITY'):
         validate(payload, repo, root, start)
 
 
@@ -558,10 +569,10 @@ def test_field_range_and_reservation_cannot_exceed_provider_cap(tmp_path, monkey
     field['range_end'] += 1
     field['reservation_bytes'] += 1
     payload['schedule']['reservation_total_bytes'] += 1
-    with pytest.raises(LaunchContractError, match='FIELD_PROVIDER_LIMIT'):
+    with expect_refusal('FIELD_PROVIDER_LIMIT'):
         validate(payload, repo, root, start)
     field['range_end'] -= 1
-    with pytest.raises(LaunchContractError, match='RESERVATION_TOO_SMALL'):
+    with expect_refusal('RESERVATION_TOO_SMALL'):
         validate(payload, repo, root, start)
 
 
@@ -579,7 +590,7 @@ def test_schedule_rejects_origin_escape_paths(tmp_path, monkeypatch, template):
         replacement = request_for_slot(payload, 0, request['purpose'], position,
                                        request['reservation_bytes'], request['prerequisites'])
         request.update(replacement)
-    with pytest.raises(LaunchContractError, match='SOURCE_ORIGIN'):
+    with expect_refusal('SOURCE_ORIGIN'):
         validate(payload, repo, root, start)
 
 
@@ -588,7 +599,7 @@ def test_pinned_timezone_bytes_govern_local_day(tmp_path, monkeypatch):
     payload['cohort']['timezone'] = 'America/New_York'
     payload['time']['local_day_start_utc'] += 5 * 3600
     payload['time']['local_day_end_utc'] += 5 * 3600
-    with pytest.raises(LaunchContractError, match='PINNED_TZDATA_ZONE_MISMATCH'):
+    with expect_refusal('PINNED_TZDATA_ZONE_MISMATCH'):
         validate(payload, repo, root, start)
     nybytes = next((Path(base) / 'America/New_York').read_bytes() for base in TZPATH
                    if (Path(base) / 'America/New_York').is_file())
@@ -601,7 +612,7 @@ def test_pinned_timezone_bytes_govern_local_day(tmp_path, monkeypatch):
     payload['cohort']['timezone'] = 'UTC'
     tzref = payload['cohort']['tzdata']
     (root / 'objects' / tzref['sha256']).write_bytes(b'synthetic artifact only')
-    with pytest.raises(LaunchContractError, match='ARTIFACT_LENGTH|ARTIFACT_DIGEST'):
+    with expect_refusal(('ARTIFACT_LENGTH', 'ARTIFACT_DIGEST')):
         validate(payload, repo, root, start)
 
 
@@ -643,7 +654,7 @@ def test_journal_failure_poison_and_restart(tmp_path, monkeypatch, boundary, fau
                     OSError('synthetic fsync failure')))
             reason = ('JOURNAL_SHORT_WRITE_DURABILITY_UNCERTAIN'
                       if fault == 'short_write' else 'JOURNAL_DURABILITY_UNCERTAIN')
-            with pytest.raises(LaunchContractError, match=reason):
+            with expect_refusal(reason):
                 if boundary == 'reserve':
                     budget.reserve('one', 2, started_monotonic=0)
                 elif boundary == 'chunk':
@@ -659,7 +670,7 @@ def test_journal_failure_poison_and_restart(tmp_path, monkeypatch, boundary, fau
                        lambda: budget.next_read_limit(1),
                        lambda: budget.consume('one', b'x'),
                        lambda: budget.complete('one')):
-            with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+            with expect_refusal('JOURNAL_DURABILITY_UNCERTAIN'):
                 action()
     if fault == 'short_write':
         with pytest.raises(LaunchContractError):
@@ -669,8 +680,8 @@ def test_journal_failure_poison_and_restart(tmp_path, monkeypatch, boundary, fau
             if boundary in ('chunk', 'violation'):
                 assert reopened.received >= (1 if boundary == 'chunk' else 3)
             if boundary != 'complete':
-                with pytest.raises(LaunchContractError,
-                                   match='UNCERTAIN_REQUEST_HELD|STREAM_VIOLATION_HELD'):
+                with expect_refusal(('UNCERTAIN_REQUEST_HELD',
+                                     'STREAM_VIOLATION_HELD')):
                     reopened.reserve('two', 1, started_monotonic=2)
 
 
@@ -682,13 +693,13 @@ def test_journal_rejects_hardlink_and_wrong_mode_without_modifying_target(tmp_pa
     target.write_bytes(b'unchanged')
     target.chmod(0o600)
     os.link(target, root / name)
-    with pytest.raises(LaunchContractError, match='JOURNAL_FILE_IDENTITY'):
+    with expect_refusal('JOURNAL_FILE_IDENTITY'):
         DurableBudget(root, 'b' * 64)
     assert target.read_bytes() == b'unchanged'
     (root / name).unlink()
     (root / name).write_bytes(b'')
     (root / name).chmod(0o644)
-    with pytest.raises(LaunchContractError, match='JOURNAL_FILE_IDENTITY'):
+    with expect_refusal('JOURNAL_FILE_IDENTITY'):
         DurableBudget(root, 'b' * 64)
 
 
@@ -697,12 +708,12 @@ def test_journal_rejects_ancestor_symlink_and_closes_failed_constructor(tmp_path
     root.mkdir(mode=0o700)
     link = tmp_path / 'alias'
     link.symlink_to(root, target_is_directory=True)
-    with pytest.raises(LaunchContractError, match='JOURNAL_PATH_SYMLINK'):
+    with expect_refusal('JOURNAL_PATH_SYMLINK'):
         DurableBudget(link, 'c' * 64)
     (root / 'gate3.jsonl').write_bytes(b'torn')
     (root / 'gate3.jsonl').chmod(0o600)
     before = len(os.listdir('/proc/self/fd'))
-    with pytest.raises(LaunchContractError, match='JOURNAL_TORN_RECORD'):
+    with expect_refusal('JOURNAL_TORN_RECORD'):
         DurableBudget(root, 'c' * 64)
     assert len(os.listdir('/proc/self/fd')) == before
 
@@ -711,7 +722,7 @@ def test_journal_rejects_nonregular_file_and_constructor_fsync_cleanup(tmp_path,
     root = tmp_path / 'journal'
     root.mkdir(mode=0o700)
     os.mkfifo(root / 'gate3.lock', 0o600)
-    with pytest.raises(LaunchContractError, match='JOURNAL_FILE_IDENTITY'):
+    with expect_refusal('JOURNAL_FILE_IDENTITY'):
         DurableBudget(root, 'd' * 64)
     (root / 'gate3.lock').unlink()
     before = len(os.listdir('/proc/self/fd'))
@@ -728,10 +739,10 @@ def test_journal_poisoned_if_directory_loses_private_mode(tmp_path):
     root.mkdir(mode=0o700)
     with DurableBudget(root, 'e' * 64) as budget:
         root.chmod(0o755)
-        with pytest.raises(LaunchContractError, match='JOURNAL_DIRECTORY_IDENTITY'):
+        with expect_refusal('JOURNAL_DIRECTORY_IDENTITY'):
             budget.reserve('one', 1, started_monotonic=0)
         root.chmod(0o700)
-        with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DURABILITY_UNCERTAIN'):
             budget.reserve('one', 1, started_monotonic=0)
 
 
@@ -741,15 +752,15 @@ def test_delivered_bytes_remain_known_when_privacy_fails_mid_request(tmp_path):
     with DurableBudget(root, 'f' * 64, max_bytes=2) as budget:
         budget.reserve('one', 2, started_monotonic=0)
         root.chmod(0o755)
-        with pytest.raises(LaunchContractError, match='JOURNAL_DIRECTORY_IDENTITY'):
+        with expect_refusal('JOURNAL_DIRECTORY_IDENTITY'):
             budget.consume('one', b'x')
         assert budget.failed
         assert budget.received == 1 and budget.uncertain_received_bytes == 1
         assert budget.reserved == 2 and budget.in_flight == 'one'
         root.chmod(0o700)
-        with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DURABILITY_UNCERTAIN'):
             budget.complete('one')
-        with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DURABILITY_UNCERTAIN'):
             budget.reserve('two', 1, started_monotonic=2)
 
 
@@ -759,7 +770,7 @@ def test_budget_rejects_oversized_record_before_write(tmp_path):
     root.mkdir(mode=0o700)
     with DurableBudget(root, 'a' * 64, max_bytes=1) as budget:
         huge_key = 'k' * (launch.JOURNAL_RECORD_MAX_BYTES + 1)
-        with pytest.raises(LaunchContractError, match='JOURNAL_RECORD_TOO_LARGE'):
+        with expect_refusal('JOURNAL_RECORD_TOO_LARGE'):
             budget.reserve(huge_key, 1, started_monotonic=0)
         # The rejected oversized record was never written; the journal is
         # still usable with an ordinary-sized key afterward.
@@ -778,13 +789,13 @@ def test_budget_rejects_total_journal_bytes_past_fixed_cap(tmp_path, monkeypatch
         # room left for even one more record, regardless of byte/request
         # budget headroom.
         monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES', budget._journal_bytes)
-        with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+        with expect_refusal('JOURNAL_CAPACITY_EXCEEDED'):
             budget.reserve('two', 1, started_monotonic=2)
     # Replaying the already-compliant history (exactly at, not over, the cap)
     # still succeeds; the cap blocks new growth, not reading past data.
     with DurableBudget(root, 'b' * 64, max_bytes=1024 ** 2) as restarted:
         assert restarted.in_flight is None and restarted.received == 1
-        with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+        with expect_refusal('JOURNAL_CAPACITY_EXCEEDED'):
             restarted.reserve('two', 1, started_monotonic=2)
 
 
@@ -805,19 +816,19 @@ def test_budget_rejects_event_count_past_fixed_cap(tmp_path, monkeypatch):
         # events[0] is 'init'; this 'reserve' is events[1].
         budget.reserve('first', 100, started_monotonic=0)
         budget.consume('first', b'x')  # events[2]; plenty of byte allowance remains
-        with pytest.raises(LaunchContractError, match='JOURNAL_EVENT_CAPACITY'):
+        with expect_refusal('JOURNAL_EVENT_CAPACITY'):
             budget.consume('first', b'x')
         assert budget.received == 2 and budget.uncertain_received_bytes == 1
         assert not budget.failed, 'capacity exhaustion is a clean refusal, not a durability fault'
         assert budget.in_flight == 'first'
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             budget.complete('first')
     with DurableBudget(root, 'c' * 64, max_bytes=1024 ** 2) as budget:
         assert budget.in_flight == 'first' and budget.received == 1
         assert budget.delivery_held and not budget.failed
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             budget.complete('first')
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             budget.reserve('second', 1, started_monotonic=4)
 
 
@@ -829,7 +840,7 @@ def test_replay_rejects_oversized_file_and_unterminated_record_without_full_read
     with DurableBudget(root, 'd' * 64, max_bytes=1) as budget:
         budget.reserve('one', 1, started_monotonic=0)
     monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES', 10)
-    with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+    with expect_refusal('JOURNAL_CAPACITY_EXCEEDED'):
         DurableBudget(root, 'd' * 64, max_bytes=1)
     monkeypatch.undo()
     # A gigantic sparse (mostly unwritten) file must still be refused purely
@@ -839,7 +850,7 @@ def test_replay_rejects_oversized_file_and_unterminated_record_without_full_read
     with open(huge, 'r+b') as fh:
         fh.truncate(huge_size)
     assert huge.stat().st_size == huge_size
-    with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+    with expect_refusal('JOURNAL_CAPACITY_EXCEEDED'):
         DurableBudget(root, 'd' * 64, max_bytes=1)
 
 
@@ -852,7 +863,7 @@ def test_replay_rejects_unterminated_record_past_record_cap(tmp_path):
     journal = root / 'gate3.jsonl'
     with open(journal, 'ab') as fh:
         fh.write(b'{' + b'x' * (launch.JOURNAL_RECORD_MAX_BYTES + 1))
-    with pytest.raises(LaunchContractError, match='JOURNAL_RECORD_TOO_LARGE'):
+    with expect_refusal('JOURNAL_RECORD_TOO_LARGE'):
         DurableBudget(root, 'e' * 64, max_bytes=1)
 
 
@@ -901,14 +912,14 @@ def test_byte_capacity_refusal_after_delivery_cannot_complete_or_refund(tmp_path
         record['hash'] = hashlib.sha256(canonical(record)).hexdigest()
         monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES',
                             budget._journal_bytes + len(canonical(record) + b'\n'))
-        with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+        with expect_refusal('JOURNAL_CAPACITY_EXCEEDED'):
             budget.consume('one', b'xyz')
         assert budget.uncertain_received_bytes == 3
         assert budget.reserved == 10 and budget.in_flight == 'one'
         assert budget.delivery_held and not budget.failed
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             budget.complete('one')
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             budget.next_read_limit(1)
         monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES', cap)
     with DurableBudget(root, '7' * 64, max_bytes=10) as reopened:
@@ -918,9 +929,9 @@ def test_byte_capacity_refusal_after_delivery_cannot_complete_or_refund(tmp_path
         # The hold itself (not merely the unrelated in-flight check) must be
         # what blocks a fresh process: a reopened budget still must not be
         # able to complete/refund the uncertain reservation.
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             reopened.complete('one')
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             reopened.reserve('two', 1, started_monotonic=2)
 
 
@@ -936,17 +947,17 @@ def test_post_delivery_append_refusal_holds_every_kind(tmp_path, monkeypatch,
             monkeypatch.setattr(launch, 'JOURNAL_MAX_EVENTS', len(budget.events))
         else:
             monkeypatch.setattr(launch, 'JOURNAL_RECORD_MAX_BYTES', 1)
-        with pytest.raises(LaunchContractError, match='JOURNAL_(EVENT_CAPACITY|RECORD_TOO_LARGE)'):
+        with expect_refusal(('JOURNAL_EVENT_CAPACITY', 'JOURNAL_RECORD_TOO_LARGE')):
             budget.consume('one', b'xx' if overdelivery else b'x')
         assert budget.delivery_held and budget.in_flight == 'one'
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             budget.complete('one')
     monkeypatch.undo()
     with DurableBudget(root, '6' * 64, max_bytes=1) as reopened:
         assert reopened.in_flight == 'one' and reopened.reserved == 1
         assert reopened.received == 0
         assert reopened.delivery_held and not reopened.failed
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             reopened.complete('one')
 
 
@@ -975,13 +986,13 @@ def test_delivery_held_marker_restart_regression_matches_named_scenario(tmp_path
     with DurableBudget(root, '4' * 64, max_bytes=10) as budget:
         budget.reserve('one', 10, started_monotonic=0)
         monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES', budget._journal_bytes)
-        with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+        with expect_refusal('JOURNAL_CAPACITY_EXCEEDED'):
             budget.consume('one', b'xyz')
         assert budget.uncertain_received_bytes == 3 and budget.delivery_held
         monkeypatch.undo()
     with DurableBudget(root, '4' * 64, max_bytes=10) as reopened:
         assert reopened.delivery_held
-        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+        with expect_refusal('JOURNAL_DELIVERY_UNCERTAIN'):
             reopened.complete('one')
         assert reopened.reserved == 10 and reopened.in_flight == 'one'
 
@@ -1017,12 +1028,12 @@ def test_inherited_reservation_is_never_completed_after_any_post_delivery_failur
                     raise OSError(errno.ENOSPC, 'synthetic: zero bytes written')
                 return real_write(fd, data)
             monkeypatch.setattr(launch.os, 'write', refuse)
-            with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+            with expect_refusal('JOURNAL_DURABILITY_UNCERTAIN'):
                 budget.consume('one', b'xyz')
             monkeypatch.undo()
         elif fault == 'identity':
             root.chmod(0o755)
-            with pytest.raises(LaunchContractError, match='JOURNAL_DIRECTORY_IDENTITY'):
+            with expect_refusal('JOURNAL_DIRECTORY_IDENTITY'):
                 budget.consume('one', b'xyz')
             root.chmod(0o700)
         if fault != 'crash':
@@ -1033,7 +1044,7 @@ def test_inherited_reservation_is_never_completed_after_any_post_delivery_failur
         for action in (lambda: reopened.complete('one'),
                        lambda: reopened.next_read_limit(1),
                        lambda: reopened.reserve('two', 1, started_monotonic=10)):
-            with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+            with expect_refusal('UNCERTAIN_REQUEST_HELD'):
                 action()
         assert reopened.reserved == 10 and reopened.in_flight == 'one'
     with DurableBudget(root, '2' * 64, max_bytes=10) as again:

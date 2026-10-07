@@ -44,6 +44,8 @@ import hashlib
 
 import pytest
 
+from tests.v11_gate3_refusal_assertions import expect_refusal
+
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_launch import LaunchContractError
 from tools.v11_r09_gate3_offline_io import OfflineResponse, SyntheticExchange
@@ -309,7 +311,7 @@ def test_unsatisfied_intake_blocks_even_when_attempt_model_would_admit(
     attempt_guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
     # These direct records used to claim satisfaction and reach synthetic
     # dispatch despite a contradictory checker outcome.
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
+    with expect_refusal('EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
         _satisfied_record(outcome=invalid_outcome)
     evidence_guard = EvidenceIntakeGuard(_unsatisfied_record())
     with _acquire(tmp_path) as (shared, session, budget, store):
@@ -354,7 +356,7 @@ def test_runtime_rejects_wrong_typed_evidence_intake(tmp_path):
     tmp_path = _dirs(tmp_path)
     exchange = SyntheticExchange({})
     with _acquire(tmp_path) as (shared, session, budget, store):
-        with pytest.raises(LaunchContractError, match='RUNTIME_COMPOSITION_SHAPE'):
+        with expect_refusal('RUNTIME_COMPOSITION_SHAPE'):
             _build_runtime(shared, session, budget, store, tmp_path,
                 requests=(_request(),), exchange=exchange, evidence_intake=object())
 
@@ -370,7 +372,7 @@ def test_guard_require_admission_is_deterministic_across_repeated_calls():
 
     unsatisfied_guard = EvidenceIntakeGuard(_unsatisfied_record())
     for _ in range(5):
-        with pytest.raises(LaunchContractError, match='RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
+        with expect_refusal('RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
             unsatisfied_guard.require_admission()
 
 
@@ -386,7 +388,7 @@ def test_no_duplicate_dispatch_across_repeated_run_attempt_calls_on_same_request
             requests=(_request(),), exchange=exchange, evidence_intake=guard)
         first = runtime.run_attempt(_request())
         assert first['outcome'] == 'REFUSED'
-        with pytest.raises(LaunchContractError, match='RUNTIME_FROZEN_REQUEST_MISMATCH'):
+        with expect_refusal('RUNTIME_FROZEN_REQUEST_MISMATCH'):
             runtime.run_attempt(_request())
         assert budget.count == 0
 
@@ -399,31 +401,31 @@ def test_no_duplicate_dispatch_across_repeated_run_attempt_calls_on_same_request
 def test_from_report_rejects_missing_key():
     report = _report()
     del report['eligibility']
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_SCHEMA'):
+    with expect_refusal('EVIDENCE_INTAKE_REPORT_SCHEMA'):
         EvidenceIntakeRecord.from_report(report)
 
 
 def test_from_report_rejects_extra_key():
     report = _report(extra_field='unexpected')
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_SCHEMA'):
+    with expect_refusal('EVIDENCE_INTAKE_REPORT_SCHEMA'):
         EvidenceIntakeRecord.from_report(report)
 
 
 def test_from_report_rejects_non_dict():
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_SCHEMA'):
+    with expect_refusal('EVIDENCE_INTAKE_REPORT_SCHEMA'):
         EvidenceIntakeRecord.from_report(['not', 'a', 'dict'])
 
 
 @pytest.mark.parametrize('key', ['execution_authority', 'provider_authority', 'capture_authority'])
 def test_from_report_rejects_authority_claimed_true(key):
     report = _report(**{key: True})
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_AUTHORITY_FORBIDDEN'):
+    with expect_refusal('EVIDENCE_INTAKE_REPORT_AUTHORITY_FORBIDDEN'):
         EvidenceIntakeRecord.from_report(report)
 
 
 def test_from_report_rejects_wrong_intake_schema():
     report = _report(intake_schema='SOME_OTHER_SCHEMA')
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_SCHEMA'):
+    with expect_refusal('EVIDENCE_INTAKE_RECORD_SCHEMA'):
         EvidenceIntakeRecord.from_report(report)
 
 
@@ -434,25 +436,25 @@ def test_from_report_rejects_wrong_intake_schema():
 ])
 def test_from_report_rejects_inconsistent_satisfied_claim(key, value):
     report = _report(**{key: value})
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_CONSISTENCY'):
+    with expect_refusal('EVIDENCE_INTAKE_REPORT_CONSISTENCY'):
         EvidenceIntakeRecord.from_report(report)
 
 
 def test_from_report_rejects_refused_claim_with_satisfied_outcome():
     report = _report(satisfied=False, outcome='CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE',
                      refusal_reasons=['CLOCK_UNAVAILABLE'])
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_CONSISTENCY'):
+    with expect_refusal('EVIDENCE_INTAKE_REPORT_CONSISTENCY'):
         EvidenceIntakeRecord.from_report(report)
 
 
 def test_record_rejects_satisfied_true_with_nonempty_refusal_reasons():
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
+    with expect_refusal('EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
         EvidenceIntakeRecord(satisfied=True, outcome='x', refusal_reasons=('SOMETHING',),
                              intake_schema=REAL_INTAKE_SCHEMA, generated_at_utc=GENERATED_AT)
 
 
 def test_record_rejects_satisfied_false_with_empty_refusal_reasons():
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
+    with expect_refusal('EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
         EvidenceIntakeRecord(satisfied=False, outcome='x', refusal_reasons=(),
                              intake_schema=REAL_INTAKE_SCHEMA, generated_at_utc=GENERATED_AT)
 
@@ -465,7 +467,7 @@ def test_record_rejects_satisfied_false_with_empty_refusal_reasons():
 ])
 def test_direct_record_rejects_outcome_satisfied_disagreement(
         satisfied, outcome, refusal_reasons):
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
+    with expect_refusal('EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
         EvidenceIntakeRecord(satisfied=satisfied, outcome=outcome,
                              refusal_reasons=refusal_reasons,
                              intake_schema=REAL_INTAKE_SCHEMA,
@@ -473,13 +475,13 @@ def test_direct_record_rejects_outcome_satisfied_disagreement(
 
 
 def test_record_rejects_non_bool_satisfied():
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_SHAPE'):
+    with expect_refusal('EVIDENCE_INTAKE_RECORD_SHAPE'):
         EvidenceIntakeRecord(satisfied=1, outcome='x', refusal_reasons=(),
                              intake_schema=REAL_INTAKE_SCHEMA, generated_at_utc=GENERATED_AT)
 
 
 def test_guard_rejects_wrong_typed_record():
-    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_GUARD_SHAPE'):
+    with expect_refusal('EVIDENCE_INTAKE_GUARD_SHAPE'):
         EvidenceIntakeGuard(_report())
 
 
@@ -513,7 +515,7 @@ def test_from_report_round_trips_a_real_refused_checker_outcome():
     assert record.satisfied is False
     assert set(record.refusal_reasons) == set(RETAINED_22_REASONS)
     guard = EvidenceIntakeGuard(record)
-    with pytest.raises(LaunchContractError, match='RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
+    with expect_refusal('RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
         guard.require_admission()
 
 
@@ -554,7 +556,7 @@ def test_from_real_intake_builds_a_refusing_guard_from_synthetic_tmp_path_files(
     guard = EvidenceIntakeGuard.from_real_intake(repo_docs_dir=docs_dir, binding_path=binding_path)
     assert guard.record.satisfied is False
     assert set(RETAINED_22_REASONS) <= set(guard.record.refusal_reasons)
-    with pytest.raises(LaunchContractError, match='RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
+    with expect_refusal('RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED'):
         guard.require_admission()
 
 
@@ -685,8 +687,7 @@ def test_offline_caller_rejects_non_synthetic_transport_before_intake(
     with _acquire(root) as (shared, session, budget, store):
         before_shared = (shared.prev, list(shared.events))
         before_session = list(session.events)
-        with pytest.raises(LaunchContractError,
-                           match='OFFLINE_REAL_INTAKE_SYNTHETIC_ONLY'):
+        with expect_refusal('OFFLINE_REAL_INTAKE_SYNTHETIC_ONLY'):
             _offline_call(shared, session, budget, store, root,
                           request=_request(), requests=(_request(),),
                           exchange=exchange, transport=object())
