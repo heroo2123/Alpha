@@ -5364,3 +5364,7 @@ Closed 6/7 mutation-testing survivors on the `be30ef2` current-executable bindin
 ## 2026-10-07 23:48 UTC F3 coverage debt under isolated repair
 
 The Gate-3 binding survivor negative control can skip under packed Git objects; an isolated test-only repair is live. The separate whole-closure `0090c1f` and binding `5c40f96` exact reviews remain pending. No requirement, C/J/E/A, G3-L, PAPER, forward or funding-readiness credit follows: Gate-3 **91/200 (formal 1/50)**, **77 unqualified identities**, **G3-L NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
+## 2026-10-07 23:48 UTC static prerequisites under independent mapping
+
+Read-only Gate-3 first-identity and PAPER R08/R09 code/evidence maps are live; neither can grant qualification. Gate-3 remains **91/200 (formal 1/50)** with **77 unqualified identities** and G3-L **NO-GO**; PAPER remains **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
