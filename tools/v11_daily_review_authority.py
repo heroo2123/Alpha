@@ -232,19 +232,43 @@ def verify_db(policy,request):
     expected_evidence['RULE_SEMANTICS']=[rule_ref,readiness_ref]
     expected_evidence['SOURCE_INTEGRITY']=[station_raw_ref,raw_ref,readiness_ref]
     for cap in REQUIRED_CAPS:
-        candidates=[]
-        for x in rows:
-            dd=x['body'].get('details',{})
-            if (dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
+        # Loose identity match only (action/scope_key/capability/metadata_fingerprint/rule_fingerprint).
+        # The live preparer re-mints a fresh CAPABILITY_EVIDENCE row for every capability on every
+        # ~5-minute cycle, so this can legitimately collect hundreds of historical rows for a single
+        # still-current rule_fingerprint. That volume alone must never be treated as ambiguity.
+        loose=[x for x in rows if (lambda dd:dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
                 and dd.get('capability')==cap and dd.get('metadata_fingerprint')==policy['metadata_fingerprint']
-                and dd.get('rule_fingerprint')==rd['fingerprint']):
-                if dd.get('result')!='PASS':raise Refusal('CAPABILITY_NOT_PASS:'+cap)
-                need(dd.get('checker_version')==policy['checker_version'],'CAPABILITY_CHECKER:'+cap)
-                need(canonical(dd.get('scope'))==canonical(policy['scope']),'CAPABILITY_SCOPE:'+cap)
-                need(canonical(x['body'].get('evidence',[]))==canonical(expected_evidence[cap]),'CAPABILITY_EVIDENCE_REFS:'+cap)
-                candidates.append(x)
-        need(candidates,'CAPABILITY_MISSING:'+cap)
-        x=candidates[-1];proofmap[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
+                and dd.get('rule_fingerprint')==rd['fingerprint'])(x['body'].get('details',{}))]
+        need(loose,'CAPABILITY_MISSING:'+cap)
+        # result/financial_authority bind the verdict itself for this exact fingerprint: any
+        # non-PASS or financial-authority-claiming row for the SAME identity is a hard, non-skippable
+        # refusal (a later benign re-mint can never paper over an earlier FAIL/financial claim).
+        for x in loose:
+            dd=x['body'].get('details',{})
+            if dd.get('result')!='PASS':raise Refusal('CAPABILITY_NOT_PASS:'+cap)
+            need(x['body'].get('financial_authority') is False,'CAPABILITY_NOT_PASS:'+cap)
+        # A proof must postdate the rule record it attests to. Superseded (pre-rule) re-mints are
+        # expected and benign; they are simply not eligible, not a reason to refuse outright.
+        fresh=[x for x in loose if x['seq']>rr['seq']]
+        need(fresh,'CAPABILITY_BEFORE_RULE:'+cap)
+        # checker_version/scope/evidence identify WHICH current binding a fresh proof asserts. A
+        # fresh-but-stale-binding row is skipped, not fatal, as long as at least one fresh row names
+        # the CURRENT binding exactly.
+        hits=[]
+        for x in fresh:
+            dd=x['body'].get('details',{})
+            if dd.get('checker_version')!=policy['checker_version']:continue
+            if canonical(dd.get('scope'))!=canonical(policy['scope']):continue
+            if canonical(x['body'].get('evidence',[]))!=canonical(expected_evidence[cap]):continue
+            hits.append(x)
+        need(hits,'CAPABILITY_MISSING:'+cap)
+        if len(hits)>1:
+            # Every surviving hit has already matched checker_version, scope, evidence, and (from
+            # the unconditional check above) result/financial_authority exactly, so multiple hits are
+            # necessarily substantively identical benign re-mints. Kept as a defensive invariant.
+            sigs={(canonical(h['body'].get('evidence',[])),h['body'].get('details',{}).get('result')) for h in hits}
+            need(len(sigs)==1,'CAPABILITY_CONFLICTING_PROOFS:'+cap)
+        x=max(hits,key=lambda h:h['seq']);proofmap[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
     return dict(target_date=target.isoformat(),rule_fingerprint=rd['fingerprint'],proofs=proofmap,
                 reviewed_through_seq=through,rule_record_id=rr['id'],rule_record_sha256=rr['sha256'])
 
