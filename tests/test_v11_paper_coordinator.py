@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from dataclasses import asdict, replace
 from decimal import Decimal
 
@@ -15,6 +16,21 @@ from test_v11_event_risk import policy as event_policy, metrics
 from test_v11_probability import rule, predict, T
 from test_v11_valuation import costs
 from test_v11_scenario_risk import mapping, limits, distinct_rule
+
+
+@contextmanager
+def expect_refusal(code):
+    """Keep the exact EvidenceError code check active under Python -O."""
+    with pytest.raises(EvidenceError) as caught:
+        yield
+    if caught.value.args != (code,):
+        raise AssertionError(f'expected EvidenceError({code!r}), got {caught.value.args!r}')
+
+
+def test_expect_refusal_rejects_wrong_code_under_optimization():
+    with pytest.raises(AssertionError):
+        with expect_refusal('EXPECTED_REFUSAL'):
+            raise EvidenceError('WRONG_REFUSAL')
 
 
 @pytest.fixture
@@ -142,11 +158,12 @@ def test_expiry_timeout_restart_and_cancel_request_never_release_reservations(ri
     c = coordinator(rig); c.coordinate('batch', (p,))
     c.transition('submit', intent_id=p.proposal_id, status='SUBMITTING')
     coordinator(rig).recover('restart')
-    with pytest.raises(EvidenceError, match='CANNOT_BE_RETRIED'):
+    with expect_refusal('AMBIGUOUS_SUBMISSION_CANNOT_BE_RETRIED_AS_NEW'):
         c.transition('retry', intent_id=p.proposal_id, status='SUBMITTING')
     c.transition('cancel', intent_id=p.proposal_id, status='CANCEL_REQUESTED')
     rig['now'][0] += 600
-    assert Decimal(coordinator(rig).snapshot()['reserved_cash']) == 8
+    if Decimal(coordinator(rig).snapshot()['reserved_cash']) != 8:
+        raise AssertionError('ambiguous retry released reserved cash')
     terminal = proof(rig, p.proposal_id, 'terminal', 'PAPER_TERMINAL', status='CANCELED',
                      cumulative_fill_units='0', all_fills_reconciled=True, terminal_authority='SYNTHETIC_PAPER_ENGINE_FINAL')
     c.reconcile_terminal('reconcile', terminal)
@@ -189,9 +206,10 @@ def test_terminal_requires_all_fills_reconciled_not_local_expiry(rig):
     fill(rig, p.proposal_id)
     bad = proof(rig, p.proposal_id, 'bad-terminal', 'PAPER_TERMINAL', status='CANCELED',
                 cumulative_fill_units='0', all_fills_reconciled=True, terminal_authority='SYNTHETIC_PAPER_ENGINE_FINAL')
-    with pytest.raises(EvidenceError, match='COMPLETE_MATCHED_FILL'):
+    with expect_refusal('TERMINAL_REQUIRES_COMPLETE_MATCHED_FILL_RECONCILIATION'):
         c.reconcile_terminal('bad', bad)
-    assert Decimal(c.snapshot()['reserved_cash']) == 6
+    if Decimal(c.snapshot()['reserved_cash']) != 6:
+        raise AssertionError('refusal changed remaining reservation')
 
 
 def test_concurrent_account_reservation_uses_cas_and_preserves_winning_writer(rig, monkeypatch):
@@ -202,10 +220,12 @@ def test_concurrent_account_reservation_uses_cas_and_preserves_winning_writer(ri
             once[0] = True; c.coordinate('other-batch', (q,))
         return original(record_id, **kwargs)
     monkeypatch.setattr(rig['store'], 'audit', racing)
-    with pytest.raises(EvidenceError, match='AUDIT_STATE_CHANGED'):
+    with expect_refusal('AUDIT_STATE_CHANGED'):
         c.coordinate('batch', (p,))
-    assert set(c._state(c._head())['intents']) == {'racer'}
-    assert Decimal(c.snapshot()['reserved_cash']) == 8
+    if set(c._state(c._head())['intents']) != {'racer'}:
+        raise AssertionError('losing CAS writer changed the intents')
+    if Decimal(c.snapshot()['reserved_cash']) != 8:
+        raise AssertionError('losing CAS writer changed reserved cash')
 
 
 def test_operator_reduction_racing_admission_is_guarded_inside_same_transaction(rig, monkeypatch):
@@ -217,15 +237,16 @@ def test_operator_reduction_racing_admission_is_guarded_inside_same_transaction(
                                                 actor='fixture', reason='test')
         return original(record_id, **kwargs)
     monkeypatch.setattr(rig['store'], 'audit', racing)
-    with pytest.raises(EvidenceError, match='AUDIT_GUARDED_STATE_CHANGED'):
+    with expect_refusal('AUDIT_GUARDED_STATE_CHANGED'):
         coordinator(rig).coordinate('batch', (p,))
-    assert Decimal(coordinator(rig).snapshot()['reserved_cash']) == 0
+    if Decimal(coordinator(rig).snapshot()['reserved_cash']) != 0:
+        raise AssertionError('operator reduction race reserved cash')
 
 
 def test_policy_cannot_be_changed_in_place_after_a_reservation(rig):
     p = proposal(rig, units='5'); coordinator(rig).coordinate('batch', (p,))
     changed = replace(rig['policy'], capital_limit='20')
-    with pytest.raises(EvidenceError, match='POLICY_OR_IDENTITY_CHANGED'):
+    with expect_refusal('PAPER_ACCOUNT_POLICY_OR_IDENTITY_CHANGED'):
         coordinator(rig, policy=changed).snapshot()
 
 
@@ -260,9 +281,10 @@ def test_public_or_cross_namespace_trade_cannot_mutate_paper_ledger(rig):
                           revision='1', observed_at=rig['now'][0], payload=dict(record_type='PAPER_FILL',
                           execution_namespace='LIVE', account_id='account', intent_id=p.proposal_id,
                           token_id='token', units='5', all_in_collateral='2', direction='BUY', fill_id='bad'))
-    with pytest.raises(EvidenceError, match='SYNTHETIC_PAPER'):
+    with expect_refusal('EXPLICIT_SYNTHETIC_PAPER_RECONCILIATION_REQUIRED'):
         c.record_fill('public-fill', 'public')
-    assert Decimal(c.snapshot()['cash']) == 10
+    if Decimal(c.snapshot()['cash']) != 10:
+        raise AssertionError('cross namespace trade changed PAPER cash')
 
 
 def test_sizing_is_bounded_and_rounds_down_without_increasing_any_hard_limit():
@@ -271,7 +293,7 @@ def test_sizing_is_bounded_and_rounds_down_without_increasing_any_hard_limit():
     result = size_within_ceiling(**args)
     assert Decimal(result['units']) == Decimal('1.2') and not result['hard_limits_changed']
     assert size_within_ceiling(**dict(args, base_units='11'))['outcome'] == 'SKIP'
-    with pytest.raises(EvidenceError, match='ONLY_REDUCE'):
+    with expect_refusal('SIZING_MAY_ONLY_REDUCE_FIXED_CEILING'):
         replace(factors, strategy_quality='1.1')
 
 
@@ -341,6 +363,7 @@ def test_admission_demotion_between_reservation_and_submit_retains_reservation(r
     def demoted(*args, **kwargs):
         raise EvidenceError('STRATEGY_AUTHORITY_OR_SOURCE_CHANGED_RECOMPUTE')
     monkeypatch.setattr(StrategyAdmission, 'revalidate', demoted)
-    with pytest.raises(EvidenceError, match='SOURCE_CHANGED'):
+    with expect_refusal('STRATEGY_AUTHORITY_OR_SOURCE_CHANGED_RECOMPUTE'):
         c.transition('submit', intent_id=p.proposal_id, status='SUBMITTING')
-    assert Decimal(c.snapshot()['reserved_cash']) == 2
+    if Decimal(c.snapshot()['reserved_cash']) != 2:
+        raise AssertionError('refusal released reserved cash')

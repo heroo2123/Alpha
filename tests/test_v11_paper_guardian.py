@@ -20,7 +20,7 @@ from polymarket_scanner.v11 import guardian_lease as lease, paper_guardian as gu
 from polymarket_scanner.v11.evidence import EvidenceError
 from polymarket_scanner.v11.paper_coordinator import PaperCoordinator
 from polymarket_scanner.v11.runtime_health import HealthPolicy, RuntimeHealth, SourceNeed
-from test_v11_paper_coordinator import rig, coordinator, proposal, proof
+from test_v11_paper_coordinator import rig, coordinator, proposal, proof, expect_refusal
 
 
 ENV = {'PATH':'/usr/bin:/bin', 'LANG':'C.UTF-8'}
@@ -98,7 +98,7 @@ def test_policy_is_bounded(field,value):
 
 
 def test_separate_process_is_required(rig):
-    with pytest.raises(EvidenceError,match='SEPARATE_PROCESS'):
+    with expect_refusal('GUARDIAN_SEPARATE_PROCESS_REQUIRED'):
         guardian.PaperGuardian(coordinator(rig), policy=lease.GuardianPolicy('fixture'),
             health_config='d'*64,worker=lease.process_identity(os.getpid()))
 
@@ -107,14 +107,15 @@ def test_required_missing_and_durable_activation_gate_fresh_coordinators(rig,wor
     g=build(rig,worker); p=proposal(rig)
     c=PaperCoordinator(g.store,policy=g.coordinator.policy,correlation=g.coordinator.correlation,
                        limits=g.coordinator.limits,guardian_config=g.config)
-    with pytest.raises(EvidenceError,match='REQUIRED_BEFORE_OPENING'):c.coordinate('absent',(p,))
-    assert c._head() is None
+    with expect_refusal('GUARDIAN_REQUIRED_BEFORE_OPENING'):c.coordinate('absent',(p,))
+    if c._head() is not None: raise AssertionError('refusal must not create a coordinator head')
     status(g,ready=False)
-    with pytest.raises(EvidenceError,match='LEASE_GATED'):coordinator(rig).coordinate('gated',(p,))
-    assert c._head() is None
+    with expect_refusal('GUARDIAN_LEASE_GATED'):coordinator(rig).coordinate('gated',(p,))
+    if c._head() is not None: raise AssertionError('refusal must not create a coordinator head')
     status(g)
-    assert c.coordinate('reserved',(p,))['body']['details']['reserved_intent_ids']==['proposal']
-    with pytest.raises(EvidenceError,match='CONFIG_CHANGED'):admission(g,required_config='e'*64)
+    if c.coordinate('reserved',(p,))['body']['details']['reserved_intent_ids'] != ['proposal']:
+        raise AssertionError('READY lease did not reserve the proposal')
+    with expect_refusal('GUARDIAN_ACCOUNT_OR_CONFIG_CHANGED'):admission(g,required_config='e'*64)
 
 
 @pytest.mark.parametrize('mode',['wall_stale','wall_back','mono_stale','boot','process_start','config','status'])
@@ -141,8 +142,8 @@ def test_lease_expires_inside_account_write_after_preparation(rig,worker,monkeyp
     def expire(db,size):
         budget(db,size);rig['now'][0]+=3
     monkeypatch.setattr(g.store,'_budget',expire)
-    with pytest.raises(EvidenceError,match='LEASE_GATED'):g.coordinator.coordinate('late',(p,))
-    assert g.coordinator._head() is None
+    with expect_refusal('GUARDIAN_LEASE_GATED'):g.coordinator.coordinate('late',(p,))
+    if g.coordinator._head() is not None: raise AssertionError('refusal must not create a coordinator head')
 
 
 def test_changed_or_first_guardian_at_commit_is_cas_fenced(rig,worker,monkeypatch):
@@ -151,16 +152,17 @@ def test_changed_or_first_guardian_at_commit_is_cas_fenced(rig,worker,monkeypatc
         if key=='racing':status(g,ready=False)
         return audit(key,**kw)
     monkeypatch.setattr(g.store,'audit',changed)
-    with pytest.raises(EvidenceError,match='GUARDED_STATE_CHANGED'):g.coordinator.coordinate('racing',(p,))
-    assert g.coordinator._head() is None
+    with expect_refusal('AUDIT_GUARDED_STATE_CHANGED'):g.coordinator.coordinate('racing',(p,))
+    if g.coordinator._head() is not None: raise AssertionError('refusal must not create a coordinator head')
 
 
 def test_cancel_and_explicit_fill_terminal_remain_available_when_guardian_gated(rig,worker):
     c=coordinator(rig);c.coordinate('reserve',(proposal(rig),));before=c.snapshot()
     g=build(rig,worker);status(g,ready=False)
-    with pytest.raises(EvidenceError,match='LEASE_GATED'):c.transition('submit',intent_id='proposal',status='SUBMITTING')
+    with expect_refusal('GUARDIAN_LEASE_GATED'):c.transition('submit',intent_id='proposal',status='SUBMITTING')
     c.transition('cancel',intent_id='proposal',status='CANCEL_REQUESTED')
-    assert c.snapshot()['reserved_cash']==before['reserved_cash']
+    if c.snapshot()['reserved_cash'] != before['reserved_cash']:
+        raise AssertionError('gated submit changed reserved cash')
     f=proof(rig,'proposal','late-fill','PAPER_FILL',fill_id='late-fill',units='1',all_in_collateral='.4',direction='BUY')
     c.record_fill('record-late',f)
     t=proof(rig,'proposal','terminal','PAPER_TERMINAL',status='CANCELED',cumulative_fill_units='1',
@@ -204,8 +206,8 @@ def test_resource_policy_change_requires_new_review(rig,worker):
     g=build(rig,worker);status(g)
     g.store.limits=replace(g.store.limits,max_records=g.store.limits.max_records-1)
     changed=build(rig,worker)
-    assert changed.config!=g.config
-    with pytest.raises(EvidenceError,match='CONFIG_CHANGED_REVIEW'):changed._cycle()
+    if changed.config == g.config: raise AssertionError('fixture must change guardian config')
+    with expect_refusal('GUARDIAN_CONFIG_CHANGED_REVIEW_REQUIRED'):changed._cycle()
 
 
 @pytest.mark.parametrize('where',['health','delivery'])
@@ -346,21 +348,26 @@ def test_request_rescans_remainder_under_bound_without_freeing_cash(rig,worker):
 def test_guardian_cycle_retains_raw_backward_clock_for_cancel_only(rig,worker):
     c=coordinator(rig);c.coordinate('reserve',(proposal(rig),));g=build(rig,worker)
     rig['now'][0]-=10;g._cycle()
-    assert state(c)['intents']['proposal']['cancel_requested']
-    assert g._head()['body']['recorded_at']==rig['now'][0]
-    with pytest.raises(EvidenceError,match='CLOCK_REGRESSION'):
+    if not state(c)['intents']['proposal']['cancel_requested']:
+        raise AssertionError('backward clock did not request cancellation')
+    if g._head()['body']['recorded_at'] != rig['now'][0]:
+        raise AssertionError('raw backward clock was not retained')
+    with expect_refusal('CLOCK_REGRESSION'):
         g.store.audit('ordinary',event_id='clock',kind='MEASUREMENT',details={})
 
 
 def test_interleaved_new_heartbeat_is_conservatively_cancelled_until_resampled(rig,worker):
     c=coordinator(rig);c.coordinate('reserve',(proposal(rig),));g=live_health(rig,build(rig,worker))
     g.fixture_monitor.heartbeat('new-hb',worker='candidate',generation='synthetic')
-    with pytest.raises(EvidenceError,match='HEARTBEAT_CHANGED'):g._health()
+    with expect_refusal('GUARDIAN_HEARTBEAT_CHANGED'):g._health()
     g._cycle()
-    assert state(c)['intents']['proposal']['cancel_requested'] is True
+    if state(c)['intents']['proposal']['cancel_requested'] is not True:
+        raise AssertionError('guardian must retain cancellation request')
     g.fixture_monitor.sample('new-sample');g._cycle()
-    assert state(c)['intents']['proposal']['cancel_requested'] is True
-    assert g._head()['body']['details']['status']=='READY'
+    if state(c)['intents']['proposal']['cancel_requested'] is not True:
+        raise AssertionError('guardian must retain cancellation request')
+    if g._head()['body']['details']['status'] != 'READY':
+        raise AssertionError('resampled guardian did not return READY')
 
 
 @pytest.mark.parametrize('collateral,region_limit,expected_faults', [
