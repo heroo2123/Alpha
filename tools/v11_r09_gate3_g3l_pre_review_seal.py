@@ -20,6 +20,8 @@ access and no write outside the caller-supplied object root.
 from __future__ import annotations
 
 import hashlib
+import os
+import stat
 from pathlib import Path
 
 from tools.v11_r09_gate3_g3l_identity_audit import OFFLINE, RETAINED_SCOPED, _evidence_bytes, audit
@@ -102,14 +104,41 @@ def _verified(ref: dict) -> bool:
 
 
 def _seal_object(object_root: Path, data: bytes) -> dict:
+    """Create or verify `object_root/<sha256>` without ever following a
+    symlink and without an exists-then-write race: creation uses
+    O_CREAT|O_EXCL|O_NOFOLLOW, which atomically fails if that path already
+    names anything at all (file, symlink, dangling or not), so an attacker
+    who pre-plants a symlink there can never cause a write through it. If
+    the path already exists, it is reopened with O_NOFOLLOW and confirmed to
+    be a regular file via the open file descriptor before its bytes are
+    trusted -- never via a separate, racy stat/exists call on the path."""
     sha256 = hashlib.sha256(data).hexdigest()
+    object_root.mkdir(parents=True, exist_ok=True)
     destination = object_root / sha256
-    if destination.exists():
-        if destination.read_bytes() != data:
-            raise ValueError(f"object root digest collision: {sha256}")
-    else:
-        object_root.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(data)
+    create_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(destination, create_flags, 0o644)
+    except FileExistsError:
+        fd = None
+    if fd is not None:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        return sha256
+    try:
+        existing_fd = os.open(destination, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise ValueError(f"sealed object path is not a safe regular file: {sha256}") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(existing_fd).st_mode):
+            raise ValueError(f"sealed object path is not a regular file: {sha256}")
+        chunks = []
+        while chunk := os.read(existing_fd, 1024 * 1024):
+            chunks.append(chunk)
+        existing = b"".join(chunks)
+    finally:
+        os.close(existing_fd)
+    if existing != data:
+        raise ValueError(f"object root digest collision: {sha256}")
     return sha256
 
 
@@ -184,8 +213,11 @@ def build_pre_review_inventory(repo: Path, *, target_date: str, now_utc: int,
     findings = check_inventory(inventory, target_date=target_date, now_utc=now_utc,
                                stage="PRE_REVIEW", object_root=object_root)
     missing_after = {f["id"] for f in findings if f["state"] == "MISSING"}
-    if set(sealed) & missing_after:
-        raise ValueError("a sealed identity is still reported MISSING")
+    sealed_set = set(sealed)
+    consumer_states = {f["id"]: f["state"] for f in findings if f["id"] in sealed_set}
+    if consumer_states:
+        bad = ", ".join(f"{item_id}={state}" for item_id, state in sorted(consumer_states.items()))
+        raise ValueError(f"a sealed identity is reported by the consumer as not clean: {bad}")
     return {
         "schema": "R09_GATE3_G3L_PRE_REVIEW_SEAL_V1", "launchable": False,
         "qualification_credit": 0,
