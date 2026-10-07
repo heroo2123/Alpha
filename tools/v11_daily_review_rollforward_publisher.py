@@ -198,18 +198,52 @@ def verify_db(policy,req):
     expected['SOURCE_INTEGRITY']=[station_raw_ref,raw_ref,ready_ref]
     proofs={};through=0
     for cap in REQUIRED_CAPS:
-        hits=[]
-        for x in rows:
+        # Loose identity match only (action/scope_key/capability/metadata_fingerprint/rule_fingerprint).
+        # The live preparer re-mints a fresh CAPABILITY_EVIDENCE row for every capability on every
+        # ~5-minute cycle, so this can legitimately collect hundreds of historical rows for a single
+        # still-current rule_fingerprint. That volume alone must never be treated as ambiguity.
+        loose=[x for x in rows if (lambda dd:dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
+                and dd.get('capability')==cap and dd.get('metadata_fingerprint')==policy['metadata_fingerprint']
+                and dd.get('rule_fingerprint')==rd['fingerprint'])(x['body'].get('details',{}))]
+        need(len(loose)>0,'CAPABILITY_AMBIGUOUS_OR_MISSING:'+cap)
+        # result/financial_authority bind the verdict itself for this exact fingerprint: any
+        # non-PASS or financial-authority-claiming row for the SAME identity is a hard, non-skippable
+        # refusal (a later benign re-mint can never paper over an earlier FAIL/financial claim).
+        for x in loose:
             dd=x['body'].get('details',{})
-            if dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key'] and dd.get('capability')==cap and dd.get('metadata_fingerprint')==policy['metadata_fingerprint'] and dd.get('rule_fingerprint')==rd['fingerprint']:
-                need(dd.get('result')=='PASS','CAPABILITY_FAIL:'+cap)
-                need(dd.get('checker_version')==policy['checker_version'],'CAPABILITY_CHECKER:'+cap)
-                need(canonical(dd.get('scope'))==canonical(policy['scope']),'CAPABILITY_SCOPE:'+cap)
-                need(canonical(x['body'].get('evidence',[]))==canonical(expected[cap]),'CAPABILITY_LINEAGE:'+cap)
-                hits.append(x)
-        need(len(hits)==1,'CAPABILITY_AMBIGUOUS_OR_MISSING:'+cap)
-        x=hits[0];need(x['seq']>rr['seq'],'CAPABILITY_BEFORE_RULE:'+cap)
-        proofs[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
+            need(dd.get('result')=='PASS','CAPABILITY_FAIL:'+cap)
+            need(x['body'].get('financial_authority') is False,'CAPABILITY_FAIL:'+cap)
+        # A proof must postdate the rule record it attests to. Superseded (pre-rule) re-mints are
+        # expected and benign; they are simply not eligible, not a reason to refuse outright.
+        fresh=[x for x in loose if x['seq']>rr['seq']]
+        need(len(fresh)>0,'CAPABILITY_BEFORE_RULE:'+cap)
+        # checker_version/scope/evidence identify WHICH current binding a fresh proof asserts. A
+        # fresh-but-stale-binding row is skipped, not fatal, as long as at least one fresh row names
+        # the CURRENT binding exactly.
+        hits=[]
+        for x in fresh:
+            dd=x['body'].get('details',{})
+            if dd.get('checker_version')!=policy['checker_version']:continue
+            if canonical(dd.get('scope'))!=canonical(policy['scope']):continue
+            if canonical(x['body'].get('evidence',[]))!=canonical(expected[cap]):continue
+            hits.append(x)
+        need(len(hits)>=1,'CAPABILITY_AMBIGUOUS_OR_MISSING:'+cap)
+        if len(hits)>1:
+            # Every surviving hit has already matched checker_version, scope, evidence, and (from
+            # the unconditional check above) result/financial_authority exactly, so multiple hits are
+            # necessarily substantively identical benign re-mints. Kept as a defensive invariant.
+            sigs={(canonical(h['body'].get('evidence',[])),h['body'].get('details',{}).get('result')) for h in hits}
+            need(len(sigs)==1,'CAPABILITY_CONFLICTING_PROOFS:'+cap)
+        x=max(hits,key=lambda h:h['seq']);dd=x['body'].get('details',{})
+        # content_sha256 is a semantic-claim signature, independent of this proof record's own
+        # id/sha256 (re-minted every ~5 minutes even when nothing substantive changed): it binds
+        # result, financial_authority, checker_version, scope, the rule content (rule_fingerprint)
+        # and the fixed evidence's own sha256. Used at publish-time (EXISTING_REVIEW_CONFLICT) to
+        # tolerate a benign re-mint of an already-recorded review.
+        content={'result':dd.get('result'),'financial_authority':x['body'].get('financial_authority'),
+          'checker_version':dd.get('checker_version'),'scope':policy['scope'],'rule_fingerprint':rd['fingerprint'],
+          'fixed_evidence_sha256':{name:fixed[name]['sha256'] for name in fixed}}
+        proofs[cap]={'id':x['id'],'sha256':x['sha256'],'content_sha256':digest(content)};through=max(through,x['seq'])
     return {'target_date':target.isoformat(),'rule_fingerprint':rd['fingerprint'],'proofs':proofs,
             'reviewed_through_seq':through,'rule_record_id':rr['id'],'rule_record_sha256':rr['sha256']}
 
@@ -242,8 +276,23 @@ def publish(policy_path,request_path):
         m=load(policy['review_manifest']);need(m.get('version')==MANIFEST_VERSION and isinstance(m.get('reviews'),list),'MANIFEST_SCHEMA')
         r=result['review'];exact=[x for x in m['reviews'] if x.get('namespace')==r['namespace'] and x.get('stage')=='SHADOW' and x.get('scope_key')==r['scope_key'] and x.get('metadata_fingerprint')==r['metadata_fingerprint'] and x.get('rule_fingerprint')==r['rule_fingerprint']]
         if exact:
-            need(len(exact)==1 and exact[0].get('capability_proofs')==r['capability_proofs'],'EXISTING_REVIEW_CONFLICT')
-            result['published']=False;result['review']=exact[0];return result
+            # Same day/rule already has a stored review. The live preparer re-mints every
+            # CAPABILITY_EVIDENCE row (and the rule/raw records a proof's evidence points at) on
+            # every ~5-minute cycle even when the underlying claim hasn't changed, so comparing raw
+            # capability_proofs id/sha would make every cycle after the first refuse with
+            # EXISTING_REVIEW_CONFLICT purely from benign id churn. Compare by content_sha256
+            # instead -- the semantic-claim signature computed in verify_db() -- so a fresh re-mint
+            # of the SAME already-satisfied claim is a no-op, while a genuinely different claim
+            # still fails closed. A stored review from before this fix (or any malformed/legacy
+            # entry) has no content_sha256 to compare against and is therefore never treated as
+            # benign -- it still hard-refuses, matching the old strict behavior.
+            match=exact[0];stored=match.get('capability_proofs') or {}
+            same_claim=(len(exact)==1 and set(stored)==set(r['capability_proofs']) and all(
+              stored.get(cap,{}).get('content_sha256') is not None and
+              stored[cap]['content_sha256']==r['capability_proofs'][cap]['content_sha256']
+              for cap in r['capability_proofs']))
+            need(same_claim,'EXISTING_REVIEW_CONFLICT')
+            result['published']=False;result['review']=match;return result
         need(len(m['reviews'])<1000,'MANIFEST_REVIEW_BOUND');m['reviews'].append(r)
         raw=canonical(m).encode();mp=Path(policy['review_manifest']);tmp=mp.parent/('.daily-review.'+str(os.getpid())+'.tmp')
         out=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
