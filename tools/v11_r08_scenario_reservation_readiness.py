@@ -48,14 +48,17 @@ about.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+import time
 
+from polymarket_scanner.v11.account_replay import replay_account_command
 from polymarket_scanner.v11.account_effects import VERSION as EFFECT_INPUT_VERSION, ref
 from polymarket_scanner.v11.allocation import rank_candidates
 from polymarket_scanner.v11.evidence import EvidenceError, canonical, digest
 from polymarket_scanner.v11.certification import CapabilityScope
 from polymarket_scanner.v11.event_risk import VERSION as EVENT_RISK_VERSION
 from polymarket_scanner.v11.paper_coordinator import ACCOUNT_KEY, VERSION as COORDINATOR_VERSION, PaperCoordinator, UNRESOLVED
+from polymarket_scanner.v11.causal_replay import ReplayPolicy
 from polymarket_scanner.v11.scenario_risk import number
 from polymarket_scanner.v11.source_release import VERSION as SOURCE_RELEASE_VERSION
 from polymarket_scanner.v11.strategy_admission import VERSION as STRATEGY_ADMISSION_VERSION
@@ -66,6 +69,7 @@ SCHEMA = "R08_SCENARIO_RESERVATION_READINESS_V1"
 OUTCOME_NO_RESERVATION = "NO_GENUINE_SCENARIO_RESERVATION_RECORDED"
 OUTCOME_DEMONSTRATED = "GENUINE_ZERO_AUTHORITY_SCENARIO_RESERVATION_DEMONSTRATED"
 ALLOWED_OUTCOMES = (OUTCOME_NO_RESERVATION, OUTCOME_DEMONSTRATED)
+_REPLAY_POLICY = ReplayPolicy("r08-read-only-account-effects", maximum_seconds=5.0)
 
 
 @dataclass(frozen=True)
@@ -150,6 +154,34 @@ def _account_history(coordinator: PaperCoordinator, head: dict | None) -> tuple:
 
 def _same(a, b) -> bool:
     return canonical(a) == canonical(b)
+
+
+def _account_shape_valid(state: dict) -> bool:
+    """Check containers before passing untrusted account evidence to _risk."""
+    if type(state) is not dict:
+        return False
+    for key in ("rules", "contexts", "intents", "lots", "fills", "event_realized_pnl"):
+        if type(state.get(key)) is not dict:
+            return False
+    for key in ("realized_entries", "faults"):
+        if type(state.get(key)) is not list:
+            return False
+    if "baskets" in state and type(state["baskets"]) is not dict:
+        return False
+    return all(type(value) is dict for key in ("rules", "contexts", "intents", "lots")
+               for value in state[key].values())
+
+
+def _effects_reproduced(coordinator: PaperCoordinator, row: dict, deadline: float) -> bool:
+    """Replay the complete command, including request binding and proof effects.
+
+    This checks numerical effects conditional on recorded preparation and
+    control inputs; it does not attest those inputs or renew admission.
+    """
+    replay = replay_account_command(coordinator, row["id"], policy=_REPLAY_POLICY, deadline=deadline)
+    return (replay.get("status") == "EFFECTS_REPRODUCED"
+            and replay.get("effects_match") is True
+            and replay.get("command_ref") == ref(row))
 
 
 def _account_step_valid(coordinator: PaperCoordinator, before_row: dict | None,
@@ -311,7 +343,8 @@ def _historical_lineage(coordinator: PaperCoordinator, state: dict, intent: dict
             and number(intent.get("capital_at_risk")) == capital)
 
 
-def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent: dict, history: tuple) -> bool:
+def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent: dict,
+                              history: tuple, deadline: float) -> bool:
     """Fail-closed historical check that ``intent`` has genuine originating lineage.
 
     Requires the first account record containing this intent to be an accepted
@@ -346,7 +379,9 @@ def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent
                     or details["request"].get("action") not in {
                         "COORDINATE", "TRANSITION", "RECOVER", "FILL", "TERMINAL"}):
                 return False
-            if not _account_step_valid(coordinator, previous_row, previous_state, row, details):
+            if (not _account_shape_valid(details["state"])
+                    or not _account_step_valid(coordinator, previous_row, previous_state, row, details)
+                    or not _effects_reproduced(coordinator, row, deadline)):
                 return False
             current = details["state"]["intents"].get(intent_id)
             if origin is None:
@@ -399,7 +434,7 @@ def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent
             previous_row = row
             previous_state = details["state"]
         return origin is not None and previous == intent
-    except (EvidenceError, TypeError, KeyError, ValueError, AttributeError):
+    except (EvidenceError, TypeError, KeyError, ValueError, AttributeError, InvalidOperation):
         return False
 
 
@@ -418,9 +453,10 @@ def genuine_reserved_intents(coordinator: PaperCoordinator, *, state: dict | Non
         head = coordinator._head()
         state = coordinator._state(head)
         history = _account_history(coordinator, head)
+    deadline = time.monotonic() + 10.0
     return tuple(
         intent for intent in _candidate_intents(state)
-        if _verify_intent_provenance(coordinator, state, intent, history)
+        if _verify_intent_provenance(coordinator, state, intent, history, deadline)
     )
 
 
@@ -448,7 +484,14 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator, *,
         history = _account_history(coordinator, row)
     else:
         state, history = _snapshot
-    risk = coordinator._risk(state)
+    if not _account_shape_valid(state):
+        return ScenarioReservationReadiness(SCHEMA, OUTCOME_NO_RESERVATION, 0, "0", False, False,
+                                            ("MALFORMED_ACCOUNT_EVIDENCE",))
+    try:
+        risk = coordinator._risk(state)
+    except (EvidenceError, TypeError, KeyError, ValueError, AttributeError, InvalidOperation):
+        return ScenarioReservationReadiness(SCHEMA, OUTCOME_NO_RESERVATION, 0, "0", False, False,
+                                            ("MALFORMED_ACCOUNT_EVIDENCE",))
     reasons: list = []
     candidates = _candidate_intents(state)
     active = genuine_reserved_intents(coordinator, state=state, history=history)
@@ -457,7 +500,8 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator, *,
     )
     if not financial_authority_clean:
         reasons.append("FINANCIAL_AUTHORITY_FLAG_UNEXPECTED")
-    if len(active) != len(candidates):
+    provenance_clean = len(active) == len(candidates)
+    if not provenance_clean:
         reasons.append("RESERVED_INTENT_PROVENANCE_UNVERIFIED")
     elif not active:
         reasons.append("NO_UNRESOLVED_RESERVED_INTENT")
@@ -473,7 +517,7 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator, *,
         outcome=outcome,
         reserved_intent_count=len(active),
         reserved_cash=str(verified_cash),
-        risk_accepted=bool(risk["accepted"]),
+        risk_accepted=bool(risk["accepted"]) and provenance_clean,
         financial_authority=False,
         reasons=tuple(sorted(reasons)),
     )

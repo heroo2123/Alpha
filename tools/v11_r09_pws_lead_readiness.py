@@ -135,8 +135,11 @@ def _qualifying_pws_intent(coordinator: PaperCoordinator, *, preconfirmation_id:
     be substituted in -- fresh unused evidence cannot rescue a different,
     expired reservation's pair.
     """
-    stored_context = state.get("contexts", {}).get(context.event_id)
-    stored_rule = state.get("rules", {}).get(context.event_id)
+    contexts, rules = state.get("contexts"), state.get("rules")
+    if type(contexts) is not dict or type(rules) is not dict:
+        return None
+    stored_context = contexts.get(context.event_id)
+    stored_rule = rules.get(context.event_id)
     if stored_context != asdict(context) or stored_rule != asdict(rule):
         return None
     for intent in genuine_reserved_intents(coordinator, state=state, history=history):
