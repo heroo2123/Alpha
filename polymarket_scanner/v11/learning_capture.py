@@ -135,6 +135,16 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pi
                 outcome='GATED',reason='FORECAST_ONLY_NO_EXECUTABLE_ECONOMICS',explanation=explanation,expires_at=expiry)
         rows.append(dict(target_identity=target,decision_id=decision['id'],decision_sha256=decision['sha256'],
                          feature_id=feature['id'],feature_sha256=feature['sha256']))
+    # Recheck the original pin after every child decision, then let the ledger
+    # compare every pinned head in the same transaction as capture publication.
+    # A source arrival in the decision window cannot become a forward sample.
+    guarded_heads=()
+    if admission is not None:
+        final_ref=capture_admission_ref(store,admission_id,context=context,rule=rule,binding=binding,
+            strategy='FUTURE_FORECAST',cutoff=cutoff)
+        if final_ref!=admission: raise EvidenceError('LEARNING_ADMISSION_CHANGED_AT_PUBLICATION')
+        pinned=store.get(admission_id)['body']['details']['assessment']['heads']
+        guarded_heads=tuple(tuple(head) for head in pinned)
     return store.audit(record_id,event_id=rp['event_id'],kind='MEASUREMENT',details=dict(
         version=VERSION,request_sha256=request_sha,context=asdict(context),rule=asdict(rule),prediction_sha256=prediction.sha256,
         binding=asdict(binding),inference_cutoff=cutoff,feature_schema_sha256=schema.sha256,model_feature_mapping=mapping,
@@ -142,7 +152,8 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pi
         target=TARGET,selection='ALL_SUPPORTED_PREDICTIONS',selection_scope='ALL_BUCKETS_OF_THIS_EVALUATED_EVENT',
         global_universe_coverage_verified=False,rows=rows,complete_event_vector=True,labels_created=False,
         financial_authority=False,training_or_promotion_started=False,
-        **(dict(admission_ref=admission) if admission is not None else {})),evidence_ids=model_input_ids)
+        **(dict(admission_ref=admission) if admission is not None else {})),
+        evidence_ids=model_input_ids,expected_heads=guarded_heads)
 
 
 def labeled_examples(store,capture_id,*,label_ids,city,horizon,season,prior_exposure='DEVELOPMENT'):
