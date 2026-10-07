@@ -1,3 +1,7 @@
+## 2026-10-07 12:58 UTC historical terminal package integration has no qualification credit
+
+Different-model `PASS_IN_SCOPE` for offline historical G3-P terminal package `1a02717` was reconciled, merged locally and passed 8/8 focused post-merge tests in normal and optimized Python. It verifies pinned historical bytes only; no G3-L identity, provider right, physical capture or launch qualification follows. Forward qualifier `90d2d64` and Brain attestation `232a66a` each received `CHANGES_REQUIRED` and are under isolated repair. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11 with R08/R09 partial; READY_TO_FUND=false.
+
 ## 2026-10-07 12:56 UTC PAPER R08/R09 exact review disposition
 
 Independent exact review of `79d9f1a` is `CHANGES_REQUIRED`: correctly linked but semantically unsupported account transitions create seven false-positive R08/R09 qualifications, and malformed account containers cause two untyped crashes. A sole isolated repair is live with retained independent reproducers. Requirements 8/9 remain PARTIAL; PAPER strict remains 9/11; Gate-3 remains 91/200 (formal 1/50), with 77 unqualified identities; READY_TO_FUND=false. No financial or qualification credit was granted.
