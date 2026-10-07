@@ -41,14 +41,28 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def regular_bytes(path: Path) -> bytes:
-    if not stat.S_ISREG(path.lstat().st_mode):
-        fail(f"non-regular file: {path}")
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, "rb") as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-            fail(f"non-regular file: {path}")
-        return handle.read()
+def regular_bytes(root_fd: int, relative: Path) -> bytes:
+    """Read beneath the anchored checkout without following any symlink."""
+    if relative.is_absolute() or not relative.parts or any(
+            part in (".", "..") for part in relative.parts):
+        fail(f"path outside checkout: {relative}")
+    directory_fd = os.dup(root_fd)
+    try:
+        for part in relative.parts[:-1]:
+            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                              dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        fd = os.open(relative.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                     dir_fd=directory_fd)
+        with os.fdopen(fd, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                fail(f"non-regular file: {relative}")
+            return handle.read()
+    except OSError as error:
+        fail(f"cannot read regular file beneath checkout: {relative}: {error.strerror}")
+    finally:
+        os.close(directory_fd)
 
 
 def unique_object(data: bytes) -> dict:
@@ -67,10 +81,13 @@ def unique_object(data: bytes) -> dict:
 
 
 def git(root: Path, *args: str) -> bytes:
+    environment = os.environ.copy()
+    environment.update(GIT_NO_LAZY_FETCH="1", GIT_ALLOW_PROTOCOL="",
+                       GIT_PROTOCOL_FROM_USER="0", GIT_TERMINAL_PROMPT="0")
     result = subprocess.run(
         ["git", "--no-replace-objects", *args], cwd=root,
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        check=False, timeout=15,
+        env=environment, check=False, timeout=15,
     )
     if result.returncode:
         fail(f"local Git lookup failed: {' '.join(args)}")
@@ -100,8 +117,21 @@ def check_report_binding(report: bytes) -> None:
 
 def validate(root: Path = ROOT, manifest_path: Path | None = None) -> dict[str, str]:
     root = root.resolve()
-    manifest_path = manifest_path or root / MANIFEST
-    raw = regular_bytes(manifest_path)
+    manifest_path = Path(MANIFEST) if manifest_path is None else Path(manifest_path)
+    if manifest_path.is_absolute():
+        try:
+            manifest_path = manifest_path.relative_to(root)
+        except ValueError:
+            fail(f"manifest outside checkout: {manifest_path}")
+    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        raw = regular_bytes(root_fd, manifest_path)
+        return _validate(root, root_fd, raw)
+    finally:
+        os.close(root_fd)
+
+
+def _validate(root: Path, root_fd: int, raw: bytes) -> dict[str, str]:
     if len(raw) != MANIFEST_LENGTH or digest(raw) != MANIFEST_SHA256:
         fail("candidate manifest byte pin mismatch")
     candidate = unique_object(raw)
@@ -138,7 +168,7 @@ def validate(root: Path = ROOT, manifest_path: Path | None = None) -> dict[str, 
         if tree_line != expected_line:
             fail(f"path/blob mismatch: {role}")
         blob = git(root, "cat-file", "blob", ref["git_blob"])
-        live = regular_bytes(root / path)
+        live = regular_bytes(root_fd, Path(path))
         if (blob != live or len(blob) != ref["byte_length"] or
                 digest(blob) != ref["sha256"]):
             fail(f"historical/current exact-byte mismatch: {role}")
