@@ -1258,6 +1258,21 @@ class GateRuntime:
         # was previously accepted outright.
         check(shared.boot_id == session.boot_id == budget.boot_id == store.boot_id,
               'RUNTIME_BOOT_CONTEXT_MISMATCH')
+        # F2 (whole-closure review): the check above only compares the boot
+        # id the *caller* supplied when reopening the shared root, which
+        # can equal the other three journals' boot even though the shared
+        # root's own genesis boot (recorded once, at creation) does not --
+        # SharedLedger flags that as ``_boot_ok=False`` but otherwise never
+        # aborts construction (read-only inspection must stay possible).
+        # Nothing else in composition ever checks it: session/budget/store
+        # each already refuse a genesis-boot mismatch at or before this
+        # point (DurableBudget at construction; SessionLedger/the store via
+        # the ``_healthy()`` calls composition itself makes below). Without
+        # this, a shared root surviving a host reboot would compose clean
+        # and then burn every attempted plan row as a durable
+        # LEDGER_BOOT_ID_MISMATCH REFUSED instead of refusing composition
+        # itself up front.
+        check(shared._boot_ok, 'RUNTIME_BOOT_CONTEXT_MISMATCH')
         check(len(plan.requests) <= min(shared.max_requests, session.max_requests,
               budget.max_requests) and
               sum(r.reservation_bytes for r in plan.requests) <= budget.max_bytes and
@@ -1631,6 +1646,23 @@ class GateRuntime:
             check(not self.shared.is_blocked(request.control_domain_id,
                   now_utc=pre.reading.utc_seconds - pre.reading.uncertainty_seconds),
                   'RUNTIME_CONTROL_DOMAIN_BLOCKED')
+            # F1 (whole-closure review): pre-check the two ownership
+            # preconditions ``shared.intent_open`` itself enforces below,
+            # before this gate commits ``session.attempt_intent`` at Step 1.
+            # The shared root is meant to be reused across jobs with
+            # different manifests, but V4 manifests only enforce
+            # request-id uniqueness within one manifest -- so two ordinary
+            # jobs reusing the same shared root can collide on the exact
+            # same request_id, or inherit an intent an earlier crashed job
+            # left open. Catching both here keeps the collision a normal
+            # durable REFUSED row (same as every other check in this
+            # block), instead of writing session.attempt_intent first and
+            # discovering the collision only inside shared.intent_open,
+            # which would orphan the session attempt OPEN with no terminal
+            # reason and permanently (and spuriously) wedge it.
+            check(self.shared.open_intent is None, 'SHARED_LEDGER_INTENT_OPEN_HELD')
+            check(request.request_id not in self.shared.request_ids_ever,
+                  'SHARED_LEDGER_REQUEST_ID_REUSE')
             if self.attempt_model is not None:
                 self.attempt_model.require_admission(request, session=self.session)
         except LaunchContractError as exc:
@@ -1931,17 +1963,26 @@ class GateRuntime:
             closure_evidence_raw=closure_evidence_raw,
             denial_history_head=denial_head_snapshot,
             accounting_head=self.budget.prev)
+
+        if overdelivered or self.session.attempt['overdelivered']:
+            # F3 (whole-closure review) / R4 (slice 2): a stream/journal
+            # violation "cannot complete" (design section 4 step 5) and
+            # permanently poisons this session/budget. Conservatively, the
+            # hold also carries across jobs on the *shared* root: record a
+            # durable hold there instead of an ordinary close, so the
+            # single global cross-job token this exact request held is
+            # never released to a later job on the same control domain.
+            # No ACCOUNTED/terminal is reachable here; the caller must stop
+            # issuing further attempts against this session/budget.
+            self.shared.intent_held(request.request_id,
+                accounting_head=self.budget.prev, total_delivered_bytes=delivered)
+            return {'request_id': request.request_id, 'outcome': 'OVERDELIVERY_HELD',
+                    'reason': 'RUNTIME_OVERDELIVERY_POISONED'}
+
         shared_outcome = ('DENIED' if denial_record is not None else
                           ('OK' if verified_body is not None else 'FAILED'))
         self.shared.intent_closed(request.request_id, outcome=shared_outcome,
             accounting_head=self.budget.prev, total_delivered_bytes=delivered)
-
-        if overdelivered or self.session.attempt['overdelivered']:
-            # R4 (slice 2): permanently poisoned. No ACCOUNTED/terminal is
-            # reachable; the caller must stop issuing further attempts
-            # against this session/budget.
-            return {'request_id': request.request_id, 'outcome': 'OVERDELIVERY_HELD',
-                    'reason': 'RUNTIME_OVERDELIVERY_POISONED'}
 
         self.budget.complete(request.request_id)
         self.session.accounted(request.request_id, completion_event_hash=self.budget.prev)

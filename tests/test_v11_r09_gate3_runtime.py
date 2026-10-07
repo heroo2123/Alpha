@@ -155,6 +155,44 @@ def _acquire(tmp_path, *, max_bytes=1 << 20, boot_id=BOOT):
         _STORE_DESCRIPTORS.setdefault(store_root, store.descriptor_sha256)
 
 
+@contextlib.contextmanager
+def _second_job(tmp_path, shared_head, *, boot_id=BOOT):
+    """A second, independent job's fresh session/budget/store, reusing only
+    the long-lived shared root at ``tmp_path / 'shared'`` (reopened at
+    ``shared_head``) -- mirroring a real second caller that shares nothing
+    else with the first job (whole-closure review F1/F3: the shared root is
+    reused across jobs with different manifests/session roots, so a second
+    job never reopens the first job's own session/budget/store).
+
+    ``session2``/``budget2``/``store2`` live under their own job-exclusive
+    root (``tmp_path / 'job2'``), not directly under the shared ``tmp_path``
+    used by the first job's ``_dirs``/``_acquire``. ``_PlannedRuntime``'s test
+    helper derives its per-job report directory from ``session.path.parent``
+    on the assumption that a job's session/budget/store/report directories
+    are exclusive siblings under one job root (true for job 1's
+    ``tmp_path``); nesting job 2's directories directly under the *same*
+    ``tmp_path`` would silently alias job 1's report directory (and its
+    still-open, still-flocked reserve file) instead of giving job 2 its own.
+    """
+    job_root = tmp_path / 'job2'
+    job_root.mkdir(mode=0o700)
+    for name in ('session2', 'budget2', 'store2'):
+        (job_root / name).mkdir(mode=0o700)
+    (job_root / 'store2' / 'objects').mkdir(mode=0o700)
+    store_kwargs = dict(manifest_sha256=MANIFEST, policy_sha256='b' * 64, build_id='fixture',
+                         clock_method='synthetic', max_clock_age_seconds=30,
+                         host_id='fixture-host', boot_id=boot_id)
+    with acquire_runtime_journals(
+        shared_dir=tmp_path / 'shared', session_dir=job_root / 'session2',
+        budget_dir=job_root / 'budget2', store_root=job_root / 'store2',
+        shared_kwargs=dict(boot_id=boot_id, expected_history_head=shared_head),
+        session_kwargs=dict(manifest_sha256=MANIFEST, boot_id=boot_id),
+        budget_kwargs=dict(manifest_sha256=MANIFEST, max_bytes=1 << 20, boot_id=boot_id),
+        store_kwargs=store_kwargs,
+    ) as (shared, session, budget, store):
+        yield shared, session, budget, store
+
+
 def _window(**overrides):
     base = dict(start_utc=0, acquisition_end_utc=1000, decision_lower_utc=1100)
     base.update(overrides)
@@ -1858,6 +1896,133 @@ def test_shared_journal_boot_mismatch_blocks_construction(tmp_path):
                 SyntheticExchange({'req-1': _ok_response(b'abcd')}))
             with pytest.raises(LaunchContractError, match='RUNTIME_BOOT_CONTEXT_MISMATCH'):
                 rt.run_attempt(_request(reservation_bytes=4))
+
+
+# ---------------------------------------------------------------------------
+# Whole-closure review (2026-10-07): F1/F2/F3 cross-module regressions
+# ---------------------------------------------------------------------------
+
+def test_cross_job_request_id_reuse_refuses_cleanly_not_orphaned(tmp_path):
+    """F1 S2a: two independent jobs sharing the same long-lived shared root
+    both name a request 'req-1' -- V4 manifests only enforce request-id
+    uniqueness within one manifest (launch_v4.py:627-629), so two ordinary
+    jobs can collide on the shared root's lifetime-wide ``request_ids_ever``.
+    Before the fix, job 2's collision was only discovered inside
+    ``shared.intent_open``, *after* ``session.attempt_intent`` had already
+    been durably written for job 2 -- leaving its session attempt OPEN
+    forever with no terminal reason, and any report build permanently
+    refused with REPORT_UNSETTLED_ATTEMPT (finalize_report's
+    RUNTIME_REPORT_ATTEMPT_HELD) even though nothing was actually
+    unresolved."""
+    tmp_path = _dirs(tmp_path)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        rt = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': _ok_response(b'abcd')}))
+        assert rt.run_attempt(_request(reservation_bytes=4))['outcome'] == 'SUCCESS'
+        shared_head = shared.prev
+    with _second_job(tmp_path, shared_head) as (shared2, session2, budget2, store2):
+        rt2 = _runtime(shared2, session2, budget2, store2,
+            SyntheticExchange({'req-1': _ok_response(b'abcd')}))
+        result = rt2.run_attempt(_request(reservation_bytes=4))
+        assert result['outcome'] == 'REFUSED'
+        assert result['reason'] == 'SHARED_LEDGER_REQUEST_ID_REUSE'
+        # A normal durable terminal, not an orphaned OPEN attempt.
+        assert session2.attempt['state'] == 'TERMINAL'
+        assert session2.attempt['outcome'] == 'REFUSED'
+        report = build_terminal_report(plan=rt2.plan, session=session2,
+            budget=budget2, shared=shared2, store=store2)
+        assert report['global_accounting']['refused_count'] == 1
+
+
+def test_inherited_open_shared_intent_refuses_cleanly_not_orphaned(tmp_path):
+    """F1 S2b: the shared root carries an intent an earlier, crashed job
+    left open on a *different* control domain. Before the fix, job 2's
+    collision was only discovered inside ``shared.intent_open`` after its
+    own ``session.attempt_intent`` had already been written -- the same
+    spurious permanent orphan as S2a."""
+    tmp_path = _dirs(tmp_path)
+    crashed = SharedLedger(tmp_path / 'shared', boot_id=BOOT, genesis_review_digest=GENESIS)
+    crashed.intent_open('req-crashed', purpose='INDEX', endpoint_id='c' * 64,
+        control_domain_id='9' * 64, manifest_sha256='9' * 64,
+        max_reservation_bytes=4, now_utc=10)
+    shared_head = crashed.prev
+    crashed.close()  # simulate a crash: never intent_closed
+    with _second_job(tmp_path, shared_head) as (shared2, session2, budget2, store2):
+        assert shared2.inherited_open_request_id == 'req-crashed'
+        rt2 = _runtime(shared2, session2, budget2, store2,
+            SyntheticExchange({'req-1': _ok_response(b'abcd')}))
+        result = rt2.run_attempt(_request(reservation_bytes=4))
+        assert result['outcome'] == 'REFUSED'
+        assert result['reason'] == 'SHARED_LEDGER_INTENT_OPEN_HELD'
+        assert session2.attempt['state'] == 'TERMINAL'
+        assert session2.attempt['outcome'] == 'REFUSED'
+        report = build_terminal_report(plan=rt2.plan, session=session2,
+            budget=budget2, shared=shared2, store=store2)
+        assert report['global_accounting']['refused_count'] == 1
+
+
+def test_shared_genesis_boot_mismatch_refuses_composition_not_rows(tmp_path):
+    """F2 S1: the shared root's own genesis boot (recorded once, at
+    creation) can differ from the boot every journal -- including the
+    caller-supplied boot_id the F4 check at composition actually compares
+    -- agrees on after a host reboot. Before the fix, composition accepted
+    this (the equality check at runtime.py:1259 only ever compared the
+    caller-supplied value) and then every attempted plan row burned a
+    durable REFUSED/LEDGER_BOOT_ID_MISMATCH under the zero-retry rule,
+    instead of composition itself refusing up front."""
+    tmp_path = _dirs(tmp_path)
+    (tmp_path / 'alternate_shared2').mkdir(mode=0o700)
+    shared_dir = tmp_path / 'alternate_shared2'
+    with SharedLedger(shared_dir, boot_id='boot-A', genesis_review_digest=GENESIS) as genesis_shared:
+        shared_head = genesis_shared.prev
+    with _acquire(tmp_path, boot_id='boot-B') as (_, session, budget, store):
+        with SharedLedger(shared_dir, boot_id='boot-B',
+                           expected_history_head=shared_head) as shared:
+            assert (shared.boot_id == session.boot_id == budget.boot_id ==
+                    store.boot_id == 'boot-B')
+            assert shared._boot_ok is False
+            rt = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': _ok_response(b'abcd')}))
+            with pytest.raises(LaunchContractError, match='RUNTIME_BOOT_CONTEXT_MISMATCH'):
+                rt.run_attempt(_request(reservation_bytes=4))
+            # Composition itself refused -- no plan row was ever burned.
+            assert session.attempt is None
+            assert session.completed_count == 0
+
+
+def test_overdelivery_holds_shared_root_token_not_released(tmp_path):
+    """F3 S3: on overdelivery, the shared root must durably record a hold,
+    not an ordinary FAILED close that releases the single global cross-job
+    token -- otherwise a second job on the same shared root/control domain
+    could dispatch right after, even though the design text's intent
+    (section 4 step 5: a stream/journal violation "cannot complete";
+    "poisons the run") reads as poisoning the shared root across jobs too,
+    the more conservative/fail-safe reading."""
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'a' * 50)
+    stream = ScriptedResponseStream(response, (b'a' * 50,), prefetched=50)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _scripted_runtime(shared, session, budget, store, response, stream)
+        result = runtime.run_attempt(_request(reservation_bytes=10))
+        assert result['outcome'] == 'OVERDELIVERY_HELD'
+        assert budget.received == 50 and budget.violated
+        assert session.overdelivery_poisoned
+        # Durably held, not a plain released FAILED close.
+        assert shared.open_intent is not None
+        assert shared.open_intent['request_id'] == 'req-1'
+        assert shared.open_intent['held'] is True
+        assert shared.events[-1]['op'] == 'intent_held'
+        shared_head = shared.prev
+    # A second job, fresh session/budget/store, same shared root/control
+    # domain: the global token must still be held -- it cannot dispatch to
+    # SUCCESS right after.
+    with _second_job(tmp_path, shared_head) as (shared2, session2, budget2, store2):
+        rt2 = _runtime(shared2, session2, budget2, store2,
+            SyntheticExchange({'req-2': _ok_response(b'wxyz')}),
+            requests=(_request(request_id='req-2', reservation_bytes=4),))
+        result2 = rt2.run_attempt(_request(request_id='req-2', reservation_bytes=4))
+        assert result2['outcome'] == 'REFUSED'
+        assert result2['reason'] == 'SHARED_LEDGER_INTENT_OPEN_HELD'
 
 
 def test_transport_receives_bound_attempt_request_not_bare_id(tmp_path):

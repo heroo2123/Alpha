@@ -441,6 +441,7 @@ class SharedLedger(_HashChainJournal):
                     ('request_id', 'purpose', 'endpoint_id', 'control_domain_id',
                      'manifest_sha256', 'max_reservation_bytes')}
                 self.open_intent['denial_recorded'] = False
+                self.open_intent['held'] = False
                 self.open_count += 1
             elif op == 'denial_observed':
                 check(self.open_intent is not None and
@@ -469,6 +470,19 @@ class SharedLedger(_HashChainJournal):
                           'SHARED_LEDGER_DENIAL_NOT_OBSERVED')
                 self.open_intent = None
                 self.closed_count += 1
+            elif op == 'intent_held':
+                # F3: a stream/journal violation (overdelivery) "cannot
+                # complete" and poisons the run (design section 4 step 5).
+                # Conservatively read as carrying across jobs on this
+                # shared root too: unlike ``intent_closed``, this never
+                # clears ``open_intent`` -- the token this exact request
+                # held is never released to any later job, by this or any
+                # future process, the same permanent-hold mechanism already
+                # used for a crash-inherited or AMBIGUOUS-refused intent.
+                check(self.open_intent is not None and
+                      self.open_intent['request_id'] == event['request_id'],
+                      'SHARED_LEDGER_HOLD_WITHOUT_OPEN')
+                self.open_intent['held'] = True
             else:
                 raise LaunchContractError('SHARED_LEDGER_UNKNOWN_EVENT')
         check(self.open_count <= self.max_requests, 'SHARED_LEDGER_REQUEST_CAP_EXCEEDED')
@@ -688,8 +702,59 @@ class SharedLedger(_HashChainJournal):
             digest(accounting_head, 'SHARED_LEDGER_CLOSE_ACCOUNTING_HEAD')
             integer(total_delivered_bytes, 0, MAX_BYTES,
                     'SHARED_LEDGER_CLOSE_DELIVERED_BYTES')
+            # F3: derive the overdelivery condition from this root's own
+            # recorded ``max_reservation_bytes`` rather than trusting the
+            # caller's outcome label. An ordinary close (OK/DENIED/FAILED)
+            # can never paper over an overdelivered intent -- the caller
+            # must use ``intent_held`` instead, which never releases the
+            # global token for this exact request.
+            check(total_delivered_bytes <= self.open_intent['max_reservation_bytes'],
+                  'SHARED_LEDGER_CLOSE_OVERDELIVERED')
             self._append({'op': 'intent_closed', 'request_id': request_id,
                           'outcome': outcome, 'accounting_head': accounting_head,
+                          'total_delivered_bytes': total_delivered_bytes,
+                          'denial_history_head': self.prev})
+            self._state()
+
+    def intent_held(self, request_id, *, accounting_head, total_delivered_bytes):
+        """Durably record that this exact intent's stream/journal violation
+        (overdelivery) halts it and poisons it -- never close it, never
+        release the single global cross-job token it holds.
+
+        Distinct from ``intent_closed``: this never clears ``open_intent``
+        on success, so no later ``intent_open`` call -- by this or any
+        future process, on any later job -- can ever reuse the token this
+        request held (design section 4 step 5: a stream/journal violation
+        "cannot complete"; conservatively read as carrying the hold across
+        jobs on the shared root, not only the caller's own session/budget).
+
+        Unlike ``intent_closed``'s own ``total_delivered_bytes <=
+        max_reservation_bytes`` guard, this root cannot fully re-derive the
+        violation on its own: a stream/journal violation can also be a
+        per-read allowance-cap breach (the budget ledger's own
+        ``STREAM_ABORT_AT_ALLOWANCE``) whose recorded byte total may sit at
+        or even below ``max_reservation_bytes`` -- only the budget ledger
+        observes the per-chunk read-allowance history that distinguishes
+        that case from an ordinary, un-violated delivery. This method
+        therefore trusts the caller's own determination (the same trust
+        boundary ``run_attempt`` already extends to ``budget.violated``/
+        ``session.attempt['overdelivered']``), and instead hardens every
+        boundary it *can* independently verify: the intent must be open for
+        this exact request, not already held, and not an inherited hold.
+        """
+        with self._guard():
+            self._healthy()
+            check(self.open_intent is not None and
+                  self.open_intent['request_id'] == request_id,
+                  'SHARED_LEDGER_CLOSE_WITHOUT_OPEN')
+            check(request_id != self.inherited_open_request_id,
+                  'SHARED_LEDGER_INHERITED_INTENT_HELD')
+            check(not self.open_intent['held'], 'SHARED_LEDGER_ALREADY_HELD')
+            digest(accounting_head, 'SHARED_LEDGER_CLOSE_ACCOUNTING_HEAD')
+            integer(total_delivered_bytes, 0, MAX_BYTES,
+                    'SHARED_LEDGER_CLOSE_DELIVERED_BYTES')
+            self._append({'op': 'intent_held', 'request_id': request_id,
+                          'accounting_head': accounting_head,
                           'total_delivered_bytes': total_delivered_bytes,
                           'denial_history_head': self.prev})
             self._state()
