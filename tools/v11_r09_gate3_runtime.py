@@ -228,9 +228,9 @@ class SyntheticResponseStream(ResponseStream):
 class _StreamAccounting:
     """Check cumulative stream reports and track bytes durably charged here."""
 
-    def __init__(self, stream):
+    def __init__(self, stream, head):
         self.stream = stream
-        self.head = stream.head
+        self.head = head
         check(type(self.head) is ResponseHead, 'RUNTIME_TRANSPORT_HEAD_REQUIRED')
         self.charged_bytes = 0
         self.last = None
@@ -1684,8 +1684,35 @@ class GateRuntime:
             remaining_seconds=deadline_mono-actual_start)
         check(isinstance(stream, ResponseStream),
               'RUNTIME_TRANSPORT_STREAM_REQUIRED')
-        accounting = _StreamAccounting(stream)
-        response = accounting.head
+        # The head is an independent dispatch observation. Keep it available
+        # if the first byte-progress snapshot is unavailable or malformed.
+        response = stream.head
+        check(type(response) is ResponseHead, 'RUNTIME_TRANSPORT_HEAD_REQUIRED')
+        try:
+            accounting = _StreamAccounting(stream, response)
+        except Exception as exc:
+            try:
+                headers = _bounded_headers(response, max_header_bytes=self.max_header_bytes)
+                header_cause = None
+            except LaunchContractError as header_exc:
+                headers = _observable_retry_after(response)
+                header_cause = f'RUNTIME_HEADER_VALIDATION_FAILED:{header_exc}'
+            denial_status = (_DENIAL_STATUSES.get(response.status)
+                             if type(response.status) is int else None)
+            if denial_status is None and 'retry-after' in headers:
+                denial_status = 'OTHER'
+            if denial_status is not None:
+                self.shared.restriction_unresolved(request.request_id,
+                    restriction=_unresolved_restriction(denial_status, response,
+                        request.origin,
+                        f'RUNTIME_INITIAL_STREAM_SNAPSHOT_FAILED:{type(exc).__name__}:{exc}',
+                        header_cause))
+                self.session.denial(request.request_id,
+                    reason=f'RUNTIME_DENIAL_HTTP_{response.status}',
+                    shared_denial_event_hash=self.shared.prev)
+            # No snapshot means no trustworthy byte count or EOF. The open
+            # intent and full reservation remain held for recovery/review.
+            raise
         # An eager adapter declares its entire buffered chunk count at
         # dispatch. Streaming adapters are capped as reads occur below.
         if (accounting.last.known_chunk_count is not None and

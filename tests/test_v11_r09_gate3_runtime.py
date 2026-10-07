@@ -23,7 +23,8 @@ from tools.v11_r09_gate3_runtime import (
     MAX_BODY_CHUNKS_PER_REQUEST, MIN_AVAILABLE_MEMORY_BYTES, MIN_FREE_DISK_BYTES,
     REPORT_RESERVE_BYTES, SLOT_COUNT, AbsoluteWindow, AttemptRequest, CapacityPlan,
     FakeClock, FakeResourceProbe, FrozenEvent, FrozenPlan, GateRuntime, ReportSink,
-    ResponseHead, ResponseStream, StreamSnapshot, SyntheticTransport, Transport,
+    ResponseHead, ResponseStream, StreamSnapshot, SyntheticResponseStream,
+    SyntheticTransport, Transport,
     acquire_runtime_journals, build_terminal_report,
 )
 
@@ -324,6 +325,103 @@ def test_denial_without_retry_after_blocks_permanently(tmp_path):
         runtime = _runtime(shared, session, budget, store, exchange)
         runtime.run_attempt(_request())
         assert shared.is_blocked('d' * 64, now_utc=10 ** 9)
+
+
+@pytest.mark.parametrize('failure', ('raises', 'malformed'))
+def test_initial_snapshot_failure_persists_observed_denial_without_accounting(tmp_path, failure):
+    _dirs(tmp_path)
+    response = _ok_response(b'abcdef', status=429, headers=(('Retry-After', '60'),))
+    original = OSError('initial snapshot unavailable')
+
+    class BrokenStream(SyntheticResponseStream):
+        def snapshot(self):
+            if failure == 'raises':
+                raise original
+            return replace(super().snapshot(), read_count=-1)
+
+    class CountingTransport(SyntheticTransport):
+        calls = 0
+
+        def dispatch(self, request, **kwargs):
+            self.calls += 1
+            return BrokenStream(self._exchange.take(request.request_id))
+
+    first = _request(reservation_bytes=6)
+    second = _request(request_id='req-2', reservation_bytes=6)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': response}), requests=(first, second))
+        transport = CountingTransport(runtime.transport._exchange)
+        runtime.transport = transport
+        if failure == 'raises':
+            with pytest.raises(OSError) as caught:
+                runtime.run_attempt(first)
+            assert caught.value is original
+        else:
+            with pytest.raises(LaunchContractError, match='RUNTIME_STREAM_PROGRESS'):
+                runtime.run_attempt(first)
+        denial = shared.denials['d' * 64]
+        assert denial == {'status': '429', 'reason': 'RUNTIME_DENIAL_HTTP_429',
+                          'cooldown_until': None}
+        restrictions = [event for event in shared.events
+                        if event['op'] == 'restriction_unresolved']
+        assert len(restrictions) == 1
+        restriction = restrictions[0]['restriction']
+        assert restriction['evidence_sha256'] is not None
+        assert 'Retry-After' in base64.b64decode(restriction['evidence_raw_b64']).decode()
+        assert restriction['receipt_evidence_cause'].startswith(
+            'RUNTIME_INITIAL_STREAM_SNAPSHOT_FAILED:')
+        assert session.attempt['state'] == 'DISPATCHED'
+        assert session.attempt['denial_observed'] is True
+        assert shared.open_intent['denial_recorded'] is True
+        assert budget.in_flight == 'req-1' and budget.received == 0
+        assert not store.receipts and transport.calls == 1
+        with pytest.raises(LaunchContractError):
+            runtime.run_attempt(second)
+        assert transport.calls == 1
+        with pytest.raises(LaunchContractError):
+            runtime.finalize_report()
+        runtime.report_sink.close()
+        heads = shared.prev, session.prev, budget.prev
+
+    for _ in range(2):
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            assert (shared.prev, session.prev, budget.prev) == heads
+            assert shared.inherited_open_request_id == 'req-1'
+            assert shared.denials['d' * 64] == denial
+            assert shared.is_blocked('d' * 64, now_utc=10 ** 9)
+            assert session.attempt['state'] == 'DISPATCHED'
+            assert budget.in_flight == 'req-1' and budget.received == 0
+            assert not store.receipts
+            with pytest.raises(LaunchContractError):
+                budget.complete('req-1')
+
+
+def test_initial_snapshot_failure_without_restriction_does_not_invent_denial(tmp_path):
+    _dirs(tmp_path)
+    response = _ok_response(b'abcdef')
+
+    class BrokenStream(SyntheticResponseStream):
+        def snapshot(self):
+            raise OSError('initial snapshot unavailable')
+
+    class BrokenTransport(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            return BrokenStream(self._exchange.take(request.request_id))
+
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': response}))
+        runtime.transport = BrokenTransport(runtime.transport._exchange)
+        with pytest.raises(OSError, match='initial snapshot unavailable'):
+            runtime.run_attempt(_request(reservation_bytes=6))
+        assert not shared.denials and not session.attempt['denial_observed']
+        assert budget.in_flight == 'req-1' and budget.received == 0
+        assert not store.receipts
+        runtime.report_sink.close()
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert not shared.denials and shared.inherited_open_request_id == 'req-1'
+        assert budget.in_flight == 'req-1' and budget.received == 0
 
 
 def test_finite_cooldown_releases_at_window_end_or_later(tmp_path):
