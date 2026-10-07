@@ -7864,3 +7864,7 @@ Verified three recovered untracked files byte-identical to their live root-owned
 ## RAW compatibility repair independently reviewed; publication restored — 2026-10-07 01:00 UTC
 
 Pushed `930a058` (local/remote agree). Independent Opus exact review of `36e769b` PASS_IN_SCOPE (RAW 51/51 normal+`-O`, adjacent 303 passed, parent fails 11/51 proving the regression). Disk guard removed the clean `/tmp` review checkout mid-review under emergency free-space pressure from RAW test tmp; verdict re-bound to object-store hashes, future review checkouts move outside `/tmp`. No score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## `read_bytes` refusal tests integrated after independent review — 2026-10-07 01:20 UTC
+
+Sonnet-authored `7927067` (+31 test lines, 9 refusal cases) → Opus PASS_IN_SCOPE with 3-mutant kill evidence → merged `ddef4aa`; RAW 60/60 normal and `-O` post-merge. Root model-authority directory now observed present (stale assessment line corrected). No score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

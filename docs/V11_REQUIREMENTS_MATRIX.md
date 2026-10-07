@@ -5139,3 +5139,7 @@ Committed three recovered, byte-verified capture files (`v11_daily_review_author
 ## 2026-10-07 01:00 UTC RAW compatibility repair `36e769b` independently reviewed PASS_IN_SCOPE
 
 Independent Claude Opus exact-commit review of the provisional RAW `read_bytes` closure-binding repair (`36e769b`, integrated `d6a7215`) returned PASS_IN_SCOPE with one LOW test-coverage finding and no safety weakening; artifacts in `docs/V11_GATE3_RAW_COMPAT_REVIEW_36e769b.*`. Resolves the "genuine independent exact review of current integrated repair" item from the 2026-10-04 recovery assessment. No requirement boundary crossed; G3-L still needs station/model state, source access/restriction lineage, selected-window storage/clock evidence, and verified isolated deployment. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-07 01:20 UTC RAW `read_bytes` refusal tests reviewed and integrated
+
+Test-only `7927067` (nine tampered-closure refusal cases) passed independent Opus exact review with mutant evidence (`docs/V11_GATE3_RAW_READBYTES_TESTS_REVIEW_7927067.*`) and was integrated as `ddef4aa`; post-merge RAW 60/60 normal and `-O`. Closes the LOW finding from the `36e769b` review. No requirement boundary crossed. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

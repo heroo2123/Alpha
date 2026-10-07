@@ -1,0 +1,125 @@
+{
+  "schema": "ALPHA_V11_GATE3_RAW_READBYTES_TESTS_7927067_REVIEW_V1",
+  "verdict": "PASS_IN_SCOPE",
+  "candidate_commit": "7927067009a7f89bfd8f504dcda1e8f90625ff68",
+  "candidate_tree": "85271b99a66edd3c1f0ab9610cbb6e90999b8a66",
+  "candidate_parent": "f69cf734f8b6cf73ec3e7477d0ceb18fd780db73",
+  "candidate_worktree": "/home/alphaadmin/AlphaV11_Reviews/frozen-review-7927067",
+  "reviewer_model": "claude-opus (independent, not the author)",
+  "initial_clean": true,
+  "final_clean": true,
+  "candidate_unchanged": true,
+  "exact_diff": {
+    "files": [
+      "tests/test_v11_gate3_raw_decoder_binding.py"
+    ],
+    "insertions": 31,
+    "deletions": 0,
+    "sha256": "69a0e4043eb96b304c3261bedac6becdde27f82aba26a82b5fb5b6fd5c5d66c6"
+  },
+  "tests": {
+    "raw_binding_file_normal": {
+      "passed": 60,
+      "failed": 0,
+      "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/test_v11_gate3_raw_decoder_binding.py -p no:cacheprovider -q --basetemp=/home/alphaadmin/AlphaV11_Reviews/review-7927067-basetemp"
+    },
+    "raw_binding_file_optimized": {
+      "passed": 60,
+      "failed": 0,
+      "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -O -m pytest tests/test_v11_gate3_raw_decoder_binding.py -p no:cacheprovider -q --basetemp=/home/alphaadmin/AlphaV11_Reviews/review-7927067-basetemp"
+    },
+    "new_cases_verbose": {
+      "passed": 9,
+      "failed": 0,
+      "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/test_v11_gate3_raw_decoder_binding.py::test_tampered_read_bytes_closure_refuses -p no:cacheprovider -v --basetemp=/home/alphaadmin/AlphaV11_Reviews/review-7927067-basetemp"
+    },
+    "mutant_m0_drop_read_bytes_value_type_rule": {
+      "passed": 53,
+      "failed": 7,
+      "command": "(mutant export) /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/test_v11_gate3_raw_decoder_binding.py -p no:cacheprovider -v --basetemp=/home/alphaadmin/AlphaV11_Reviews/review-7927067-basetemp"
+    },
+    "mutant_m1_m0_plus_read_bytes_optional_key": {
+      "passed": 52,
+      "failed": 8,
+      "command": "(mutant export) /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/test_v11_gate3_raw_decoder_binding.py -p no:cacheprovider -v --basetemp=/home/alphaadmin/AlphaV11_Reviews/review-7927067-basetemp"
+    },
+    "mutant_m2_m0_plus_superset_keys": {
+      "passed": 51,
+      "failed": 9,
+      "command": "(mutant export) /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/test_v11_gate3_raw_decoder_binding.py -p no:cacheprovider -v --basetemp=/home/alphaadmin/AlphaV11_Reviews/review-7927067-basetemp"
+    },
+    "git_diff_check": {
+      "passed": 1,
+      "failed": 0,
+      "command": "git diff --check f69cf73 7927067"
+    }
+  },
+  "mutant_results": {
+    "M0 (read_bytes type/equality removed, exact keyset kept)": {
+      "30": false,
+      "32": false,
+      "0": false,
+      "31.0": false,
+      "'31'": false,
+      "True": false,
+      "None": false,
+      "missing": true,
+      "EXTRA_KEY": true
+    },
+    "M1 (M0 + read_bytes key optional)": {
+      "30": false,
+      "32": false,
+      "0": false,
+      "31.0": false,
+      "'31'": false,
+      "True": false,
+      "None": false,
+      "missing": false,
+      "EXTRA_KEY": true
+    },
+    "M2 (M0 + superset keyset)": {
+      "30": false,
+      "32": false,
+      "0": false,
+      "31.0": false,
+      "'31'": false,
+      "True": false,
+      "None": false,
+      "missing": false,
+      "EXTRA_KEY": false
+    }
+  },
+  "findings": [
+    {
+      "severity": "INFO",
+      "summary": "finally omits runtime.report_sink.close() (2 OS fds leaked per case); consistent with majority file convention, only line 152 closes it",
+      "file": "tests/test_v11_gate3_raw_decoder_binding.py",
+      "line": 183
+    },
+    {
+      "severity": "INFO",
+      "summary": "parametrize ids not self-describing ('31' str vs 31, value7 for missing); ids= would aid triage",
+      "file": "tests/test_v11_gate3_raw_decoder_binding.py",
+      "line": 160
+    },
+    {
+      "severity": "INFO",
+      "summary": "EXTRA_KEY case exercises generic strict-schema refusal rather than read_bytes specifically (killed only by M2); appropriate given LOW finding scope",
+      "file": "tests/test_v11_gate3_raw_decoder_binding.py",
+      "line": 170
+    }
+  ],
+  "scope_limits": [
+    "Test-only single-file commit; binding test file run in full, no full regression",
+    "Synthetic fixtures only; no claim about real provider bytes or non-synthetic adapters",
+    "Gitignored __pycache__ dirs created by pytest in frozen checkout; no tracked/unignored change",
+    "Closes LOW finding of docs/V11_GATE3_RAW_COMPAT_REVIEW_36e769b.md; no other acceptance implied"
+  ],
+  "grants": {
+    "provider_request_authorized": false,
+    "execution_authority": false,
+    "g3l_credit": false,
+    "shadow_admission": false
+  },
+  "completed_utc": "2026-10-07T01:03:30Z"
+}
