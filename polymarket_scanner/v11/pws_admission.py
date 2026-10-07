@@ -5,6 +5,7 @@ capabilities must independently pass the protected nonfinancial admission gate.
 This module has no transport, account writer, model publisher or order endpoint.
 """
 from dataclasses import asdict, fields
+import json
 
 from .certification import CapabilityScope
 from .event_risk import EventContext
@@ -58,6 +59,25 @@ def _record(value, cls):
     return cls(**value)
 
 
+def _retained_rule(value):
+    rule = _record(value, RuleFingerprint)
+    if type(rule.canonical_json) is not str:
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    try:
+        payload = json.loads(rule.canonical_json)
+    except (ValueError, RecursionError) as exc:
+        # Only decoding the retained representation is translated. Strategy,
+        # model and inference exceptions must still reach their caller.
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE') from exc
+    if (type(payload) is not dict
+            or any(type(payload.get(key)) is not str for key in
+                   ('event_id', 'station', 'family', 'source_family', 'metadata_fingerprint'))):
+        raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
+    if digest(payload) != rule.sha256:
+        raise EvidenceError('RULE_FINGERPRINT_INTEGRITY')
+    return rule
+
+
 def _sequence(value):
     if type(value) not in (list, tuple):
         raise EvidenceError('MALFORMED_PWS_PRECONFIRMATION_EVIDENCE')
@@ -91,7 +111,7 @@ class PWSPreconfirmation:
         request = _mapping(_field(d, 'request'))
         official_id = _string_field(request, 'official_id')
         pws_id = _string_field(request, 'pws_id')
-        rule = _record(_field(request, 'rule'), RuleFingerprint)
+        rule = _retained_rule(_field(request, 'rule'))
         policy = _record(_field(request, 'policy'), LeadPolicy)
         now = finite(self.store.clock())
         cutoff = finite(_field(d, 'feature_ready_at'))

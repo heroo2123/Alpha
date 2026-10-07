@@ -174,6 +174,46 @@ def test_malformed_pws_pin_sibling_does_not_affect_genuine_pair(joined):
     assert result.financial_authority is False
 
 
+@pytest.mark.parametrize('canonical_json', [[], {}, None, 'invalid-json', 'null', '[]'])
+def test_matching_malformed_retained_lead_and_admission_rules_refuse(joined, canonical_json):
+    c = coordinator(joined)
+    outcome = c.coordinate('batch', (synthetic_proposal(joined),))['body']['details']
+    assert outcome['reserved_intent_ids'] == ['one']
+    store = c.store
+    lead = store.get('lead')
+    lead_details = deepcopy(lead['body']['details'])
+    lead_details['request']['rule']['canonical_json'] = canonical_json
+    bad_lead = store.audit('bad-rule-lead', event_id=lead['event_id'], kind=lead['kind'],
+                           details=lead_details)
+    assert store.get(bad_lead['id']) == bad_lead
+
+    admission = store.get('observation-pin')
+    admission_details = deepcopy(admission['body']['details'])
+    admission_details['request']['rule'] = deepcopy(lead_details['request']['rule'])
+    bad_admission = store.audit('bad-rule-admission', event_id=admission['event_id'],
+                                kind=admission['kind'], details=admission_details)
+    assert store.get(bad_admission['id']) == bad_admission
+
+    pin = store.get('paired-pin')
+    pin_details = deepcopy(pin['body']['details'])
+    pin_details['request'].update(lead_id=bad_lead['id'],
+                                   observation_admission_id=bad_admission['id'])
+    bad_pin = store.audit('bad-rule-pin', event_id=pin['event_id'], kind=pin['kind'],
+                          details=pin_details)
+    assert store.get(bad_pin['id']) == bad_pin
+
+    result = probe(joined, c, preconfirmation_id=bad_pin['id'])
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is False
+    assert any(reason.startswith('PRECONFIRMATION_DOES_NOT_REVALIDATE:') for reason in result.reasons)
+    assert result.financial_authority is False
+
+    genuine = probe(joined, c)
+    assert genuine.outcome == OUTCOME_DEMONSTRATED
+    assert genuine.preconfirmation_revalidates is True
+    assert genuine.financial_authority is False
+
+
 @pytest.mark.parametrize('location', [
     'lead_id', 'observation_admission_id', 'horizon_seconds',
     'max_pws_age_seconds', 'feature_ready_at',
