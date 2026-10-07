@@ -65,6 +65,7 @@ from tools.v11_r08_scenario_reservation_readiness import (
     evaluate_scenario_reservation_readiness,
     genuine_reserved_intents,
     _account_history,
+    _validated_account_head,
 )
 
 SCHEMA = "R09_PWS_LEAD_READINESS_V1"
@@ -203,7 +204,7 @@ def evaluate_pws_lead_readiness(
         if not unpaired_pws_proposal_refused:
             reasons.append("UNEXPECTED_UNPAIRED_REFUSAL_REASON:" + str(exc))
 
-    head = coordinator._head()
+    head = _validated_account_head(coordinator)
     state = coordinator._state(head)
     history = _account_history(coordinator, head)
     reservation = evaluate_scenario_reservation_readiness(coordinator, _snapshot=(state, history))

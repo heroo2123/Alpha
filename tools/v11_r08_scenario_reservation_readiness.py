@@ -172,6 +172,38 @@ def _account_shape_valid(state: dict) -> bool:
                for value in state[key].values())
 
 
+def _validated_account_head(coordinator: PaperCoordinator) -> dict | None:
+    """Refuse malformed account envelopes before the coordinator indexes them.
+
+    Keep the coordinator's own head selection as the snapshot used by callers.
+    Check that selected row again in case a writer appended between the reads.
+    """
+    def validate(row: dict | None) -> None:
+        if row is None:
+            return
+        body = row.get("body") if type(row) is dict else None
+        details = body.get("details") if type(body) is dict else None
+        state = details.get("state") if type(details) is dict else None
+        if (type(details) is not dict or type(state) is not dict
+                or type(details.get("policy_sha256")) is not str
+                or not details["policy_sha256"]
+                or type(state.get("account_id")) is not str
+                or not state["account_id"]):
+            raise EvidenceError("MALFORMED_ACCOUNT_EVIDENCE")
+        if (details.get("version") != COORDINATOR_VERSION
+                or details["policy_sha256"] != coordinator.policy_sha
+                or state["account_id"] != coordinator.policy.account_id):
+            raise EvidenceError("PAPER_ACCOUNT_POLICY_OR_IDENTITY_CHANGED")
+
+    validate(coordinator.store.latest(kind="COORDINATOR_EVENT", event_id=ACCOUNT_KEY))
+    try:
+        head = coordinator._head()
+    except (TypeError, KeyError, AttributeError) as exc:
+        raise EvidenceError("MALFORMED_ACCOUNT_EVIDENCE") from exc
+    validate(head)
+    return head
+
+
 def _effects_reproduced(coordinator: PaperCoordinator, row: dict, deadline: float) -> bool:
     """Replay the complete command, including request binding and proof effects.
 
@@ -450,7 +482,7 @@ def genuine_reserved_intents(coordinator: PaperCoordinator, *, state: dict | Non
     if type(coordinator) is not PaperCoordinator:
         raise EvidenceError("R08_TYPED_COORDINATOR_REQUIRED")
     if state is None or history is None:
-        head = coordinator._head()
+        head = _validated_account_head(coordinator)
         state = coordinator._state(head)
         history = _account_history(coordinator, head)
     deadline = time.monotonic() + 10.0
@@ -479,7 +511,7 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator, *,
     if type(coordinator) is not PaperCoordinator:
         raise EvidenceError("R08_TYPED_COORDINATOR_REQUIRED")
     if _snapshot is None:
-        row = coordinator._head()
+        row = _validated_account_head(coordinator)
         state = coordinator._state(row)
         history = _account_history(coordinator, row)
     else:

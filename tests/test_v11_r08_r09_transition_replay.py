@@ -15,7 +15,7 @@ from polymarket_scanner.v11.causal_replay import ReplayPolicy
 from polymarket_scanner.v11.evidence import EvidenceError, canonical, KINDS, AUDIT_KINDS
 from polymarket_scanner.v11.paper_coordinator import ACCOUNT_KEY, VERSION
 from tools.v11_r08_scenario_reservation_readiness import evaluate_scenario_reservation_readiness as r08, OUTCOME_NO_RESERVATION as NO8, OUTCOME_DEMONSTRATED as YES8
-from tools.v11_r09_pws_lead_readiness import OUTCOME_NOT_DEMONSTRATED as NO9
+from tools.v11_r09_pws_lead_readiness import OUTCOME_NOT_DEMONSTRATED as NO9, OUTCOME_DEMONSTRATED as YES9
 
 
 def append(c, request, change, key='review-forged-step', extra=None):
@@ -121,6 +121,45 @@ def test_pws_partial_account_shape_is_negative(joined, field):
     details['state'][field]=None
     c.store.audit('partial-account',event_id=ACCOUNT_KEY,kind='COORDINATOR_EVENT',details=details)
     assert probe(joined,c).outcome==NO9
+
+
+@pytest.mark.parametrize('reader_kind', ['r08', 'r09'])
+@pytest.mark.parametrize('defect', [
+    'state_null', 'state_list', 'state_missing', 'account_id_missing', 'policy_sha_missing',
+])
+def test_malformed_account_envelope_is_typed_refusal(request, reader_kind, defect):
+    rig = request.getfixturevalue('joined') if reader_kind == 'r09' else request.getfixturevalue('factory')()
+    c = pws_coordinator(rig) if reader_kind == 'r09' else coordinator(rig)
+    proposal = synthetic_proposal(rig) if reader_kind == 'r09' else genuine_proposal(rig)
+    c.coordinate('batch', (proposal,))
+    details = deepcopy(c._head()['body']['details'])
+    if defect == 'state_null':
+        details['state'] = None
+    elif defect == 'state_list':
+        details['state'] = []
+    elif defect == 'state_missing':
+        del details['state']
+    elif defect == 'account_id_missing':
+        del details['state']['account_id']
+    else:
+        del details['policy_sha256']
+    row = c.store.audit('malformed-envelope', event_id=ACCOUNT_KEY,
+                        kind='COORDINATOR_EVENT', details=details)
+    assert c.store.get(row['id']) == row  # Ordinary, hash-checked audit row.
+    reader = (lambda: probe(rig, c)) if reader_kind == 'r09' else (lambda: r08(c))
+    with pytest.raises(EvidenceError, match='^MALFORMED_ACCOUNT_EVIDENCE$'):
+        reader()
+
+
+@pytest.mark.parametrize('reader_kind', ['r08', 'r09'])
+def test_well_formed_account_envelope_still_qualifies(request, reader_kind):
+    rig = request.getfixturevalue('joined') if reader_kind == 'r09' else request.getfixturevalue('factory')()
+    c = pws_coordinator(rig) if reader_kind == 'r09' else coordinator(rig)
+    proposal = synthetic_proposal(rig) if reader_kind == 'r09' else genuine_proposal(rig)
+    c.coordinate('batch', (proposal,))
+    result = probe(rig, c) if reader_kind == 'r09' else r08(c)
+    assert result.outcome == (YES9 if reader_kind == 'r09' else YES8)
+    assert result.financial_authority is False
 
 
 def test_actual_lifecycle_readiness_and_idempotence(factory,monkeypatch):
