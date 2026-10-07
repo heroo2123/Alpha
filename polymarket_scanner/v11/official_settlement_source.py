@@ -138,7 +138,15 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
     if not isinstance(status, dict) or type(status.get("available_by_deadline")) is not bool:
         return _result("FALLBACK_UNPROVED", rule_sha)
     fallback = not status["available_by_deadline"]
-    source = FALLBACK if fallback else p.get("primary_source")
+    if fallback:
+        source = FALLBACK
+    else:
+        # A missing/null/empty/non-string primary source must never compare equal
+        # to an equally absent document source_id and derive a synthetic winner.
+        primary_source = p.get("primary_source")
+        if not isinstance(primary_source, str) or not primary_source:
+            return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
+        source = primary_source
     fields = {"source_id": source, "source_version": expected_source_version,
               "station": p["station"], "target_date": p["target_date"],
               "timezone": p["timezone"], "unit": p["unit"],

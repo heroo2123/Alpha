@@ -256,6 +256,32 @@ def test_hash_and_gamma_lineage_and_partition_fail_closed():
     assert_code(check(bad, d), "SOURCE_SEMANTICS_MISMATCH")
 
 
+@pytest.mark.parametrize("value", ["__absent__", None, "", [], {}, True, 42])
+def test_missing_or_nonstring_primary_source_never_wins_on_primary_path(value):
+    r, d = fixture()
+    p = r.payload
+    if value == "__absent__":
+        del p["primary_source"]
+        del d["source_id"]
+    else:
+        p["primary_source"] = value
+        d["source_id"] = value
+    bad = RuleFingerprint(canonical(p), digest(p), r.source_event_sha256)
+    d["rule_fingerprint_sha256"] = bad.sha256
+    result = check(bad, d)
+    must(result["code"] != "SYNTHETIC_DERIVATION_ONLY")
+    assert_code(result, "SOURCE_SEMANTICS_MISMATCH")
+
+
+def test_missing_primary_source_still_rejected_on_fallback_path():
+    r, d = fixture(fallback=True)
+    p = r.payload
+    del p["primary_source"]
+    bad = RuleFingerprint(canonical(p), digest(p), r.source_event_sha256)
+    d["rule_fingerprint_sha256"] = bad.sha256
+    assert_code(check(bad, d), "SYNTHETIC_DERIVATION_ONLY")
+
+
 def test_real_evidence_admission_remains_external():
     r, d = fixture()
     result = check(r, d)
