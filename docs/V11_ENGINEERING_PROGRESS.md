@@ -1,3 +1,7 @@
+## 2026-10-07 13:41 UTC adverse exact reviews recycled immediately
+
+Intook independent `CHANGES_REQUIRED` verdicts for Brain `72846d1` and InventoryTransform receipt preflight `6a310fd`, reproduced and documented in retained reports. Started one Sol/high repair writer per original clean author worktree with retained terminal markers. Clean test-only EvidenceStore budget candidate `e334290` entered a frozen Astra/high exact review. The other four exact reviewers and Gate-3 test author remain active, restoring eight specialist lanes. No candidate was merged or credited, and no provider, runtime/V10 or financial action occurred.
+
 ## 2026-10-07 13:35 UTC finished PAPER and forward repairs recycled
 
 Recovered finished clean PAPER live-plan `fd965a9` and forward qualifier `b1a8723` authors from their actual terminal markers. Verified exact trees and clean frozen checkouts, then launched separate Astra/high exact reviews with retained prompts, runners and terminal markers. The PAPER author passed 455 focused tests per mode after an earlier load-sensitive AUDIT miss; the forward author passed 106 per mode while retaining fail-closed qualification. Eight separate specialist lanes remain active. Neither candidate was merged or credited; no runtime, provider, financial or V10 action occurred.
