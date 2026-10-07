@@ -8088,3 +8088,6 @@ Intook clean Gate-3 R1 successor `7730021`, checked its two-file diff and clean 
 ## 2026-10-07 17:23 UTC PAPER review recycled
 
 Intook clean PAPER PWS successor `b2bbb0d`, verified its two-file diff/worktree, and launched frozen different-model Astra/high exact review under `/tmp/alpha-paper-pws-review-b2bbb0d.*` with retained terminal marker. Gate-3 R1/R2 and forward exact reviews continue in separate checkouts. No merge, provider, runtime or financial action; no acceptance credit.
+## 2026-10-07 17:31 UTC two reviewed chains integrated
+
+Intook independent `PASS_IN_SCOPE` for forward `f87d0a5` and Gate-3 R2 `4163c3d`. Reconciled each in isolated worktrees, matched final reviewed file blobs, merged locally by fast-forward and reran focused tests on actual main: forward 69/69 per Python mode; R2 736/736 per mode. The unused forward checker earns no live proof, and R2 alone does not close Gate-3 slice-3. R1 and PAPER exact reviews continue. No provider, runtime or financial action and no acceptance credit.
