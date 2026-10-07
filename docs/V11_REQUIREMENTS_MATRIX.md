@@ -1,3 +1,7 @@
+## 2026-10-07 12:42 UTC successor reviews and adverse repairs
+
+Forward `90d2d64`, PAPER lineage `79d9f1a`, and Brain label `232a66a` have clean author successors under frozen independent exact review, without acceptance credit. Gate-3 binding `2173af7`, historical terminal package `ba8b3aa`, and PAPER live-plan `a0fe995` received independent CHANGES_REQUIRED verdicts and each has one isolated repair writer. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER strict remains 9/11 with requirements 8/9 partial; READY_TO_FUND=false. No financial authority changed.
+
 ## 2026-10-07 12:40 UTC offline microcanary repair review
 
 Successor `35d3ad4` addresses the independent SQLite journal overwrite finding from rejected `54b49fc` and is under separate exact review. Author tests pass, but no PASS, integration, READY_TO_FUND or financial authority is claimed. Gate-3 remains 91/200 (formal 1/50); PAPER strict remains 9/11 with requirements 8/9 partial.
