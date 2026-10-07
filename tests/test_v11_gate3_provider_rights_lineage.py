@@ -1200,3 +1200,229 @@ def test_wrongly_typed_review_field_fails_closed_without_crashing(tmp_path):
     _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE", independent_origins=42)
     findings = verify_reviewed_refs(doc, root, manifest)
     assert any(f.startswith("SCOPE_INDEPENDENCE_REF:ECMWF:MALFORMED_REVIEWED_REF") for f in findings), findings
+
+
+@pytest.mark.parametrize("field,value", [
+    ("reviewed_at_utc", "2026-10-06T00:00:00Z"),
+    ("valid_until_utc", "2030-01-01T00:00:00Z"),
+])
+def test_permission_dates_cannot_widen_pinned_review(tmp_path, field, value):
+    doc, root, manifest = _positive_seam(tmp_path)
+    before = copy.deepcopy(manifest)
+    perm = doc["permissions"]["GEFS"]["reviewed_permissions"][0]
+    record_before = (root / perm["review_ref"]["path"]).read_bytes()
+    perm[field] = value
+    assert check_lineage(doc) == []
+    assert any("PERMISSION_VALIDITY_UNBOUND" in f for f in verify_reviewed_refs(doc, root, manifest))
+    assert manifest == before
+    assert (root / perm["review_ref"]["path"]).read_bytes() == record_before
+
+
+@pytest.mark.parametrize("start,end", [
+    ("2026-10-08T00:00:00Z", "2026-10-09T00:00:00Z"),
+    ("2026-10-08T01:00:00Z", "2026-10-08T23:00:00Z"),
+])
+def test_bound_permission_subset_valid_control(tmp_path, start, end):
+    doc, root, manifest = _positive_seam(tmp_path)
+    perm = doc["permissions"]["GEFS"]["reviewed_permissions"][0]
+    perm.update(reviewed_at_utc=start, valid_until_utc=end)
+    assert verify_reviewed_refs(doc, root, manifest) == []
+    result = run(good_request(), doc=doc)
+    assert result["outcome"] == ENVELOPE_OK
+    assert result["execution_authority"] is False
+    assert doc["g3l"] == "NO_GO" and doc["qualification_credit"] == 0
+    assert run(good_request(planned_at_utc=end), doc=doc, now=end)["outcome"] == REFUSED
+    assert run(good_request(planned_at_utc="2026-10-07T23:59:59Z"), doc=doc,
+               now="2026-10-07T23:59:59Z")["outcome"] == REFUSED
+
+
+@pytest.mark.parametrize("kind,changes,expected", [
+    ("RESUMPTION", {"requested_at_utc": "2026-12-01T00:00:00Z"}, "RESUMPTION_OUTSIDE_EXPIRY_WINDOW"),
+    ("RESUMPTION", {"requested_at_utc": "2026-10-08T01:00:00Z"}, "PERMISSION_BEFORE_RESUMPTION"),
+    ("RESUMPTION", {"requested_at_utc": "2026-10-06T00:00:00Z"}, "RESUMPTION_TIME_INVALID"),
+    ("EXPIRY_ADJUDICATION", {"valid_until_utc": "2026-10-08T00:00:00Z"}, "RESUMPTION_OUTSIDE_EXPIRY_WINDOW"),
+    ("EXPIRY_ADJUDICATION", {"valid_until_utc": "2026-10-08T23:59:59Z"}, "PERMISSION_OUTSIDE_EXPIRY_WINDOW"),
+    ("EXPIRY_ADJUDICATION", {"decision_utc": "2026-10-08T00:00:01Z"}, "RESUMPTION_OUTSIDE_EXPIRY_WINDOW"),
+    ("SCOPE_INDEPENDENCE", {"decision_utc": "2026-10-08T00:00:01Z"}, "PERMISSION_BEFORE_RESUMPTION"),
+    ("PATH_SPEC", {"decision_utc": "2026-10-08T00:00:01Z"}, "PATH_SPEC_VALIDITY_UNBOUND"),
+])
+def test_review_temporal_intersection(tmp_path, kind, changes, expected):
+    doc, root, manifest = _positive_seam(tmp_path)
+    refs = {
+        "RESUMPTION": doc["control_domains"]["NOAA_GEFS"]["resumption_review"],
+        "SCOPE_INDEPENDENCE": doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"],
+        "PATH_SPEC": doc["request_envelope"]["reviewed_origin_path_specs"][0]["review_ref"],
+        "EXPIRY_ADJUDICATION": next(e["expiry_adjudication"] for e in doc["restriction_events"]
+                                    if e["control_domain"] == "NOAA_GEFS"),
+    }
+    _rewrite_record(root, refs[kind], manifest, kind, **changes)
+    assert any(expected in f for f in verify_reviewed_refs(doc, root, manifest))
+
+
+@pytest.mark.parametrize("field,kind", [
+    ("origins", "LICENCE_PERMISSION"), ("purposes", "LICENCE_PERMISSION"),
+    ("independent_origins", "SCOPE_INDEPENDENCE"), ("hold_basis_event_ids", "RESUMPTION"),
+])
+@pytest.mark.parametrize("variant", ["dict", "string", "empty", "nested", "null", "number", "duplicate", "oversize", "unknown"])
+def test_review_collections_closed_before_interpretation(tmp_path, field, kind, variant):
+    doc, root, manifest = _positive_seam(tmp_path)
+    refs = {
+        "LICENCE_PERMISSION": doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"],
+        "SCOPE_INDEPENDENCE": doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"],
+        "RESUMPTION": doc["control_domains"]["NOAA_GEFS"]["resumption_review"],
+    }
+    ref = refs[kind]
+    original = strict_loads((root / ref["path"]).read_bytes())[field]
+    bad = {"dict": {v: False for v in original}, "string": original[0], "empty": [],
+           "nested": [original], "null": None, "number": 1,
+           "duplicate": original + original, "oversize": [str(i) for i in range(257)],
+           "unknown": ["unreviewed"]}[variant]
+    _rewrite_record(root, ref, manifest, kind, **{field: bad})
+    assert check_lineage(doc) == []
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert findings
+    assert any("MALFORMED_REVIEWED_REF" in f or "HOLD_BASIS_NOT_BOUND" in f for f in findings)
+
+
+@pytest.mark.parametrize("kind,field,value", [
+    ("RESUMPTION", "scope_independent", 1),
+    ("RESUMPTION", "permitted_resumption_basis", {}),
+    ("LICENCE_PERMISSION", "revoked", 0),
+    ("LICENCE_PERMISSION", "licence_document_sha256", []),
+    ("EXPIRY_ADJUDICATION", "event_id", {}),
+    ("EXPIRY_ADJUDICATION", "original_restriction_sha256", "not-a-digest"),
+    ("SCOPE_INDEPENDENCE", "control_domain", []),
+    ("PATH_SPEC", "permission_id", {}),
+    ("PATH_SPEC", "purpose", ["INDEX"]),
+    ("PATH_SPEC", "path", {}),
+])
+def test_review_kind_field_types(tmp_path, kind, field, value):
+    doc, root, manifest = _positive_seam(tmp_path)
+    refs = {
+        "RESUMPTION": doc["control_domains"]["NOAA_GEFS"]["resumption_review"],
+        "LICENCE_PERMISSION": doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"],
+        "EXPIRY_ADJUDICATION": doc["restriction_events"][0]["expiry_adjudication"],
+        "SCOPE_INDEPENDENCE": doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"],
+        "PATH_SPEC": doc["request_envelope"]["reviewed_origin_path_specs"][0]["review_ref"],
+    }
+    _rewrite_record(root, refs[kind], manifest, kind, **{field: value})
+    assert any("MALFORMED_REVIEWED_REF" in f for f in verify_reviewed_refs(doc, root, manifest))
+
+
+@pytest.mark.parametrize("nested_object", [False, True])
+def test_deep_review_json_yields_deterministic_finding(tmp_path, nested_object):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    raw = b"[" * 20000 + b"0" + b"]" * 20000
+    if nested_object:
+        raw = b'{"basis":' + raw + b'}'
+    assert len(raw) < lineage_mod.REVIEW_RECORD_LIMIT
+    (root / ref["path"]).write_bytes(raw)
+    ref.update(sha256=hashlib.sha256(raw).hexdigest(), byte_length=len(raw))
+    # Digest intentionally absent from independent manifest: parsing must still refuse safely.
+    expected = "SCOPE_INDEPENDENCE_REF:ECMWF:REVIEW_RECORD_JSON_TOO_DEEP"
+    assert expected in verify_reviewed_refs(doc, root, manifest)
+    assert expected in verify_reviewed_refs(doc, root, manifest)
+
+
+def test_nul_root_yields_deterministic_finding(tmp_path):
+    assert verify_reviewed_refs(committed(), Path(str(tmp_path) + "\x00"), {}) == ["TRUSTED_ROOT_INVALID"]
+
+
+def test_root_ancestor_symlink_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    alias = tmp_path / "alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    assert verify_reviewed_refs(doc, alias / "trusted", manifest) == ["TRUSTED_ROOT_INVALID"]
+
+
+@pytest.mark.parametrize("component", ["ancestor", "root", "parent", "final"])
+@pytest.mark.parametrize("timing", ["before", "after"])
+def test_descriptor_anchoring_under_deterministic_swaps(tmp_path, monkeypatch, component, timing):
+    """Swap at os.open itself; identical hashes cannot hide an outside read."""
+    import shutil
+    base = tmp_path / "container"
+    base.mkdir()
+    doc, root, manifest = _positive_seam(base)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    nested = root / "nested"
+    nested.mkdir()
+    (root / ref["path"]).rename(nested / "scope.json")
+    ref["path"] = "nested/scope.json"
+    outside = tmp_path / "outside"
+    shutil.copytree(base, outside)
+    victim = {"ancestor": base, "root": root, "parent": nested,
+              "final": nested / "scope.json"}[component]
+    replacement = outside / victim.relative_to(base) if component != "ancestor" else outside
+    outside_inodes = {(p.stat().st_dev, p.stat().st_ino) for p in outside.rglob("*") if p.is_file()}
+    original_open, original_read = os.open, os.read
+    swapped = []
+    reads = []
+
+    def swap():
+        victim.rename(tmp_path / "saved")
+        victim.symlink_to(replacement, target_is_directory=component != "final")
+        swapped.append(True)
+
+    def hooked_open(path, flags, *args, **kwargs):
+        target = path == victim.name and kwargs.get("dir_fd") is not None and not swapped
+        if target and timing == "before":
+            swap()
+        fd = original_open(path, flags, *args, **kwargs)
+        if target and timing == "after":
+            swap()
+        return fd
+
+    def guarded_read(fd, length):
+        info = os.fstat(fd)
+        identity = (info.st_dev, info.st_ino)
+        if identity in outside_inodes:
+            raise RuntimeError("Read escaped the pinned directory descriptors")
+        reads.append(identity)
+        return original_read(fd, length)
+
+    monkeypatch.setattr(os, "open", hooked_open)
+    monkeypatch.setattr(os, "read", guarded_read)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert swapped
+    if timing == "before":
+        assert findings
+    else:
+        assert findings == []
+        assert reads
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_review_descriptors_closed_on_success_and_failure(tmp_path, monkeypatch, broken):
+    doc, root, manifest = _positive_seam(tmp_path)
+    if broken:
+        (root / "scope-ECMWF.json").unlink()
+    opened = set()
+    original_open, original_dup, original_close = os.open, os.dup, os.close
+
+    def tracked_open(*args, **kwargs):
+        fd = original_open(*args, **kwargs)
+        opened.add(fd)
+        return fd
+
+    def tracked_dup(*args):
+        fd = original_dup(*args)
+        opened.add(fd)
+        return fd
+
+    def tracked_close(fd):
+        opened.remove(fd)
+        return original_close(fd)
+
+    monkeypatch.setattr(os, "open", tracked_open)
+    monkeypatch.setattr(os, "dup", tracked_dup)
+    monkeypatch.setattr(os, "close", tracked_close)
+    assert bool(verify_reviewed_refs(doc, root, manifest)) is broken
+    assert opened == set()
+
+
+def test_resumption_requires_scope_decision_even_without_permissions(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE", decision_utc="2026-10-08T00:00:01Z")
+    assert "RESUMPTION_REF:ECMWF:RESUMPTION_BEFORE_SCOPE_REVIEW" in verify_reviewed_refs(doc, root, manifest)

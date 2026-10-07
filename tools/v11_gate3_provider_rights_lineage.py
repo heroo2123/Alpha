@@ -23,6 +23,7 @@ preflight protocol requires. A lineage check PASS confers no G3-L credit.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -31,7 +32,7 @@ import sqlite3
 import stat
 import sys
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 from urllib.parse import unquote, urlsplit
 
@@ -1329,41 +1330,119 @@ REVIEW_KIND_EXTRA_KEYS = {
 }
 
 
-def _confine_to_root(path_str: Any, root_real: Path) -> Path:
-    """Resolve a reviewed-reference path strictly inside ``root_real``.
+def _open_review_root(root: Path) -> int:
+    """Pin the root inode, rejecting symlinks in every absolute component.
 
-    Rejects an absolute or traversing ref path, and any symlink at any
-    path component between the root and the target, so a ref cannot be
-    made to point outside the one place its bytes are trusted to live.
+    The returned descriptor, not its mutable pathname, defines the trusted
+    root for this call. No fallback to pathname reads is permitted.
     """
-    if type(path_str) is not str or not path_str or "\x00" in path_str:
-        raise LineageError("REVIEWED_REF_PATH_INVALID")
-    parts = PurePosixPath(path_str).parts
-    if not parts or parts[0] == "/" or any(p in ("", ".", "..") for p in parts):
-        raise LineageError("REVIEWED_REF_PATH_INVALID")
-    current = root_real
-    for part in parts:
-        current = current / part
-        if current.is_symlink():
-            raise LineageError("REVIEWED_REF_PATH_SYMLINK")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    path = os.path.abspath(root)
+    fd = os.open("/", flags)
     try:
-        current.relative_to(root_real)
-    except ValueError:
-        raise LineageError("REVIEWED_REF_PATH_ESCAPES_ROOT") from None
-    return current
+        for part in Path(path).parts[1:]:
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 
-def _resolve_ref_bytes(ref: Any, root_real: Path, limit: int) -> bytes:
-    """Read the exact bytes a shape-valid ref claims, under the trusted root."""
+def _resolve_ref_bytes(ref: Any, root_fd: int, limit: int) -> bytes:
+    """Walk from the pinned root and fstat/read the final no-follow fd.
+
+    Directory renames after an open do not redirect that descriptor. Reads
+    remain anchored to the opened directory objects, even if their old
+    pathnames are replaced. At most limit+1 bytes are read from one file.
+    """
     if not _is_ref(ref):
         raise LineageError("REVIEWED_REF_SHAPE_INVALID")
-    raw = read_regular(_confine_to_root(ref["path"], root_real), limit)
+    path = ref["path"]
+    if (type(path) is not str or not path or len(path) > 4096
+            or "\x00" in path or any(p in ("", ".", "..") for p in path.split("/"))):
+        raise LineageError("REVIEWED_REF_PATH_INVALID")
+    parts = path.split("/")
+    if len(parts) > 128:
+        raise LineageError("REVIEWED_REF_PATH_INVALID")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    fd = os.dup(root_fd)
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, directory_flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        child = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+                        dir_fd=fd)
+        os.close(fd)
+        fd = child
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise LineageError("SOURCE_NOT_REGULAR")
+        if info.st_size > limit:
+            raise LineageError("SOURCE_TOO_LARGE")
+        chunks, size = [], 0
+        while chunk := os.read(fd, min(1024 * 1024, limit + 1 - size)):
+            size += len(chunk)
+            if size > limit:
+                raise LineageError("SOURCE_TOO_LARGE")
+            chunks.append(chunk)
+        raw = b"".join(chunks)
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+            raise LineageError("REVIEWED_REF_PATH_SYMLINK_OR_NOT_DIRECTORY") from None
+        raise LineageError(f"SOURCE_UNAVAILABLE:{exc.errno}") from None
+    finally:
+        os.close(fd)
     if len(raw) != ref["byte_length"] or _sha(raw) != ref["sha256"]:
         raise LineageError("REVIEWED_REF_CONTENT_MISMATCH")
     return raw
 
 
-def _resolve_review_record(ref: Any, root_real: Path, review_manifest: Mapping, kind: str) -> dict:
+def _review_collection(value: Any, allowed: set | frozenset | None = None) -> bool:
+    """Nonempty, unique string lists only; never interpret mapping keys as scope."""
+    return (type(value) is list and 1 <= len(value) <= 256
+            and all(type(v) is str and 1 <= len(v) <= 256 for v in value)
+            and len(set(value)) == len(value)
+            and (allowed is None or set(value) <= allowed))
+
+
+def _validate_review_fields(record: dict, kind: str) -> None:
+    """Complete kind-specific types and collection membership before binding."""
+    collections = {"origins", "purposes", "independent_origins", "hold_basis_event_ids"}
+    booleans = {"revoked", "scope_independent"}
+    for key in REVIEW_KIND_EXTRA_KEYS[kind] - collections - booleans:
+        if type(record[key]) is not str or not 1 <= len(record[key]) <= 2048:
+            raise LineageError("MALFORMED_REVIEWED_REF")
+    for key in REVIEW_KIND_EXTRA_KEYS[kind] & booleans:
+        if type(record[key]) is not bool:
+            raise LineageError("MALFORMED_REVIEWED_REF")
+    origins = set().union(*REQUIRED_DOMAIN_ORIGINS.values())
+    for key in REVIEW_KIND_EXTRA_KEYS[kind] & collections:
+        allowed = origins if key in {"origins", "independent_origins"} else (
+            {"INDEX", "FIELD"} if key == "purposes" else None)
+        if not _review_collection(record[key], allowed):
+            raise LineageError("MALFORMED_REVIEWED_REF")
+    if "control_domain" in record and record["control_domain"] not in REQUIRED_DOMAIN_ORIGINS:
+        raise LineageError("MALFORMED_REVIEWED_REF")
+    if "provider" in record and record["provider"] not in PROVIDERS:
+        raise LineageError("MALFORMED_REVIEWED_REF")
+    if "origin" in record and record["origin"] not in origins:
+        raise LineageError("MALFORMED_REVIEWED_REF")
+    for key in ("original_restriction_sha256", "licence_document_sha256"):
+        if key in record and SHA256_RE.fullmatch(record[key]) is None:
+            raise LineageError("MALFORMED_REVIEWED_REF")
+    if (kind == "SCOPE_INDEPENDENCE"
+            and not set(record["independent_origins"]) <= REQUIRED_DOMAIN_ORIGINS[record["control_domain"]]):
+        raise LineageError("MALFORMED_REVIEWED_REF")
+    if kind == "PATH_SPEC" and (record["purpose"] not in {"INDEX", "FIELD"}
+                                or _literal_path_spec(record["path"]) != record["path"]
+                                or len(record["permission_id"]) > 128):
+        raise LineageError("MALFORMED_REVIEWED_REF")
+
+
+def _resolve_review_record(ref: Any, root_fd: int, review_manifest: Mapping, kind: str) -> dict:
     """Resolve one review-record ref and check its own closed shape.
 
     A matching digest in ``review_manifest`` -- pinned by the caller,
@@ -1371,8 +1450,11 @@ def _resolve_review_record(ref: Any, root_real: Path, review_manifest: Mapping, 
     own self-declared fields; a record's hash alone proves file identity,
     never that its reviewer or conclusion are genuine.
     """
-    raw = _resolve_ref_bytes(ref, root_real, REVIEW_RECORD_LIMIT)
-    record = strict_loads(raw)
+    raw = _resolve_ref_bytes(ref, root_fd, REVIEW_RECORD_LIMIT)
+    try:
+        record = strict_loads(raw)
+    except RecursionError:
+        raise LineageError("REVIEW_RECORD_JSON_TOO_DEEP") from None
     expected_keys = REVIEW_COMMON_KEYS | REVIEW_KIND_EXTRA_KEYS[kind]
     if not isinstance(record, dict) or set(record) != expected_keys:
         raise LineageError(f"REVIEW_RECORD_SCHEMA:{kind}")
@@ -1389,6 +1471,7 @@ def _resolve_review_record(ref: Any, root_real: Path, review_manifest: Mapping, 
         raise LineageError(f"REVIEW_RECORD_DECISION_TIME:{kind}")
     if type(record["basis"]) is not str or not record["basis"]:
         raise LineageError(f"REVIEW_RECORD_BASIS:{kind}")
+    _validate_review_fields(record, kind)
     digest = _sha(raw)
     manifest_entry = review_manifest.get(digest) if isinstance(review_manifest, Mapping) else None
     if (not isinstance(manifest_entry, Mapping) or set(manifest_entry) != {"kind", "reviewer_identity"}
@@ -1412,23 +1495,44 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
     pinned independently of ``lineage`` itself. This function never
     returns execution_authority and performs no provider request or DNS;
     it reports findings only, exactly like ``check_lineage``.
+
+    Temporal contract: the effective permission interval is the half-open
+    [reviewed_at_utc, valid_until_utc) lineage interval, constrained to a
+    subset of the pinned licence [decision_utc, valid_until_utc). It must
+    also fit every applicable expiry interval and start no earlier than
+    the scope/path decisions and resumption requested_at_utc. Resumption
+    must itself lie within all hold-basis expiry intervals. A future
+    consumer must require both validators to pass for the same unchanged
+    lineage/manifest and apply evaluate_request's now/planned/deadline
+    checks to that interval. This seam is not a request-time authorization.
     """
     if not isinstance(trusted_evidence_root, Path) or not isinstance(review_manifest, Mapping):
         return ["REVIEWED_REFS_INPUT_INVALID"]
     try:
-        root_real = Path(os.path.realpath(trusted_evidence_root, strict=True))
-    except OSError as exc:
-        return [f"TRUSTED_ROOT_UNAVAILABLE:{exc.strerror}"]
-    if trusted_evidence_root.is_symlink() or not root_real.is_dir():
+        root_fd = _open_review_root(trusted_evidence_root)
+    except (ValueError, AttributeError, NotImplementedError):
         return ["TRUSTED_ROOT_INVALID"]
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+            return ["TRUSTED_ROOT_INVALID"]
+        return [f"TRUSTED_ROOT_UNAVAILABLE:{exc.errno}"]
+    try:
+        return _verify_reviewed_refs(lineage, root_fd, review_manifest)
+    finally:
+        os.close(root_fd)
 
+
+def _verify_reviewed_refs(lineage: Mapping, root_fd: int, review_manifest: Mapping) -> list[str]:
     out: list[str] = []
+    scopes, resumptions, expiries, permission_windows = {}, {}, {}, {}
 
     def check(label: str, fn: Callable[[], None]) -> None:
         try:
             fn()
         except LineageError as exc:
             out.append(f"{label}:{exc}")
+        except OSError as exc:
+            out.append(f"{label}:SOURCE_UNAVAILABLE:{exc.errno}")
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError, re.error):
             out.append(f"{label}:MALFORMED_REVIEWED_REF")
 
@@ -1440,24 +1544,29 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
     except (TypeError, KeyError):
         return ["MALFORMED_REVIEWED_REFS_INPUT"]
 
+    if not (isinstance(domains, dict) and isinstance(events, list)
+            and isinstance(permissions, dict) and isinstance(specs, list)):
+        return ["MALFORMED_REVIEWED_REFS_INPUT"]
+
     for name, dom in domains.items() if isinstance(domains, dict) else []:
         if not isinstance(dom, dict):
             continue
 
         def _scope(name=name, dom=dom) -> None:
-            record = _resolve_review_record(dom["scope_independence_review"], root_real,
+            record = _resolve_review_record(dom["scope_independence_review"], root_fd,
                                             review_manifest, "SCOPE_INDEPENDENCE")
             if record["control_domain"] != name:
                 raise LineageError("DOMAIN_MISMATCH")
             if not isinstance(dom.get("origins"), list) \
                     or not set(dom["origins"]) <= set(record["independent_origins"]):
                 raise LineageError("SCOPE_NOT_BOUND")
+            scopes[name] = parse_utc(record["decision_utc"])
 
         if dom.get("scope_independence_review") is not None:
             check(f"SCOPE_INDEPENDENCE_REF:{name}", _scope)
 
         def _resumption(name=name, dom=dom) -> None:
-            record = _resolve_review_record(dom["resumption_review"], root_real,
+            record = _resolve_review_record(dom["resumption_review"], root_fd,
                                             review_manifest, "RESUMPTION")
             if record["control_domain"] != name:
                 raise LineageError("DOMAIN_MISMATCH")
@@ -1473,6 +1582,7 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
             decision_at = parse_utc(record["decision_utc"])
             if requested_at is None or decision_at is None or requested_at < decision_at:
                 raise LineageError("RESUMPTION_TIME_INVALID")
+            resumptions[name] = requested_at
 
         if dom.get("resumption_review") is not None:
             check(f"RESUMPTION_REF:{name}", _resumption)
@@ -1482,7 +1592,7 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
             continue
 
         def _expiry(e=e) -> None:
-            record = _resolve_review_record(e["expiry_adjudication"], root_real,
+            record = _resolve_review_record(e["expiry_adjudication"], root_fd,
                                             review_manifest, "EXPIRY_ADJUDICATION")
             if record["event_id"] != e.get("event_id") or record["control_domain"] != e.get("control_domain") \
                     or record["origin"] != e.get("origin"):
@@ -1497,8 +1607,21 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
             valid_until = parse_utc(record["valid_until_utc"])
             if decision_at is None or valid_until is None or valid_until <= decision_at:
                 raise LineageError("EXPIRY_VALIDITY_INVALID")
+            expiries[e["event_id"]] = (decision_at, valid_until)
 
         check(f"EXPIRY_REF:{e.get('event_id')}", _expiry)
+
+    # Resumption takes effect at requested_at, only while every adjudication
+    # of its hold basis is valid. This is a static interval contract; there is
+    # deliberately no implicit wall clock or current-time authority here.
+    for name, start in resumptions.items():
+        if name not in scopes or start < scopes[name]:
+            out.append(f"RESUMPTION_REF:{name}:RESUMPTION_BEFORE_SCOPE_REVIEW")
+        for event_id in domains[name]["hold_basis"]:
+            window = expiries.get(event_id)
+            if window is None or not window[0] <= start < window[1]:
+                out.append(f"RESUMPTION_REF:{name}:RESUMPTION_OUTSIDE_EXPIRY_WINDOW")
+                break
 
     for provider, p in permissions.items() if isinstance(permissions, dict) else []:
         if not isinstance(p, dict):
@@ -1509,8 +1632,8 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
                 continue
 
             def _permission(provider=provider, r=r) -> None:
-                licence_raw = _resolve_ref_bytes(r.get("licence_document"), root_real, REVIEWED_DOCUMENT_LIMIT)
-                record = _resolve_review_record(r.get("review_ref"), root_real,
+                licence_raw = _resolve_ref_bytes(r.get("licence_document"), root_fd, REVIEWED_DOCUMENT_LIMIT)
+                record = _resolve_review_record(r.get("review_ref"), root_fd,
                                                 review_manifest, "LICENCE_PERMISSION")
                 if record["provider"] != provider:
                     raise LineageError("PROVIDER_MISMATCH")
@@ -1526,6 +1649,23 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
                 valid_until = parse_utc(record["valid_until_utc"])
                 if decision_at is None or valid_until is None or valid_until <= decision_at:
                     raise LineageError("PERMISSION_VALIDITY_INVALID")
+                start, end = parse_utc(r.get("reviewed_at_utc")), parse_utc(r.get("valid_until_utc"))
+                if start is None or end is None or not decision_at <= start < end <= valid_until:
+                    raise LineageError("PERMISSION_VALIDITY_UNBOUND")
+                # The evaluator consumes these lineage dates. Bind the entire
+                # interval to all applicable reviewed terms, not just one instant.
+                for name, dom in domains.items():
+                    if not set(r["origins"]) & set(dom["origins"]):
+                        continue
+                    if dom["status"] != "RESUMED_BY_REVIEW" or name not in scopes or name not in resumptions:
+                        raise LineageError("PERMISSION_TEMPORAL_REVIEW_MISSING")
+                    if start < max(scopes[name], resumptions[name]):
+                        raise LineageError("PERMISSION_BEFORE_RESUMPTION")
+                    for event_id in dom["hold_basis"]:
+                        window = expiries.get(event_id)
+                        if window is None or not window[0] <= start < end <= window[1]:
+                            raise LineageError("PERMISSION_OUTSIDE_EXPIRY_WINDOW")
+                permission_windows[r["permission_id"]] = (start, end)
 
             check(f"PERMISSION_REF:{provider}:{r.get('permission_id')}", _permission)
 
@@ -1534,13 +1674,16 @@ def verify_reviewed_refs(lineage: Mapping, trusted_evidence_root: Path,
             continue
 
         def _spec(spec=spec) -> None:
-            record = _resolve_review_record(spec.get("review_ref"), root_real,
+            record = _resolve_review_record(spec.get("review_ref"), root_fd,
                                             review_manifest, "PATH_SPEC")
             path = _literal_path_spec(spec.get("path_regex"))
             if (record["permission_id"] != spec.get("permission_id") or record["origin"] != spec.get("origin")
                     or record["provider"] != spec.get("provider") or record["purpose"] != spec.get("purpose")
                     or path is None or record["path"] != path):
                 raise LineageError("PATH_SPEC_UNBOUND")
+            window = permission_windows.get(spec["permission_id"])
+            if window is None or parse_utc(record["decision_utc"]) > window[0]:
+                raise LineageError("PATH_SPEC_VALIDITY_UNBOUND")
 
         check(f"PATH_SPEC_REF:{spec.get('permission_id')}", _spec)
 
