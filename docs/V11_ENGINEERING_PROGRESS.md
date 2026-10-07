@@ -1,3 +1,7 @@
+## 2026-10-07 16:44 UTC integration and slot recycling
+
+Integrated three independently reviewed refusal-test candidates and the full reviewed offline pre-funding rehearsal file on main `f7faedd`, preserving reviewed blobs. Combined post-main checks passed 225 Gate-3/PAPER tests and 61 forward/pre-funding tests in both normal and optimized Python. Recovered disk headroom by deleting only completed disposable pytest basetemps after live-handle and retained-artifact checks. Recycled the Gate-3 `e1310e0` CHANGES_REQUIRED lane into a sole Sol repair and then a frozen Astra re-review of clean successor `b27031e`; launched a separate frozen Astra review of unused forward checker `a525f5e`. PAPER PWS repair continues. No acceptance, provider, runtime, V10 or financial authority transition.
+
 ## 2026-10-07 16:24 UTC disk guard constrained scheduling
 
 Disk guard reports `launch_blocked` at ~4.2 GiB free / ~90% used while active exact review scratch grows. Existing workers and retained review evidence remain intact. No additional lane is launched until safe headroom returns; acceptance gates unchanged.

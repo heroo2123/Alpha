@@ -1,3 +1,7 @@
+## 2026-10-07 16:44 UTC test and rehearsal integration, no acceptance credit
+
+Reviewed refusal-code tests for Gate-3, PAPER and forward Shadow plus the reviewed synthetic offline pre-funding rehearsal are integrated on local main `f7faedd`; focused post-main suites passed 225/225 and 61/61 in each Python mode. These strengthen test evidence only. Gate-3 wiring successor `b27031e` and unused forward journal checker `a525f5e` await independent exact verdicts; seven prepared historical WEATHER rows remain unqualified. Gate-3 stays **91/200 (formal 1/50)** with **77 unqualified identities**, G3-L **NO-GO**; PAPER stays **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
 ## 2026-10-07 16:24 UTC resource constraint, no acceptance credit
 
 The automated disk guard is launch-blocked while active reviews run. This changes scheduling only. Gate-3 remains 91/200 (formal 1/50), 77 unqualified identities, G3-L NO-GO; PAPER 9/11; READY_TO_FUND=false.
