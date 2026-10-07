@@ -5236,3 +5236,6 @@ Two clean read-only prerequisite maps sealed. The Gate-3 map found shape-only ex
 ## 2026-10-07 14:54 UTC evidence gaps and PAPER review disposition
 
 Read-only forward audit found zero qualifying same-ledger groups; the protected-interval verifier remains fail-closed. Brain official settlement truth remains unproven in inspected evidence. PAPER current-input R08/R09 remains partial, and exact review of `0df7612` requires repair for eight malformed PWS preconfirmation exceptions; an isolated repair is live. No score or READY_TO_FUND boundary crossed: Gate-3 91/200 (formal 1/50), 77 G3-L identities unqualified, PAPER strict 9/11 with requirements 8/9 partial.
+## 2026-10-07 14:56 UTC InventoryTransform test candidate under review
+
+Clean test-only `7b0839a` adds receipt-log negative controls and has author-reported 67/67 focused tests in both Python modes. A separate different-model exact review is live; no qualification or requirement credit follows. Gate-3 and PAPER scores and READY_TO_FUND remain unchanged.
