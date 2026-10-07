@@ -20,8 +20,10 @@ current code and evidence.** `EventRiskInputs.evaluate()` in
 and `EXECUTION_HEALTH_UNKNOWN`, sets state `EVENT`, and independently forbids
 new risk. `PaperCoordinator.coordinate()` revalidates that state and refuses
 scenario reservation. The focused test reaches a real valuation and confirms
-both refusals; it never substitutes a healthy event state. The current payout
-model's conservative bounds also reject economic entry in the PWS fixtures.
+both refusals; it never substitutes a healthy event state. With empty costs,
+that real valuation is `GATED` for `UNKNOWN_OR_MISSING_COST_COVERAGE`, with no
+conservative EV. A separate scenario test explicitly overwrites valuation as
+a downstream fixture; it does not establish economic qualification.
 
 ## Actual host assembly and mapping
 
@@ -30,7 +32,7 @@ model's conservative bounds also reject economic entry in the PWS fixtures.
 | `/home/alphaadmin/AlphaV11_ForwardShadow/continuous-shadow-v2/katl_continuous_shadow.py` | Template consumed by `perpetual_day_preparer.py` to generate each dated runner | `deploy/katl_continuous_shadow_economic.patch` imports and calls `katl_live_plan.upgrade_host_plan()` after existing `CandidatePlan` construction |
 | `/home/alphaadmin/AlphaV11_ForwardShadow/continuous-shadow-v2/katl_continuous_shadow_YYYYMMDD.py` | Dated runner imported by `continuous_day_manager.py`; its `build_runner()` calls its own `build_plan()` | A future dated module must be generated from the reviewed patched template, or receive an independently reviewed equivalent patch; the preparer does **not** overwrite existing dated modules |
 | `/home/alphaadmin/AlphaV11_ForwardShadow/continuous-shadow-v2/candidate-static-config-YYYY-MM-DD.json` | Existing route/model pin for each day | Still used by the base host plan and its checks |
-| `/home/alphaadmin/AlphaV11_ForwardShadow/continuous-shadow-v2/candidate-pws-config-YYYY-MM-DD.json` | **Required new, separately reviewed local input**; absent currently | Exact `PWSSleeve` fields except `official`, decoded by `pws_sleeve_from_config()`; missing or malformed input fails closed |
+| `/home/alphaadmin/AlphaV11_ForwardShadow/continuous-shadow-v2/candidate-pws-config-YYYY-MM-DD.json` | **Required new, separately reviewed local input**; absent currently | `PWSSleeve` fields except `official`, plus commission identities; missing or malformed input fails closed |
 | `/home/alphaadmin/AlphaV11_ForwardShadow/build_katl_decision_plan.py` | Separate bounded preflight/export script used by `run_katl_shadow_preflight.py` | **Not** the continuous daily runtime assembly; changing it alone will not change the daily runner |
 
 The existing daily host module hard-codes
@@ -42,7 +44,11 @@ uses `maximum_jobs=1`. The repo builder uses a 90-second census interval and
 110-second book limits within `MicrostructurePolicy`'s 120-second ceiling;
 these are still hard freshness limits, not a stale-evidence exception. It
 requires official and PWS census coverage, retains the host's GEFS worker,
-and refuses missing reviewed PWS configuration.
+and refuses missing reviewed PWS configuration. The patched `build_runner()`
+passes three scope targets to `ShadowCommissionPlan`: forecast, PWS final
+payout, and PWS next observation. Preflight checks each target against its
+protected model pin and declared feature contract. The GEFS width restriction
+applies to the forecast scope. The base target's epoch and state checks remain.
 
 The patch's preimage was checked against the host template with SHA-256
 `cb6862fdfa3eddad134d70ecc8d4061d29726751e006639ffaa7156713b053f4`.
@@ -57,16 +63,52 @@ review, not a forced patch.
 
 The JSON file must have exactly these keys: `quality_policy`, `payout_scope`,
 `observation_scope`, `observation_bundle_sha256`, `payout_sources`,
-`observation_sources`, `without_pws_sources`, `lead_policy`, and
-`rule_max_age_seconds`. Each scope is a serialized `CapabilityScope` with
+`observation_sources`, `without_pws_sources`, `lead_policy`,
+`rule_max_age_seconds`, `payout_costs`, and `commission`. An optional
+`temperature_costs` list supplies reviewed assumptions for the original
+temperature target. Each scope is a serialized `CapabilityScope` with
 `strategy="PWS_OBSERVATION_LEAD"`. Both model scopes must share station,
 family, rule family, strategy, season, and time of day. They must have
-**different** payout and observation bundles. Both source lists need exact
-`MODEL`, `OFFICIAL`, and `PWS` selectors with current provider and source
-identities; the ablation list contains only separately causal `MODEL`
+**different** payout and observation bundles. Each source list needs exactly
+one `MODEL`, `OFFICIAL`, and `PWS` selector with current provider and source
+identity. Payout also needs exactly one causal `FEATURES` selector for the
+remaining extreme conditioned on the exact official report. Its coverage
+payload must pass the existing request assembly and admission gates. The
+ablation list contains only separately causal `MODEL`
 selectors. `quality_policy` is a serialized `PWSPolicy` and `lead_policy` is a
 serialized `LeadPolicy`. The official `StationMetadata` comes from the
 host's existing protected station record, not from this JSON.
+
+`commission` has exact `payout` and `observation` entries, each with
+`model_epoch`, `model_state_sha256`, and `feature_contract`. A forecast
+contract declares `model_widths`, `unit`, `family`, `quantization`, and
+`prediction_target`; a physical contract declares `model_widths`, `unit`,
+`family`, and `input_target`; an exact pinned schema contract declares
+`unit`, `family`, `target`, `feature_schema_sha256`, and `model_ids`. The
+observation target must be `NEXT_OFFICIAL_OBSERVATION`; payout must be
+`FINAL_CONTRACT_PAYOUT`. Select the contract matching the reviewed bundle's
+actual feature family. These are expected identities, not authority:
+commissioning still revalidates each protected model. An unrelated schema
+cannot pass merely because a target says next observation.
+
+`payout_costs` is a list of at most 16 serialized `CostComponent` values for
+the PWS payout target. `temperature_costs` has the same bound and format.
+If omitted, the temperature target retains its base host costs. A nonempty
+base tuple cannot be replaced by a conflicting config tuple.
+Each component has named risk coverage, final-payout horizon, an assumption
+hash, and a per-share value or `null`; optional fee price and expiry fields
+retain their normal valuation checks. Declaring a cost does not attest it.
+Unknown, missing, expired, or scope-mismatched costs keep valuation gated;
+zero is never a default. Complete coverage needs acquisition fees, execution
+uncertainty, opportunity risk, post-snapshot slippage, redemption cost,
+settlement revision, and source fallback. Each lane uses its own tuple and
+the plan hash binds both.
+
+EventRisk uses the union of the base lane and PWS payout selectors, excluding
+FEATURES coverage, with the stricter age for an identical selector. The
+temperature lane keeps its own sources. Observation-model probability is not
+used to price final payout. Current source, book, review, event-state, and
+account gates remain required.
 
 No generic placeholder or fixture config is safe to install. A reviewer must
 bind each day's values to that day's rule fingerprint, exact official report,
@@ -85,9 +127,10 @@ official observation must exist and pass ordinary source/admission checks.
 2. On the host, recheck the template and preparer checksums above. Run
    `patch --dry-run --directory=/home/alphaadmin/AlphaV11_ForwardShadow/continuous-shadow-v2 -p1 < deploy/katl_continuous_shadow_economic.patch`.
    The dry run was successful in this worktree; it changes no file.
-3. Only after independent review, copy the **exact committed**
-   `polymarket_scanner/v11/katl_live_plan.py` to the corresponding module path
-   in the isolated installed code tree, and apply the **exact committed** patch
+3. Only after independent review, copy the **exact committed** changed V11
+   modules (`katl_live_plan.py`, `shadow_commission.py`,
+   `forecast_features.py`, `physical_inference.py`, and `model_artifacts.py`)
+   into the isolated installed code tree, and apply the **exact committed** patch
    to `continuous-shadow-v2/katl_continuous_shadow.py`. Before activation,
    compare source/destination module checksums with `sha256sum` and compare
    `patch --dry-run` output against the approved preimage. Do not force hunks.
@@ -95,7 +138,8 @@ official observation must exist and pass ordinary source/admission checks.
    it by text replacement and never rewrites an existing one.
 4. Supply the reviewed per-day PWS JSON and compare its SHA-256 against the
    approved manifest. Rebuild and checksum the resulting `CandidatePlan`,
-   `candidate_cohort`, and returned binding/config hash. Use a reviewed fresh
+   three commission targets, `candidate_cohort`, and returned binding/config
+   hash. Run commissioning preflight for all three protected scopes. Use a reviewed fresh
    isolated daily ledger or explicit reviewed migration; old config-bound
    runtime heads may reject changed plan bytes. Existing account limits and
    protected review status must be checked before a sample is accepted.
@@ -114,7 +158,9 @@ only for lead research and never labels settlement or prices payout.
    The event then needs the policy's distinct, spaced recovery samples, healthy
    clock/source/whole-event book sequence, current model and rule pins, and
    no operator reduction before new risk can be considered.
-2. An actual positive conservative economic valuation must pass the unchanged
+2. Target-specific, supported cost components must cover all seven risks;
+   current empty tuples do not. An actual positive conservative economic
+   valuation must pass the unchanged
    threshold and the retained account/scenario limits. Neither a plan nor a
    synthetic test valuation is a forward proposal or reservation.
 3. For requirement 9, a real current MADIS neighborhood, healthy defensive QC,

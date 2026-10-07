@@ -8,22 +8,27 @@ demonstrate the scenario-reservation path; every upstream freshness,
 certification and model-pin check runs for real.
 """
 import asyncio
+from copy import deepcopy
 from dataclasses import asdict, replace
 
 import httpx
 import pytest
 
 from polymarket_scanner.v11 import candidate_assembly as app
-from polymarket_scanner.v11 import katl_live_plan
+from polymarket_scanner.v11 import certification, katl_live_plan
+from polymarket_scanner.v11.candidate_cohort import candidate_cohort
 from polymarket_scanner.v11.candidate_assembly import PWSLeadLane, TemperatureLane
-from polymarket_scanner.v11.evidence import EvidenceError, digest
+from polymarket_scanner.v11.evidence import EvidenceError, canonical, digest
+from polymarket_scanner.v11.forecast_features import ForecastFeatureContract
 from polymarket_scanner.v11.paper_coordinator import Proposal
 from polymarket_scanner.v11.request_assembly import SourceSelector
+from polymarket_scanner.v11.shadow_commission import (PLAN_VERSION, PinnedFeatureContract,
+                                                       ShadowCommissionPlan, ShadowScopeTarget, load_plan)
 from polymarket_scanner.v11.scenario_risk import Attribution
-from polymarket_scanner.v11.valuation import contract_target
+from polymarket_scanner.v11.valuation import CostComponent, ENTRY_RISKS, PAYOUT, contract_target
 
 from test_v11_candidate_assembly import synthetic_clock
-from test_v11_certification_rules import setup
+from test_v11_certification_rules import approve_fixture, setup
 from test_v11_model_artifacts import bundle
 from test_v11_pws_admission import coordinator, joined
 from test_v11_pws_quality import policy as pws_policy
@@ -35,7 +40,7 @@ from test_v11_strategy_pipeline import factory
 COLLATERAL = 'FIXTURE_COLLATERAL'
 
 
-def economic_plan(r, *, main_sources=None, pws=None):
+def economic_plan(r, *, main_sources=None, pws=None, temperature_costs=()):
     model = r['store'].get('model2')['body']
     reviewed_risk = coordinator(r)
     return katl_live_plan.build_plan(
@@ -45,7 +50,7 @@ def economic_plan(r, *, main_sources=None, pws=None):
         bundle_sha256=r['binding'].bundle_sha256, collateral=COLLATERAL, worker='worker', stage='PAPER',
         book_provider='fixture', account_policy=reviewed_risk.policy,
         correlation=reviewed_risk.correlation, scenario_limits=reviewed_risk.limits,
-        main_sources=main_sources, pws=pws)
+        main_sources=main_sources, pws=pws, temperature_costs=temperature_costs)
 
 
 def selectors(r, source_leases):
@@ -137,6 +142,115 @@ def test_pws_sleeve_wires_census_and_pws_quality_consistently(joined, setup):
     assert pws_lane.inputs.scope.strategy == 'PWS_OBSERVATION_LEAD'
     assert pws_lane.observation_inputs.scope is r['observation_scope']
     assert 'PWS_OBSERVATION' in plan.events[0].route.required_source_kinds
+    assert {s.role for s in event.risk_inputs.sources} >= {'MODEL', 'OFFICIAL', 'PWS'}
+    assert {s.role for s in event.lanes[0].inputs.sources} == {'MODEL', 'OFFICIAL', 'FEATURES'}
+
+
+def test_host_commission_targets_bind_distinct_model_identities(joined, setup):
+    r = joined
+    plan, _, _ = economic_plan(r, main_sources=main_sources_for(r), pws=pws_sleeve(r, setup[3]))
+    contract = ForecastFeatureContract((('model-1', 1),), 'F', r['rule'].payload['family'])
+    base = ShadowScopeTarget(r['scope'], 'F', 1, r['context'].event_id, 1, 'd'*64, contract)
+    config = {'commission': {
+        'payout': dict(model_epoch=2, model_state_sha256='e'*64, feature_contract=asdict(contract)),
+        'observation': dict(model_epoch=3, model_state_sha256='f'*64,
+                            feature_contract=asdict(replace(contract, prediction_target='NEXT_OFFICIAL_OBSERVATION')))}}
+    targets = katl_live_plan.commission_targets(plan, base, config)
+    assert len(targets) == 3
+    assert {t.scope.key for t in targets} == {r['scope'].key, r['payout_scope'].key, r['observation_scope'].key}
+    assert targets[2].feature_contract.prediction_target == 'NEXT_OFFICIAL_OBSERVATION'
+    bad = deepcopy(config)
+    bad['commission']['observation']['feature_contract']['prediction_target'] = 'FINAL_CONTRACT_PAYOUT'
+    with pytest.raises(EvidenceError, match='KATL_PLAN_COMMISSION_FEATURE_TARGET_MISMATCH'):
+        katl_live_plan.commission_targets(plan, base, bad)
+
+
+def test_three_scope_cohort_constructs_with_exact_pinned_champions(joined, setup, bundle, tmp_path):
+    r = joined
+    plan, _, _ = economic_plan(r, main_sources=main_sources_for(r), pws=pws_sleeve(r, setup[3]))
+    event = plan.events[0]
+    lanes = tuple(replace(lane, inputs=replace(lane.inputs, stage='SHADOW'),
+                          **({'observation_inputs': replace(lane.observation_inputs, stage='SHADOW')}
+                             if isinstance(lane, PWSLeadLane) else {})) for lane in event.lanes)
+    event = replace(event, risk_inputs=replace(event.risk_inputs, stage='SHADOW'), lanes=lanes)
+    plan = replace(plan, events=(event,))
+    def contract(bundle_sha, target):
+        pinned = bundle[0].pin(bundle_sha)
+        return PinnedFeatureContract('F', r['rule'].payload['family'], target,
+                                     pinned.payload['bundle']['feature_schema_sha256'], ('model-1',))
+    payout_bundle = r['payout_kw']['binding'].bundle_sha256
+    observation_bundle = r['observation_kw']['binding'].bundle_sha256
+    base = ShadowScopeTarget(r['scope'], 'F', 1, r['context'].event_id, 1, 'd'*64,
+                             contract(payout_bundle, 'FINAL_CONTRACT_PAYOUT'))
+    config = {'commission': {
+        'payout': dict(model_epoch=2, model_state_sha256='e'*64,
+                       feature_contract=asdict(contract(payout_bundle, 'FINAL_CONTRACT_PAYOUT'))),
+        'observation': dict(model_epoch=3, model_state_sha256='f'*64,
+                            feature_contract=asdict(contract(observation_bundle, 'NEXT_OFFICIAL_OBSERVATION')))}}
+    targets = katl_live_plan.commission_targets(plan, base, config)
+    async def assemble():
+        async with httpx.AsyncClient() as client:
+            return app.assemble_candidate(r['store'], client, plan, generation='katl-three-targets')
+    cohort = candidate_cohort(asyncio.run(assemble()))
+    shadow = ShadowCommissionPlan(PLAN_VERSION, 'CHALLENGER:fixture', 'worker', 'a'*40,
+                                  r['now'][0], 'three protected targets', targets, cohort)
+    assert len(shadow.targets) == 3
+    for target, bundle_sha in ((targets[1], payout_bundle), (targets[2], observation_bundle)):
+        target.feature_contract.require_bundle(bundle[0].pin(bundle_sha))
+    path = tmp_path / 'commission-plan.json'
+    path.write_text(canonical(asdict(shadow)))
+    assert load_plan(path) == shadow
+
+
+def test_observation_contract_checks_actual_bundle_target(joined, bundle):
+    r = joined
+    observation = bundle[0].pin(r['observation_kw']['binding'].bundle_sha256)
+    contract = PinnedFeatureContract('F', r['rule'].payload['family'], 'NEXT_OFFICIAL_OBSERVATION',
+                                     observation.payload['bundle']['feature_schema_sha256'], ('model-1',))
+    contract.require_bundle(bundle[0].pin(r['observation_kw']['binding'].bundle_sha256))
+    with pytest.raises(EvidenceError, match='SHADOW_PINNED_FEATURE_CONTRACT_MISMATCH'):
+        contract.require_bundle(bundle[0].pin(r['payout_kw']['binding'].bundle_sha256))
+
+
+def test_costs_are_target_specific_and_preserved(joined, setup):
+    r = joined
+    unknown = CostComponent('review-pending', PAYOUT, None, tuple(sorted(ENTRY_RISKS)), 'a'*64)
+    sleeve = replace(pws_sleeve(r, setup[3]), payout_costs=(unknown,))
+    plan, _, _ = economic_plan(r, main_sources=main_sources_for(r), pws=sleeve,
+                               temperature_costs=(unknown,))
+    assert plan.events[0].lanes[0].targets[0].costs == (unknown,)
+    assert plan.events[0].lanes[1].targets[0].costs == (unknown,)
+    base, _, _ = economic_plan(r, main_sources=main_sources_for(r), temperature_costs=(unknown,))
+    config = asdict(sleeve); config.pop('official')
+    upgraded = katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=config)
+    assert upgraded.events[0].lanes[0].targets[0].costs == (unknown,)
+    assert upgraded.events[0].lanes[1].targets[0].costs == (unknown,)
+    assert upgraded.events[0].risk_inputs.binding.config_sha256 != base.events[0].risk_inputs.binding.config_sha256
+
+
+def test_host_accepts_reviewed_temperature_cost_input_without_erasing_base(joined, setup):
+    r = joined
+    base, _, _ = economic_plan(r, main_sources=main_sources_for(r))
+    config = asdict(pws_sleeve(r, setup[3])); config.pop('official')
+    unknown = CostComponent('temperature-pending', PAYOUT, None, tuple(sorted(ENTRY_RISKS)), 'b'*64)
+    config['temperature_costs'] = [asdict(unknown)]
+    upgraded = katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=config)
+    assert upgraded.events[0].lanes[0].targets[0].costs == (unknown,)
+    assert upgraded.events[0].lanes[1].targets[0].costs == ()
+    retained, _, _ = economic_plan(r, main_sources=main_sources_for(r), temperature_costs=(unknown,))
+    config['temperature_costs'] = []
+    with pytest.raises(EvidenceError, match='KATL_PLAN_HOST_TEMPERATURE_COST_CONFLICT'):
+        katl_live_plan.upgrade_host_plan(retained, official=setup[3], pws_config=config)
+    config['temperature_costs'] = [asdict(unknown)] * 17
+    with pytest.raises(EvidenceError, match='KATL_PLAN_COST_CONFIG_BOUND'):
+        katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=config)
+
+
+def test_pws_payout_requires_causal_features(joined, setup):
+    r = joined
+    sleeve = pws_sleeve(r, setup[3])
+    with pytest.raises(EvidenceError, match='KATL_PLAN_PWS_PAYOUT_FEATURES_REQUIRED'):
+        replace(sleeve, payout_sources=tuple(s for s in sleeve.payout_sources if s.role != 'FEATURES'))
 
 
 def test_host_upgrade_requires_reviewed_pws_config_and_retains_account_limits(joined, setup):
@@ -193,6 +307,34 @@ def _evaluate_plan(r, plan, monkeypatch, *, generation):
     return asyncio.run(run())
 
 
+def test_combined_lanes_reach_real_pws_lead_with_risk_source_coverage(joined, setup, monkeypatch):
+    r = joined
+    reviews = deepcopy(certification.protected_reviews()['reviews'])
+    main = approve_fixture(monkeypatch, (setup[0], setup[1], r['scope'], setup[3], setup[4]),
+                           stage=r['admission_kw']['stage'], fingerprint=r['rule'].sha256,
+                           prefix='combined-main:')
+    reviews += main['reviews']
+    monkeypatch.setattr(certification, 'protected_reviews', lambda: deepcopy({'reviews': reviews}))
+    r['states'][r['scope'].key] = r['model_state'][0]
+    capture_full_partition_books(r)
+    sleeve = pws_sleeve(r, setup[3])
+    assert {s.role for s in sleeve.payout_sources} == {'MODEL', 'OFFICIAL', 'PWS', 'FEATURES'}
+    assert {s.role for s in sleeve.observation_sources} == {'MODEL', 'OFFICIAL', 'PWS'}
+    plan, _, _ = economic_plan(r, main_sources=main_sources_for(r), pws=sleeve)
+    candidate, result = _evaluate_plan(r, plan, monkeypatch, generation='katl-combined-risk-sources')
+    details = [r['store'].get(key)['body']['details'] for key in result.result_ids]
+    assert len(details) == 2
+    assert all(d['reason'] == 'EVENT_STATE_SUPPRESSES_TEMPERATURE_ENTRY' for d in details)
+    leads = [row['body']['details'] for row in r['store'].records(kind='MEASUREMENT')
+             if row['id'].endswith(':lead')]
+    assert len(leads) == 1
+    assert leads[0]['valuation_type'] == 'OBSERVATION_ONLY'
+    assert leads[0]['settlement_prediction'] is None
+    assert not result.proposals
+    assert candidate.runtime.coordinator.snapshot()['reserved_cash'] == '0'
+    assert not r['store'].records(kind='TRADE')
+
+
 def test_plan_reaches_real_admission_and_risk_evaluation_not_a_staleness_gate(factory, monkeypatch):
     r = factory('FUTURE_FORECAST')
     capture_full_partition_books(r)
@@ -201,22 +343,36 @@ def test_plan_reaches_real_admission_and_risk_evaluation_not_a_staleness_gate(fa
     d = r['store'].get(result.result_ids[0])['body']['details']
     assert d['reason'] not in {'EVENT_REVALIDATION_EXPIRED', 'ASSEMBLY_BOOK_IDENTITY_OR_FRESHNESS',
                                'RUNTIME_FRESH_CENSUS_ADAPTER_REQUIRED'}, d
-    # A real valuation was computed (`value`/`valuation` below), proving this
-    # plan reaches genuine admission+risk evaluation instead of the smoke
-    # staleness gates. It is still refused -- by EVENT_STATE_SUPPRESSES_
-    # TEMPERATURE_ENTRY, since risk_inputs.EventRiskInputs.evaluate() always
-    # leaves settlement/execution-health metrics unknown, which forces EVENT
-    # state and suppresses ordinary new entries. That is a genuine, honest
-    # code-level gate (not a plan/config smoke value) -- see the handoff doc
-    # for why this, not a config fix, is req8's true remaining blocker.
+    # Admission reaches a real valuation, but absent cost evidence keeps it
+    # GATED. EventRisk separately suppresses new entry on unknown health.
     assert d['reason'] == 'EVENT_STATE_SUPPRESSES_TEMPERATURE_ENTRY', d
     assert 'valuation' in d and d['valuation'] is not None
+    value = r['store'].get(result.result_ids[0] + ':valuation')['body']['details']
+    assert value['outcome'] == 'GATED'
+    assert value['reasons'] == ['UNKNOWN_OR_MISSING_COST_COVERAGE']
+    assert set(value['costs']['missing']) == ENTRY_RISKS
+    assert value['conservative_ev_per_share'] is None
     risk = r['store'].records(kind='MEASUREMENT')
     measured = [row['body']['details'] for row in risk if row['id'].startswith('risk-input:')]
     assert measured and measured[-1]['metrics']['time_to_settlement_seconds'] is None
     assert measured[-1]['metrics']['adverse_fills'] is None
     assert measured[-1]['metrics']['recent_markout_per_share'] is None
     assert d['financial_authority'] is False
+    assert not r['store'].records(kind='TRADE')
+
+
+def test_declared_unknown_costs_never_become_free(factory, monkeypatch):
+    r = factory('FUTURE_FORECAST')
+    capture_full_partition_books(r)
+    unknown = CostComponent('all-risks-unknown', PAYOUT, None, tuple(sorted(ENTRY_RISKS)), 'a'*64)
+    plan, _, _ = economic_plan(r, temperature_costs=(unknown,))
+    _, result = _evaluate_plan(r, plan, monkeypatch, generation='katl-unknown-costs')
+    value = r['store'].get(result.result_ids[0] + ':valuation')['body']['details']
+    assert value['outcome'] == 'GATED'
+    assert value['costs']['missing'] == []
+    assert set(value['costs']['unknown']) == ENTRY_RISKS
+    assert value['conservative_ev_per_share'] is None
+    assert not result.proposals
     assert not r['store'].records(kind='TRADE')
 
 
@@ -272,10 +428,12 @@ def test_scenario_reservation_consistently_refuses_while_event_state_is_suppress
     admission_id, event_state_id = details['admission_id'], details['request']['event_state_id']
     # The real evaluation already computed a genuine settlement valuation at
     # `evaluation_id+':valuation'` (settlement_entry runs before the EVENT_
-    # STATE_SUPPRESSES_TEMPERATURE_ENTRY check); its real outcome is REJECT
-    # (uncalibrated EV below threshold). Only the EV outcome itself is
-    # synthesized here, to isolate the scenario-reservation mechanics.
+    # STATE_SUPPRESSES_TEMPERATURE_ENTRY check); its real outcome is GATED
+    # because all seven cost categories are missing. This downstream fixture
+    # overrides the valuation outcome and EV to isolate coordinator refusal.
     real_value = r['store'].get(evaluation_id + ':valuation')['body']['details']
+    assert real_value['outcome'] == 'GATED'
+    assert set(real_value['costs']['missing']) == ENTRY_RISKS
     fixture_value = dict(real_value, outcome='ACCEPT_RESEARCH', conservative_ev_per_share='.2',
                          conservative_ev_total='.4', synthetic_downstream_test_fixture=True)
     valuation_id = 'fixture-value'

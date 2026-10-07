@@ -41,24 +41,27 @@ from .discovery import DiscoveryPolicy
 from .event_queue import EventRoute, TriggerPolicy, KINDS
 from .event_risk import EventContext, EventPolicy, StateGuard
 from .evidence import EvidenceError, ReleaseBinding, digest
+from .forecast_features import ForecastFeatureContract
 from .gefs_schedule import GEFSRunPolicy
 from .gefs_sources import GEFSPlan
 from .microstructure import MicrostructurePolicy
 from .paper_coordinator import PaperAccountPolicy
 from .paper_runtime import RuntimePolicy
+from .physical_inference import PhysicalFeatureContract
 from .pws_lead import LeadPolicy
 from .pws_quality import PWSPolicy
 from .pws_runtime import PWSQualityPlan, PWSQualitySettings
 from .request_assembly import ScopeInputs, SourceSelector, TargetPlan
+from .shadow_commission import PinnedFeatureContract, ShadowScopeTarget
 from .risk_inputs import RiskInputPolicy
 from .rules import RuleFingerprint
 from .runtime_feed import FeedPolicy
 from .runtime_health import HealthPolicy
 from .scenario_risk import CorrelationMap, ScenarioLimits
-from .valuation import ValuationPolicy
+from .valuation import CostComponent, ValuationPolicy
 
 
-VERSION = 'katl-v11-economic-plan-v1'
+VERSION = 'katl-v11-economic-plan-v2'
 
 # MicrostructurePolicy.maximum_book_age_seconds is hard-capped at 120 by that
 # dataclass's own __post_init__ (not a smoke choice this module can relax).
@@ -87,6 +90,7 @@ class PWSSleeve:
     without_pws_sources: tuple[SourceSelector, ...]
     lead_policy: LeadPolicy
     rule_max_age_seconds: float = 3600.
+    payout_costs: tuple[CostComponent, ...] = ()
 
     def __post_init__(self):
         if not isinstance(self.official, StationMetadata) or not isinstance(self.quality_policy, PWSPolicy):
@@ -99,18 +103,23 @@ class PWSSleeve:
         if not isinstance(self.observation_bundle_sha256, str) or len(self.observation_bundle_sha256) != 64:
             raise EvidenceError('KATL_PLAN_PWS_OBSERVATION_BUNDLE_REQUIRED')
         for sources in (self.payout_sources, self.observation_sources):
-            if not {'MODEL', 'OFFICIAL', 'PWS'} <= {s.role for s in sources}:
+            if any(sum(s.role == role for s in sources) != 1 for role in ('MODEL', 'OFFICIAL', 'PWS')):
                 raise EvidenceError('KATL_PLAN_PWS_SOURCE_DEPENDENCIES_REQUIRED')
+        if sum(s.role == 'FEATURES' for s in self.payout_sources) != 1:
+            raise EvidenceError('KATL_PLAN_PWS_PAYOUT_FEATURES_REQUIRED')
         if any(s.role != 'MODEL' for s in self.without_pws_sources):
             raise EvidenceError('KATL_PLAN_PWS_ABLATION_MODEL_REQUIRED')
+        if (type(self.payout_costs) is not tuple or len(self.payout_costs) > 16
+                or any(not isinstance(c, CostComponent) for c in self.payout_costs)):
+            raise EvidenceError('KATL_PLAN_PWS_COST_BOUND')
 
 
 def pws_sleeve_from_config(value: dict, official: StationMetadata) -> PWSSleeve:
     """Decode an explicitly reviewed local config; no source or review is minted."""
     required = {'quality_policy', 'payout_scope', 'observation_scope',
                 'observation_bundle_sha256', 'payout_sources', 'observation_sources',
-                'without_pws_sources', 'lead_policy', 'rule_max_age_seconds'}
-    if type(value) is not dict or set(value) != required:
+                'without_pws_sources', 'lead_policy', 'rule_max_age_seconds', 'payout_costs'}
+    if type(value) is not dict or not required <= set(value) or set(value) - required - {'commission', 'temperature_costs'}:
         raise EvidenceError('KATL_PLAN_PWS_CONFIG_SCHEMA')
     quality = dict(value['quality_policy'])
     quality['distance_bands'] = tuple(tuple(band) for band in quality['distance_bands'])
@@ -124,7 +133,59 @@ def pws_sleeve_from_config(value: dict, official: StationMetadata) -> PWSSleeve:
         without_pws_sources=tuple(SourceSelector(**s) for s in value['without_pws_sources']),
         lead_policy=LeadPolicy(**value['lead_policy']),
         rule_max_age_seconds=value['rule_max_age_seconds'],
+        payout_costs=_cost_components(value['payout_costs']),
     )
+
+
+def _cost_components(value) -> tuple[CostComponent, ...]:
+    if type(value) not in (list, tuple) or len(value) > 16:
+        raise EvidenceError('KATL_PLAN_COST_CONFIG_BOUND')
+    try:
+        return tuple(CostComponent(**{**c, 'covers': tuple(c['covers'])}) for c in value)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EvidenceError('KATL_PLAN_COST_CONFIG_SCHEMA') from exc
+
+
+def commission_targets(plan: CandidatePlan, base_target: ShadowScopeTarget,
+                       pws_config: dict) -> tuple[ShadowScopeTarget, ...]:
+    """Bind every cohort scope to separately staged protected model identities.
+
+    These are expected identities only; commissioning preflight still pins and
+    revalidates each model from the protected registry.
+    """
+    if (not isinstance(plan, CandidatePlan) or len(plan.events) != 1
+            or len(plan.events[0].lanes) != 2
+            or type(plan.events[0].lanes[0]) is not TemperatureLane
+            or type(plan.events[0].lanes[1]) is not PWSLeadLane
+            or not isinstance(base_target, ShadowScopeTarget)
+            or type(pws_config) is not dict or type(pws_config.get('commission')) is not dict
+            or set(pws_config['commission']) != {'payout', 'observation'}):
+        raise EvidenceError('KATL_PLAN_COMMISSION_SHAPE_REQUIRED')
+    event = plan.events[0]
+    if base_target.scope != event.lanes[0].inputs.scope or base_target.event_id != event.route.event_id:
+        raise EvidenceError('KATL_PLAN_COMMISSION_BASE_TARGET_MISMATCH')
+    targets = [base_target]
+    for role, inputs, expected_target in (
+            ('payout', event.lanes[1].inputs, 'FINAL_CONTRACT_PAYOUT'),
+            ('observation', event.lanes[1].observation_inputs, 'NEXT_OFFICIAL_OBSERVATION')):
+        row = pws_config['commission'][role]
+        if type(row) is not dict or set(row) != {'model_epoch', 'model_state_sha256', 'feature_contract'}:
+            raise EvidenceError('KATL_PLAN_COMMISSION_IDENTITY_REQUIRED')
+        fc = dict(row['feature_contract'])
+        if 'model_widths' in fc:
+            fc['model_widths'] = tuple(tuple(width) for width in fc['model_widths'])
+        contract = (PinnedFeatureContract(**{**fc, 'model_ids': tuple(fc['model_ids'])})
+                    if 'feature_schema_sha256' in fc else
+                    PhysicalFeatureContract(**fc) if 'input_target' in fc else ForecastFeatureContract(**fc))
+        target = (contract.bundle_target if isinstance(contract, PhysicalFeatureContract)
+                  else contract.prediction_target if isinstance(contract, ForecastFeatureContract)
+                  else contract.target)
+        if target != expected_target or contract.family != base_target.feature_contract.family:
+            raise EvidenceError('KATL_PLAN_COMMISSION_FEATURE_TARGET_MISMATCH')
+        targets.append(ShadowScopeTarget(inputs.scope, base_target.unit, base_target.sample_target,
+                                         base_target.event_id, row['model_epoch'],
+                                         row['model_state_sha256'], contract))
+    return tuple(targets)
 
 
 def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_config: dict) -> CandidatePlan:
@@ -146,6 +207,11 @@ def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_con
         raise EvidenceError('KATL_PLAN_HOST_MODEL_OR_STATION_REQUIRED')
     binding = inputs.binding
     pws = pws_sleeve_from_config(pws_config, official)
+    base_costs = event.lanes[0].targets[0].costs
+    temperature_costs = (_cost_components(pws_config['temperature_costs'])
+                         if 'temperature_costs' in pws_config else base_costs)
+    if base_costs and temperature_costs != base_costs:
+        raise EvidenceError('KATL_PLAN_HOST_TEMPERATURE_COST_CONFLICT')
     plan, _, _ = build_plan(
         context=inputs.context, scope=inputs.scope, rule=inputs.rule,
         metadata_fingerprint=official.fingerprint,
@@ -155,7 +221,8 @@ def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_con
         worker=base.worker_id, account_policy=base.account, correlation=base.correlation,
         scenario_limits=base.limits, stage=inputs.stage,
         book_provider=event.risk_book_provider, main_sources=inputs.sources,
-        pws=pws, gefs=base.gefs, gefs_rollover=base.gefs_rollover)
+        pws=pws, gefs=base.gefs, gefs_rollover=base.gefs_rollover,
+        temperature_costs=temperature_costs)
     return plan
 
 
@@ -166,7 +233,8 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                scenario_limits: ScenarioLimits, stage: str = 'SHADOW',
                book_provider: str = BOOK_PROVIDER, main_sources: tuple[SourceSelector, ...] | None = None,
                pws: PWSSleeve | None = None, gefs: tuple[GEFSPlan, ...] = (),
-               gefs_rollover: GEFSRunPolicy | None = None):
+               gefs_rollover: GEFSRunPolicy | None = None,
+               temperature_costs: tuple[CostComponent, ...] = ()):
     """Construct the nonfinancial KATL CandidatePlan; no network/service call.
 
     `context`/`scope` must be the exact EventContext/CapabilityScope already
@@ -196,6 +264,9 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
         raise EvidenceError('KATL_PLAN_EXPLICIT_SAME_DAY_SOURCES_REQUIRED')
     if main_sources is None:
         main_sources = (SourceSelector('MODEL', model['provider'], model['source_identity'], 43200.),)
+    if (type(temperature_costs) is not tuple or len(temperature_costs) > 16
+            or any(not isinstance(c, CostComponent) for c in temperature_costs)):
+        raise EvidenceError('KATL_PLAN_TEMPERATURE_COST_BOUND')
     if pws is not None:
         common_scope_fields = ('station', 'family', 'source_rule_family', 'strategy', 'season', 'time_of_day')
         if (pws.official.station != context.station_id or pws.official.fingerprint != metadata_fingerprint
@@ -209,16 +280,30 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                          'collateral': collateral, 'worker': worker, 'book_provider': book_provider,
                          'account': asdict(account_policy), 'correlation': asdict(correlation),
                          'limits': asdict(scenario_limits), 'main_sources': [asdict(s) for s in main_sources],
+                         'temperature_costs': [asdict(c) for c in temperature_costs],
                          'pws': asdict(pws) if pws is not None else None,
                          'gefs': [asdict(g) for g in gefs],
                          'gefs_rollover': asdict(gefs_rollover) if gefs_rollover is not None else None})
     binding = ReleaseBinding(release, tree, config_sha, bundle_sha256, rule.sha256)
-    inputs = ScopeInputs(context, scope, rule, binding, stage, 86400., main_sources)
+    risk_sources = list(main_sources)
+    if pws is not None:
+        for source in pws.payout_sources:
+            if source.role == 'FEATURES':
+                continue
+            key = (source.role, source.provider, source.source_identity)
+            old = next((i for i, s in enumerate(risk_sources)
+                        if (s.role, s.provider, s.source_identity) == key), None)
+            if old is None:
+                risk_sources.append(source)
+            elif source.maximum_age_seconds < risk_sources[old].maximum_age_seconds:
+                risk_sources[old] = source
+    inputs = ScopeInputs(context, scope, rule, binding, stage, 86400., tuple(risk_sources))
+    temperature_inputs = ScopeInputs(context, scope, rule, binding, stage, 86400., main_sources)
     first = rule.payload['partition'][0]
-    target = TargetPlan(first['market_id'], 'YES', '1', '1', ())
+    target = TargetPlan(first['market_id'], 'YES', '1', '1', temperature_costs)
 
     valuation = ValuationPolicy(VERSION, collateral, BOOK_FRESHNESS_SECONDS, BOOK_FRESHNESS_SECONDS, '.05', '1')
-    temperature_lane = TemperatureLane('temperature', inputs, (target,), book_provider, valuation, 20.)
+    temperature_lane = TemperatureLane('temperature', temperature_inputs, (target,), book_provider, valuation, 20.)
     lanes = (temperature_lane,)
 
     required_source_kinds = (('MODEL',) if gefs else ()) + ('OFFICIAL_OBSERVATION',)
@@ -233,7 +318,8 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                                      pws.rule_max_age_seconds, pws.payout_sources)
         observation_inputs = ScopeInputs(context, pws.observation_scope, rule, observation_binding, stage,
                                           pws.rule_max_age_seconds, pws.observation_sources)
-        pws_lane = PWSLeadLane('pws-observation-lead', payout_inputs, (target,), book_provider, valuation, 20.,
+        payout_target = TargetPlan(first['market_id'], 'YES', '1', '1', pws.payout_costs)
+        pws_lane = PWSLeadLane('pws-observation-lead', payout_inputs, (payout_target,), book_provider, valuation, 20.,
                                observation_inputs, pws.without_pws_sources, pws.lead_policy)
         lanes += (pws_lane,)
 
@@ -271,9 +357,9 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                             tuple(source_ages), (('KATL', 300.),))
     health = HealthPolicy(VERSION, 30., 30., 2., 2, .05, (worker,))
     runtime = RuntimePolicy(VERSION, 32, 1, 1, 20., CENSUS_INTERVAL_SECONDS, 15.)
-    # maximum_jobs raised from the live smoke script's 1: the asynchronous
-    # CensusWorker/DiscoveryWorker/AuditWorker/PWSQualityWorker jobs must all
-    # get scheduled inside one bounded run, not starve behind safety ticks.
+    # The daily host template permits 12 jobs and the separate preflight
+    # builder permits 1. Six is a bounded candidate budget, not a measured
+    # throughput or scheduling guarantee under host load.
     candidate = CandidatePolicy(VERSION, 75., 6, 160, .5, 60., .1, 120.)
     event = CandidateEvent(route, census, inputs, book_provider, valuation, risk_policy, lanes)
     plan = CandidatePlan(

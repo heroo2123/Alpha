@@ -83,6 +83,20 @@ def report(r, **kw):
     return sc.preflight(r['plan'], r['store'], current_release_git_sha=kw.get('release', RELEASE))
 
 
+def test_preflight_checks_exact_pinned_feature_target(rig):
+    original = rig['plan'].targets[0]
+    exact = sc.PinnedFeatureContract('F', 'daily_high_temperature', 'FINAL_CONTRACT_PAYOUT',
+                                     CONTRACT.schema.sha256, ('model-1',))
+    rig['plan'] = replace(rig['plan'], targets=(replace(original, feature_contract=exact),))
+    checks = report(rig)['checks']
+    assert any(c['name'].endswith(':features') and c['passed'] for c in checks)
+    wrong = replace(exact, target='NEXT_OFFICIAL_OBSERVATION')
+    rig['plan'] = replace(rig['plan'], targets=(replace(original, feature_contract=wrong),))
+    checks = report(rig)['checks']
+    assert any(c['name'].endswith(':features') and not c['passed']
+               and c['reason'] == 'SHADOW_PINNED_FEATURE_CONTRACT_MISMATCH' for c in checks)
+
+
 def test_positive_typed_binding_and_exact_eligibility(rig):
     pf = wrapper(rig).preflight()
     assert pf['passed'], pf

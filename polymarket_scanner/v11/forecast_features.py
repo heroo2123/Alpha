@@ -19,6 +19,7 @@ class ForecastFeatureContract:
     unit: str
     family: str
     quantization: str = MODEL_QUANTIZATION
+    prediction_target: str = 'FINAL_CONTRACT_PAYOUT'
 
     def __post_init__(self):
         if (type(self.model_widths) is not tuple or not 1 <= len(self.model_widths) <= 16
@@ -35,6 +36,8 @@ class ForecastFeatureContract:
             raise EvidenceError('FORECAST_FEATURE_UNIT_OR_FAMILY')
         if self.quantization != MODEL_QUANTIZATION:
             raise EvidenceError('FORECAST_FEATURE_QUANTIZATION_UNSUPPORTED')
+        if self.prediction_target not in {'FINAL_CONTRACT_PAYOUT', 'NEXT_OFFICIAL_OBSERVATION'}:
+            raise EvidenceError('FORECAST_FEATURE_TARGET_UNSUPPORTED')
         object.__setattr__(self, 'model_widths', tuple(sorted(self.model_widths)))
 
     @property
@@ -58,7 +61,7 @@ class ForecastFeatureContract:
             raise EvidenceError('FORECAST_FEATURE_PINNED_BUNDLE_REQUIRED')
         value = pinned.payload
         models = value['components']['PROBABILITY']['parameters']['models']
-        if (value['bundle']['target'] != 'FINAL_CONTRACT_PAYOUT'
+        if (value['bundle']['target'] != self.prediction_target
                 or value['bundle']['feature_schema_sha256'] != self.schema.sha256
                 or {m['model_id'] for m in models} != set(self.mapping)
                 or value['components']['FEATURES']['parameters'] != json.loads(canonical(asdict(self.schema)))):
@@ -69,7 +72,9 @@ class ForecastFeatureContract:
 def build_initial_forecast_bundle(artifacts, *, contract, probability_parameters, provenance, quality_modifiers):
     """Write a new, explicit INITIAL_NO_FIT research bundle; never adapt a parent."""
     from .model_artifacts import ARTIFACT_VERSION, validate_artifact
-    if not isinstance(contract, ForecastFeatureContract) or provenance.get('training_status') != 'INITIAL_NO_FIT':
+    if (not isinstance(contract, ForecastFeatureContract)
+            or contract.prediction_target != 'FINAL_CONTRACT_PAYOUT'
+            or provenance.get('training_status') != 'INITIAL_NO_FIT'):
         raise EvidenceError('FORECAST_INITIAL_RESEARCH_CONTRACT_REQUIRED')
     if provenance.get('parent_bundle_sha256') is not None:
         raise EvidenceError('FORECAST_INITIAL_BUNDLE_HAS_NO_PARENT')
