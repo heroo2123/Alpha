@@ -92,6 +92,40 @@ def extra_log(files):
 BASE_DIAGNOSTICS = ("ABI_ATTESTATION_MISSING", "SOURCE_ATTESTATION_MISSING")
 
 
+@pytest.mark.parametrize("target", ("selected", "extra_unselected"))
+@pytest.mark.parametrize("field,value", (
+    ("transactionHash", B),
+    ("transactionHash", None),
+    ("blockHash", H),
+    ("blockHash", None),
+    ("blockNumber", "0xb"),
+    ("blockNumber", None),
+    ("transactionIndex", "0x3"),
+    ("transactionIndex", None),
+    ("removed", True),
+    ("removed", 0),
+    ("removed", "false"),
+    ("removed", None),
+), ids=lambda value: "absent" if value is None else str(value))
+def test_log_identity_negative_matrix_in_both_modes(tmp_path, target, field, value):
+    manifest, files = bundle(tmp_path)
+    log = files["receipt"]["response"]["result"]["logs"][0]
+    if target == "extra_unselected":
+        log = extra_log(files)
+    if value is None:
+        del log[field]
+    else:
+        log[field] = value
+    paths = write_bundle(tmp_path, manifest, files)
+    original = {name: path.read_bytes() for name, path in paths.items()}
+    expected = tuple(sorted(BASE_DIAGNOSTICS + ("LOG_IDENTITY_INCONSISTENT",)))
+    assert run(paths) == expected
+    assert run(paths) == expected
+    assert run_optimized(paths) == expected
+    assert run_optimized(paths) == expected
+    assert {name: path.read_bytes() for name, path in paths.items()} == original
+
+
 @pytest.mark.parametrize("change,extra", [
     (lambda m, f: None, None),
     (lambda m, f: extra_log(f), None),
