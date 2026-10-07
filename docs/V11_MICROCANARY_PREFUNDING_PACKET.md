@@ -19,15 +19,32 @@ fit both the owner amount and maximum loss. The order requires a source
 timestamp no more than 15 seconds old. It is unsigned and explicitly marked
 nonfinancial. These are proposed upper ceilings, not an owner-approved amount.
 
-The local SQLite rehearsal journal accepts one order identity ever. A repeated
-identical preparation is idempotent; a different order is refused. An uncertain
-handoff, restart, stale source, expired window, operator abort, missing account
-census, conflicting remote identity, regressed fill/loss, open order after halt,
-and maximum-loss threshold retain a hold. Reconciliation accepts a caller
-supplied complete snapshot and is idempotent for the same snapshot. That
-snapshot is **not authenticated venue evidence**. `write_status()` publishes a
-redacted atomic local status artifact. `credential_file_present()` checks only
-file metadata and never opens or hashes credential contents.
+The local SQLite rehearsal journal accepts one order identity per journal
+file; a different journal path, or the same path after the file is deleted,
+is an independent identity and this candidate does not claim otherwise. A
+repeated identical preparation is idempotent; a different order is refused.
+An uncertain handoff, restart, stale source, expired window, operator abort,
+missing account census, conflicting remote identity, regressed fill/loss,
+open order after halt, and maximum-loss threshold retain a hold. A window
+that expires while the remote order status is a known resting `OPEN` is
+reported as `cancel_required=true`; a window that expires before any remote
+status is known is reported as `remote_census_required=true`; cancellation
+need is decided after that census. Reconciliation accepts a caller supplied
+complete snapshot, measured in USD (`cumulative_fill_usd`,
+`realized_loss_usd`) against the same USD notional the order was accepted
+under, and is idempotent for the same snapshot. A remote terminal status
+(`REJECTED`/`CANCELLED`/`FILLED`) can never regress to `OPEN`, regardless of
+the local hold state. A delayed fill after `CANCELLED` stays terminal and is
+labeled `DELAYED_FILL_AFTER_CANCEL`; loss above the order's at-risk ceiling
+enters `LOSS_HALT` with an anomaly reason. That snapshot is **not authenticated
+venue evidence**. Opening the journal for monitoring currently puts a prepared
+or uncertain order into recovery hold; a separate read-only monitor is a live
+integration prerequisite. A prepared order with no dispatch still needs a
+truthful account census before it can be declared terminal.
+The journal refuses an unmarked pre-existing file or a hard-linked alias of
+its own file. `write_status()` publishes a redacted
+atomic local status artifact. `credential_file_present()` checks only file
+metadata and never opens or hashes credential contents.
 
 To generate the inventory without credentials or network access:
 
@@ -39,9 +56,12 @@ The request is a JSON object with optional `scope`, `evidence`, and
 `credential_path`. Scope fields are `market_id`, `token_id`, `owner_amount_usd`,
 `max_loss_usd`, `window_start`, `window_end`, and `owner_decision_id`. The
 credential path is checked by metadata only. Evidence flags are caller claims,
-not verified proofs. The generated packet **always** says `NOT_READY_TO_FUND`,
-even when all flags are supplied true. Neither it nor a dry-run journal can
-serve as the reviewed activation artifact.
+not verified proofs, and a caller claiming every flag true cannot shrink the
+`unverified_or_missing` list: this tool verifies nothing itself, so every
+required item stays listed regardless of what is claimed (`missing_evidence`
+narrows that to items not even claimed). The generated packet **always** says
+`NOT_READY_TO_FUND`, even when all flags are supplied true. Neither it nor a
+dry-run journal can serve as the reviewed activation artifact.
 
 ## Remaining prerequisites before an owner funding decision
 
