@@ -16,19 +16,27 @@ from functools import cache
 from pathlib import Path
 
 MANIFEST = "docs/V11_GATE3_CURRENT_EXECUTABLE_BINDING_20261007.json"
-SOURCE_COMMIT = "58e63fc8409f49d60b2c4a06efa377a6b30ee195"
-SOURCE_TREE = "5d68756a9aea768acbfa4c99b82d1e61a7a6ffbb"
+SOURCE_COMMIT = "d806c11082fe81defd74993152906ee7454bce1d"
+SOURCE_TREE = "153752a33294f2531283bb78b6e77bb2235fd99a"
 HISTORICAL = {
-    # Previous frozen source observation for the four repinned dependencies.
+    # Prior observations remain scoped to their own frozen source commits.
+    "polymarket_scanner/v11/evidence.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "polymarket_scanner/v11/forecast_features.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "polymarket_scanner/v11/learning_capture.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "polymarket_scanner/v11/model_artifacts.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "polymarket_scanner/v11/physical_inference.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+    "polymarket_scanner/v11/pws_admission.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+    "tests/test_v11_gate3_attempt_runtime_wiring.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+    "tests/test_v11_gate3_evidence_intake_launch_wiring.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+    "tests/test_v11_r09_gate3_runtime.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
+    "tools/v11_gate3_evidence_preflight_real_intake.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
     "tools/v11_r09_gate3_collector.py": "95e07fab75a3818560378d71556efc55ce122a56",
     "tools/v11_r09_gate3_runtime.py": "6340cb455eebae374039c9bae23cd806681dacb0",
     "tools/v11_r09_gate3_ledgers.py": "6340cb455eebae374039c9bae23cd806681dacb0",
 }
 DRIFT_COMMITS = {
+    "polymarket_scanner/v11/evidence.py": (
+        "3ae3852474ad87977ccd50aac010d3d1ed813c96",),
     "polymarket_scanner/v11/forecast_features.py": (
         "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",),
     "polymarket_scanner/v11/learning_capture.py": (
@@ -37,6 +45,20 @@ DRIFT_COMMITS = {
         "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",),
     "polymarket_scanner/v11/physical_inference.py": (
         "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",),
+    "polymarket_scanner/v11/pws_admission.py": (
+        "3ae3852474ad87977ccd50aac010d3d1ed813c96",
+        "0d55adbd70c74375c1dbdd9d0dcac0344f4202ce",
+        "5c8ae333c8eb2d2c73fbfeb25ce6c707eb3b19a7",
+        "b2bbb0df76ccbcf4300903c04eb2748a3ef61de6"),
+    "tests/test_v11_gate3_attempt_runtime_wiring.py": (
+        "ef4f534eaae442dd0aac149c9850f0ef3c76d78f",),
+    "tests/test_v11_gate3_evidence_intake_launch_wiring.py": (
+        "ef4f534eaae442dd0aac149c9850f0ef3c76d78f",),
+    "tests/test_v11_r09_gate3_runtime.py": (
+        "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
+        "d806c11082fe81defd74993152906ee7454bce1d"),
+    "tools/v11_gate3_evidence_preflight_real_intake.py": (
+        "a582a005d08c0bcb62a9061946aa0bf096657360",),
     "tools/v11_r09_gate3_collector.py": (
         "ef7b47030259b79d19b2db3817b5ae660a0b4f64",),
     "tools/v11_r09_gate3_runtime.py": (
@@ -47,7 +69,9 @@ DRIFT_COMMITS = {
         "60ac12061154eedbc7f83077aa1c756cd1e7359a",
         "f1e85bab4cd272dd302945f20fc1193b122c4990",
         "5a0ce218c2815512ee592e9203d718cfc458b43a",
-        "dd529ee548a6752aa21d7c53f8f662f4fdb7f570"),
+        "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",
+        "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
+        "d806c11082fe81defd74993152906ee7454bce1d"),
     "tools/v11_r09_gate3_ledgers.py": (
         "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",),
 }

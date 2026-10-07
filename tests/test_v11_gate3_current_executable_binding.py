@@ -14,13 +14,33 @@ import pytest
 from tools import v11_gate3_current_executable_binding as binding
 
 REPO = Path(__file__).resolve().parents[1]
-SOURCE = "58e63fc8409f49d60b2c4a06efa377a6b30ee195"
-PREVIOUS_SOURCE = "d1c5602aa77e0d835e416d281b4a78754a3a79df"
+SOURCE = "d806c11082fe81defd74993152906ee7454bce1d"
+PREVIOUS_SOURCE = "58e63fc8409f49d60b2c4a06efa377a6b30ee195"
+OLDER_SOURCE = "d1c5602aa77e0d835e416d281b4a78754a3a79df"
+OLDER_BASELINES = {
+    "polymarket_scanner/v11/evidence.py",
+    "polymarket_scanner/v11/pws_admission.py",
+}
 REPIN_CHANGES = {
-    "polymarket_scanner/v11/learning_capture.py": "90d2d6446155e928d66c16660b5e90fda3a77fb0",
-    "polymarket_scanner/v11/forecast_features.py": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",
-    "polymarket_scanner/v11/model_artifacts.py": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",
-    "polymarket_scanner/v11/physical_inference.py": "fd965a96f9bbad4d3b9e99dec11d169c8ff8c33f",
+    "polymarket_scanner/v11/evidence.py": (
+        "3ae3852474ad87977ccd50aac010d3d1ed813c96",),
+    "polymarket_scanner/v11/pws_admission.py": (
+        "3ae3852474ad87977ccd50aac010d3d1ed813c96",
+        "0d55adbd70c74375c1dbdd9d0dcac0344f4202ce",
+        "5c8ae333c8eb2d2c73fbfeb25ce6c707eb3b19a7",
+        "b2bbb0df76ccbcf4300903c04eb2748a3ef61de6"),
+    "tests/test_v11_gate3_attempt_runtime_wiring.py": (
+        "ef4f534eaae442dd0aac149c9850f0ef3c76d78f",),
+    "tests/test_v11_gate3_evidence_intake_launch_wiring.py": (
+        "ef4f534eaae442dd0aac149c9850f0ef3c76d78f",),
+    "tests/test_v11_r09_gate3_runtime.py": (
+        "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
+        "d806c11082fe81defd74993152906ee7454bce1d"),
+    "tools/v11_gate3_evidence_preflight_real_intake.py": (
+        "a582a005d08c0bcb62a9061946aa0bf096657360",),
+    "tools/v11_r09_gate3_runtime.py": (
+        "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
+        "d806c11082fe81defd74993152906ee7454bce1d"),
 }
 MODULE_ROOTS = {
     "tools/v11_r09_gate3_collector.py",
@@ -205,15 +225,15 @@ def _altered(tmp_path, change):
     return path
 
 
-def test_exact_candidate_pins_seven_histories_and_dependent_protocol_tests():
+def test_exact_candidate_pins_thirteen_histories_and_dependent_protocol_tests():
     result = binding.verify(REPO)
-    assert result == {"source_commit": binding.SOURCE_COMMIT,
-                      "source_tree": binding.SOURCE_TREE,
-                      "verified_files": len(binding.PATHS),
-                      "launchable": False, "qualification_credit": 0}
-    assert len(binding.HISTORICAL) == 7
-    assert len(binding.PATHS) == 92
-    assert {p for p in binding.PATHS if p.startswith("tests/")} == {
+    expected = {"source_commit": binding.SOURCE_COMMIT,
+                "source_tree": binding.SOURCE_TREE,
+                "verified_files": len(binding.PATHS),
+                "launchable": False, "qualification_credit": 0}
+    if result != expected or len(binding.HISTORICAL) != 13 or len(binding.PATHS) != 92:
+        pytest.fail(f"candidate pins or authority changed: {result}")
+    if {p for p in binding.PATHS if p.startswith("tests/")} != {
         "tests/test_v11_r09_gate3_collector.py",
         "tests/test_v11_r09_gate3_message_sizes.py",
         "tests/test_v11_r09_gate3_runtime.py",
@@ -221,7 +241,8 @@ def test_exact_candidate_pins_seven_histories_and_dependent_protocol_tests():
         "tests/test_v11_gate3_attempt_runtime_wiring.py",
         "tests/test_v11_gate3_evidence_intake_launch_wiring.py",
         "tests/test_v11_gate3_raw_decoder_binding.py",
-    }
+    }:
+        pytest.fail("dependent protocol-test coverage changed")
 
 
 def test_partial_pinning_and_claimed_credit_refuse(tmp_path):
@@ -304,25 +325,53 @@ def test_manifest_duplicate_key_refuses(tmp_path):
 
 def test_repin_preserves_coverage_and_accounts_for_every_changed_blob():
     previous = json.loads(_source_git("show", f"{SOURCE}:{binding.MANIFEST}"))
+    older = json.loads(_source_git("show", f"{PREVIOUS_SOURCE}:{binding.MANIFEST}"))
     current = _manifest()
+    if (previous["source_commit"] != PREVIOUS_SOURCE
+        or older["source_commit"] != OLDER_SOURCE
+        or previous["source_tree"] != _source_git("rev-parse", f"{PREVIOUS_SOURCE}^{{tree}}").decode().strip()
+        or older["source_tree"] != _source_git("rev-parse", f"{OLDER_SOURCE}^{{tree}}").decode().strip()
+        or current["source_commit"] != SOURCE):
+        pytest.fail("stored manifest source commit or tree differs from actual ancestry")
     if set(current["files"]) != set(previous["files"]):
         pytest.fail("repin changed the 92-path coverage")
     changed = {p for p in current["files"] if current["files"][p] != previous["files"][p]}
     if changed != set(REPIN_CHANGES):
         pytest.fail(f"unexpected repinned paths: {sorted(changed)}")
-    for path, commit in REPIN_CHANGES.items():
-        expected = {"commit": PREVIOUS_SOURCE, "tree": previous["source_tree"],
-                    **previous["files"][path]}
-        if current["historical_baselines"][path] != expected:
-            pytest.fail(f"previous frozen observation not retained: {path}")
+    for path, commits in REPIN_CHANGES.items():
+        previous_blob = _source_git("rev-parse", f"{PREVIOUS_SOURCE}:{path}").decode().strip()
+        if previous["files"][path]["git_blob"] != previous_blob:
+            pytest.fail(f"prior binding did not describe its frozen source: {path}")
         history = _source_git("log", "--format=%H", "--no-merges",
                               f"{PREVIOUS_SOURCE}..{SOURCE}", "--", path).decode().splitlines()
-        if history != [commit] or binding.DRIFT_COMMITS[path] != (commit,):
+        if history != list(reversed(commits)):
             pytest.fail(f"real path-change history differs: {path}: {history}")
-    for key in ("historical_baselines", "drift_commits"):
-        for path, value in previous[key].items():
-            if current[key][path] != value:
-                pytest.fail(f"prior provenance changed: {key}: {path}")
+        if path in previous["historical_baselines"]:
+            if current["historical_baselines"][path] != previous["historical_baselines"][path]:
+                pytest.fail(f"earlier baseline changed: {path}")
+            prior_trace = previous["drift_commits"][path]
+            if current["drift_commits"][path][:len(prior_trace)] != prior_trace:
+                pytest.fail(f"earlier drift trace changed: {path}")
+        else:
+            baseline = older if path in OLDER_BASELINES else previous
+            if path in OLDER_BASELINES and older["files"][path] != previous["files"][path]:
+                pytest.fail(f"older source snapshot differs from prior binding: {path}")
+            expected = {"commit": baseline["source_commit"], "tree": baseline["source_tree"],
+                        **baseline["files"][path]}
+            if current["historical_baselines"][path] != expected:
+                pytest.fail(f"previous frozen observation not retained: {path}")
+            prior_trace = []
+        new_trace = current["drift_commits"][path][len(prior_trace):]
+        if tuple(t["commit"] for t in new_trace) != commits:
+            pytest.fail(f"new drift trace incomplete: {path}")
+        if binding.DRIFT_COMMITS[path] != tuple(t["commit"] for t in current["drift_commits"][path]):
+            pytest.fail(f"verifier trace differs: {path}")
+    for path, value in previous["historical_baselines"].items():
+        if current["historical_baselines"][path] != value:
+            pytest.fail(f"prior historical baseline changed: {path}")
+    for path, value in previous["drift_commits"].items():
+        if current["drift_commits"][path][:len(value)] != value:
+            pytest.fail(f"prior historical trace changed: {path}")
 
 
 @pytest.mark.parametrize("target", REPIN_CHANGES)
@@ -332,9 +381,9 @@ def test_repinned_dependency_provenance_tampering_refuses(tmp_path, target):
         (lambda m: m["historical_baselines"][target].update(commit=SOURCE),
          "historical review baseline changed"),
         (lambda m: m["drift_commits"][target].clear(), "partial drift trace"),
-        (lambda m: m["drift_commits"][target][0].update(commit=PREVIOUS_SOURCE),
+        (lambda m: m["drift_commits"][target][-1].update(commit=PREVIOUS_SOURCE),
          "partial drift trace"),
-        (lambda m: m["drift_commits"][target][0].update(classification=""),
+        (lambda m: m["drift_commits"][target][-1].update(classification=""),
          "unclassified drift commit"),
     ):
         with pytest.raises(ValueError) as exc:
