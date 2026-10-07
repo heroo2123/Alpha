@@ -7,6 +7,7 @@ This module is deliberately separate from the accepted inventory start path.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -24,7 +25,7 @@ _ADDRESS = re.compile(r"0x[0-9a-f]{40}\Z")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _WORD = re.compile(r"0x[0-9a-f]{64}\Z")
 _DATA = re.compile(r"0x(?:[0-9a-f]{64}){1,8}\Z")
-_UTC = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
+_UTC = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\Z")
 _FILES = ("transaction", "receipt", "api_row")
 _CAPTURE = {"captured_at_utc", "source", "request_id"}
 _CLAIM = {"chain_id", "block_number", "block_hash", "transaction_hash",
@@ -98,9 +99,21 @@ def _hexnum(value):
     return int(value, 16)
 
 
+def _utc_seconds(value):
+    if type(value) is not str or not _UTC.fullmatch(value):
+        return False
+    try:
+        datetime(int(value[:4]), int(value[5:7]), int(value[8:10]),
+                 int(value[11:13]), int(value[14:16]), int(value[17:19]),
+                 tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return True
+
+
 def _capture(value):
     return (_shape(value, _CAPTURE)
-            and type(value["captured_at_utc"]) is str and bool(_UTC.fullmatch(value["captured_at_utc"]))
+            and _utc_seconds(value["captured_at_utc"])
             and all(type(value[k]) is str and 0 < len(value[k]) <= 128
                     for k in ("source", "request_id")))
 
@@ -199,6 +212,18 @@ def preflight(manifest: Path, transaction: Path, receipt: Path, api_row: Path) -
                            for log in logs]
                 if None in indexes or len(set(indexes)) != len(indexes):
                     findings.add("LOG_SET_DUPLICATE_OR_INVALID_INDEX")
+                for log in logs:
+                    if type(log) is not dict:
+                        findings.add("LOG_IDENTITY_INCONSISTENT")
+                        continue
+                    _match(log, {"transactionHash": claim["transaction_hash"],
+                                 "blockHash": claim["block_hash"]},
+                           ("transactionHash", "blockHash"), findings,
+                           "LOG_IDENTITY_INCONSISTENT")
+                    if (_hexnum(log.get("blockNumber")) != claim["block_number"]
+                            or _hexnum(log.get("transactionIndex")) != claim["transaction_index"]
+                            or log.get("removed") is not False):
+                        findings.add("LOG_IDENTITY_INCONSISTENT")
                 matching = [log for log in logs if type(log) is dict
                             and _hexnum(log.get("logIndex")) == claim["log_index"]]
                 if len(matching) != 1:
@@ -206,13 +231,9 @@ def preflight(manifest: Path, transaction: Path, receipt: Path, api_row: Path) -
                 else:
                     log = matching[0]
                     _match(log, {"address": claim["log_address"], "topics": claim["log_topics"],
-                                 "data": claim["log_data"], "transactionHash": claim["transaction_hash"],
-                                 "blockHash": claim["block_hash"], "removed": False},
-                           ("address", "topics", "data", "transactionHash", "blockHash", "removed"),
+                                 "data": claim["log_data"]},
+                           ("address", "topics", "data"),
                            findings, "LOG_IDENTITY_INCONSISTENT")
-                    if (_hexnum(log.get("blockNumber")) != claim["block_number"]
-                            or _hexnum(log.get("transactionIndex")) != claim["transaction_index"]):
-                        findings.add("LOG_IDENTITY_INCONSISTENT")
     if api is not None:
         row = api.get("row") if type(api) is dict else None
         if (not _shape(api, {"capture", "evidence_class", "row"})

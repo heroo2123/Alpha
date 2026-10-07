@@ -70,6 +70,82 @@ def run(paths):
     return pre.preflight(*(paths[name] for name in ("manifest", "transaction", "receipt", "api_row")))
 
 
+def run_optimized(paths):
+    cmd = [sys.executable, "-B", "-O", "-m", "polymarket_scanner.v11.receipt_bundle_preflight"]
+    for name in ("manifest", "transaction", "receipt", "api_row"):
+        cmd += ["--" + name.replace("_", "-"), str(paths[name])]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    assert result.stderr == ""
+    output = json.loads(result.stdout)
+    assert set(output) == {"diagnostics"}
+    return tuple(output["diagnostics"])
+
+
+def extra_log(files):
+    logs = files["receipt"]["response"]["result"]["logs"]
+    log = copy.deepcopy(logs[0])
+    log.update(logIndex="0x1", address=A, topics=[TOPIC], data="0x" + "f" * 64)
+    logs.append(log)
+    return log
+
+
+BASE_DIAGNOSTICS = ("ABI_ATTESTATION_MISSING", "SOURCE_ATTESTATION_MISSING")
+
+
+@pytest.mark.parametrize("change,extra", [
+    (lambda m, f: None, None),
+    (lambda m, f: extra_log(f), None),
+    (lambda m, f: extra_log(f).update(transactionHash=B), "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: extra_log(f).update(blockHash=H), "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: extra_log(f).update(blockNumber="0xb"), "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: extra_log(f).update(transactionIndex="0x3"), "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: extra_log(f).update(removed=True), "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: f["receipt"]["response"]["result"]["logs"].append({"logIndex": "0x1"}),
+     "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: f["receipt"]["response"]["result"]["logs"][0].update(removed=0),
+     "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: f["receipt"]["response"]["result"]["logs"][0].update(removed=0.0),
+     "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: f["receipt"]["response"]["result"]["logs"][0].update(removed=None),
+     "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: f["receipt"]["response"]["result"]["logs"][0].pop("removed"),
+     "LOG_IDENTITY_INCONSISTENT"),
+    (lambda m, f: f["receipt"]["response"]["result"]["logs"][0].update(removed=True),
+     "LOG_IDENTITY_INCONSISTENT"),
+])
+def test_receipt_wide_log_identity_in_both_modes(tmp_path, change, extra):
+    manifest, files = bundle(tmp_path)
+    change(manifest, files)
+    paths = write_bundle(tmp_path, manifest, files)
+    original = {name: path.read_bytes() for name, path in paths.items()}
+    expected = tuple(sorted(BASE_DIAGNOSTICS + ((extra,) if extra else ())))
+    assert run(paths) == expected
+    assert run_optimized(paths) == expected
+    assert {name: path.read_bytes() for name, path in paths.items()} == original
+
+
+@pytest.mark.parametrize("timestamp,extra", [
+    ("2024-02-29T23:59:59Z", None),
+    ("2026-10-07T00:00:00Z", None),
+    ("2026-99-99T99:99:99Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+    ("2026-13-07T00:00:00Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+    ("2026-02-29T00:00:00Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+    ("2024-02-30T00:00:00Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+    ("2026-10-07T24:00:00Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+    ("2026-10-07T00:60:00Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+    ("2026-10-07T00:00:60Z", "RECEIPT_PROVENANCE_MISSING_OR_INCONSISTENT"),
+])
+def test_capture_calendar_in_both_modes(tmp_path, timestamp, extra):
+    manifest, files = bundle(tmp_path)
+    manifest["files"]["receipt"]["capture"] = dict(
+        manifest["files"]["receipt"]["capture"], captured_at_utc=timestamp)
+    files["receipt"]["capture"] = dict(files["receipt"]["capture"], captured_at_utc=timestamp)
+    paths = write_bundle(tmp_path, manifest, files)
+    expected = tuple(sorted(BASE_DIAGNOSTICS + ((extra,) if extra else ())))
+    assert run(paths) == expected
+    assert run_optimized(paths) == expected
+
+
 def test_consistent_bytes_still_unverified_deterministic_and_read_only(tmp_path, monkeypatch, capsys):
     manifest, files = bundle(tmp_path)
     paths = write_bundle(tmp_path, manifest, files)
