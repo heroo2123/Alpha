@@ -352,6 +352,105 @@ def test_shared_ledger_intent_closed_requires_accounting_evidence(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# N1 (independent review of fe31138): ``held`` must not be escapable through
+# ``intent_closed`` -- neither on the live path nor by replaying history on
+# restart. Exact reviewer reproduction: intent_open(max=10) ->
+# intent_closed(delivered=11) overdelivery-refuses -> intent_held(delivered=
+# 11) marks held -> a later intent_closed(outcome=FAILED, delivered=3) must
+# now refuse too (it used to wrongly succeed, papering over the hold), and
+# the hold must still be in force after a restart replay, so a fresh
+# intent_open on the same shared root still correctly refuses.
+# ---------------------------------------------------------------------------
+
+def test_shared_ledger_held_intent_cannot_be_closed_live_or_replayed(tmp_path):
+    root = _root(tmp_path)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=10)
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_OVERDELIVERED'):
+            ledger.intent_closed('req-1', outcome='FAILED',
+                                  accounting_head='c' * 64,
+                                  total_delivered_bytes=11)
+        ledger.intent_held('req-1', accounting_head='c' * 64,
+                            total_delivered_bytes=11)
+        assert ledger.open_intent['held'] is True
+        # N1: an ordinary close must not be able to paper over the hold on
+        # the live path, no matter the outcome/byte count it claims.
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+            ledger.intent_closed('req-1', outcome='FAILED',
+                                  accounting_head='e' * 64,
+                                  total_delivered_bytes=3)
+        # The already-correct overdelivery check must still fire first/still
+        # work for a fresh overdelivered close attempt against the same
+        # held intent (not weakened by the new guard).
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_OVERDELIVERED|'
+                                  'SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+            ledger.intent_closed('req-1', outcome='FAILED',
+                                  accounting_head='e' * 64,
+                                  total_delivered_bytes=11)
+        assert ledger.open_intent is not None and ledger.open_intent['held'] is True
+        head = ledger.prev
+    # N1: on a bare restart the pre-existing ``inherited_open_request_id``
+    # mechanism already refuses any close of this exact request (it is
+    # snapshotted as inherited on every fresh open regardless of ``held``),
+    # so the token stays held end-to-end there too.
+    with SharedLedger(root, boot_id=BOOT, expected_history_head=head) as ledger2:
+        assert ledger2.open_intent is not None
+        assert ledger2.open_intent['request_id'] == 'req-1'
+        assert ledger2.open_intent['held'] is True
+        assert ledger2.inherited_open_request_id == 'req-1'
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_INHERITED_INTENT_HELD'):
+            ledger2.intent_closed('req-1', outcome='FAILED',
+                                   accounting_head='e' * 64,
+                                   total_delivered_bytes=3)
+        # The token really stays held end-to-end: a fresh intent_open on
+        # this same shared root must still refuse too.
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_INTENT_OPEN_HELD'):
+            _open_intent(ledger2, 'req-2')
+
+
+def test_shared_ledger_replay_path_refuses_held_intent_closed_event(tmp_path):
+    """N1: the journal-replay path (``_state``) must independently refuse a
+    held intent's release, not merely rely on ``intent_closed`` to have
+    blocked the event before it was ever appended. This reproduces a
+    journal that already contains an ``intent_closed`` event for a request
+    that was previously held -- e.g. written by a future/different caller,
+    or by an older, unpatched process before this exact guard existed --
+    by appending the raw event directly (bypassing the live method's own
+    guard), the same way a pre-existing on-disk journal would present it to
+    ``_state`` on construction/replay."""
+    root = _root(tmp_path)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=10)
+        ledger.intent_held('req-1', accounting_head='c' * 64,
+                            total_delivered_bytes=11)
+        assert ledger.open_intent['held'] is True
+        # Bypass the live ``intent_closed`` guard entirely and append the
+        # forged event straight to the journal, simulating a pre-existing
+        # on-disk record this exact process never wrote through the public
+        # API (a future/different caller, or an older, unpatched writer).
+        ledger._append({'op': 'intent_closed', 'request_id': 'req-1',
+                         'outcome': 'FAILED', 'accounting_head': 'e' * 64,
+                         'total_delivered_bytes': 3,
+                         'denial_history_head': ledger.prev})
+        head = ledger.prev
+        # The replay path itself -- not the live method -- must refuse to
+        # let this forged event release the hold, right here in-process.
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+            ledger._state()
+    # And identically on a completely fresh construction that replays this
+    # same on-disk journal from scratch (the exact "replays cleanly on
+    # reopen" scenario the reviewer flagged).
+    with pytest.raises(LaunchContractError, match='SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+        SharedLedger(root, boot_id=BOOT, expected_history_head=head)
+
+
+# ---------------------------------------------------------------------------
 # S2: an AMBIGUOUS close is not an accepted outcome; ambiguity is held by
 # simply never closing (inherited on restart like a crash), not released.
 # ---------------------------------------------------------------------------

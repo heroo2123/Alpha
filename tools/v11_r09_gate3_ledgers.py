@@ -465,6 +465,13 @@ class SharedLedger(_HashChainJournal):
                 check(self.open_intent is not None and
                       self.open_intent['request_id'] == event['request_id'],
                       'SHARED_LEDGER_CLOSE_WITHOUT_OPEN')
+                # N1: a held intent (overdelivery, F3) must never be
+                # releasable by replaying history either -- the same
+                # held-aware guard ``intent_closed`` itself enforces on the
+                # live path below, so a journal that somehow contains an
+                # ``intent_closed`` after an ``intent_held`` for the same
+                # request can never replay its way to a released token.
+                check(not self.open_intent['held'], 'SHARED_LEDGER_CLOSE_ALREADY_HELD')
                 if event['outcome'] == 'DENIED':
                     check(self.open_intent['denial_recorded'],
                           'SHARED_LEDGER_DENIAL_NOT_OBSERVED')
@@ -676,6 +683,13 @@ class SharedLedger(_HashChainJournal):
                   'SHARED_LEDGER_CLOSE_WITHOUT_OPEN')
             check(request_id != self.inherited_open_request_id,
                   'SHARED_LEDGER_INHERITED_INTENT_HELD')
+            # N1: once ``intent_held`` has marked this exact intent held
+            # (overdelivery, F3), no ordinary close -- OK, DENIED, or
+            # FAILED -- may ever release it. ``intent_held`` itself already
+            # refuses re-holding an already-held intent; this is the
+            # mirror-image guard so a held intent cannot escape through the
+            # *other* method instead.
+            check(not self.open_intent['held'], 'SHARED_LEDGER_CLOSE_ALREADY_HELD')
             # AMBIGUOUS is deliberately not an accepted close outcome:
             # ambiguity cannot complete. A caller facing it must simply not
             # close the intent, so the token is inherited and held exactly
