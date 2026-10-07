@@ -4,6 +4,9 @@
 offline rehearsal and a decision inventory. It has no signer, credential reader,
 exchange client, network call, service unit, activation parser, or live order
 route. No V10 file is changed. The code cannot place or cancel an order.
+The generated current-state inventory is
+`docs/V11_MICROCANARY_DECISION_PACKET_20261007.json`; its missing evidence and
+owner scope are left explicitly unresolved.
 
 ## What this candidate proves offline
 
@@ -47,7 +50,8 @@ serve as the reviewed activation artifact.
    `shadow_commission.py` deliberately forces forward qualification counts to
    zero until causal decision lineage and grouped outcomes are implemented and
    independently reviewed. Gate 3 G3-L remains NO-GO with 77 unqualified
-   identities. These are independent blockers; this packet grants no credit.
+   identities. The broader program ledger remains 91/200, formal 1/50. These
+   are independent blockers; this packet grants no credit.
 2. **Live safety integration:** an independently reviewed V11 live adapter must
    enforce the exact owner scope and hard caps at the last order submission
    boundary, bind a venue-supported idempotency identity to durable intent,
