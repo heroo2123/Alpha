@@ -163,20 +163,46 @@ def verify_snapshot(policy,req):
           'SOURCE_INTEGRITY':[{'id':fr['station_raw']['id'],'sha256':fr['station_raw']['sha256']},{'id':raw['id'],'sha256':raw['sha256']},{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}]}
     default=[{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}];proofs={};through=0
     for cap in REQUIRED_CAPS:
-        hits=[]
-        for x in rows:
-            dd=x['body'].get('details',{})
-            if (dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
+        # Identity match only (action/scope_key/capability/metadata_fingerprint/rule_fingerprint).
+        # The live preparer re-mints a fresh CAPABILITY_EVIDENCE row for every capability on every
+        # ~5-minute cycle, so this can legitimately collect hundreds of historical rows for a single
+        # still-current rule_fingerprint. That volume alone must never be treated as ambiguity.
+        loose=[x for x in rows if (lambda dd:dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
                 and dd.get('capability')==cap and dd.get('metadata_fingerprint')==policy['metadata_fingerprint']
-                and dd.get('rule_fingerprint')==rd['fingerprint']):
-                need(dd.get('result')=='PASS','PROOF_RESULT_'+cap)
-                need(dd.get('checker_version')==policy['checker_version'],'PROOF_POLICY_'+cap)
-                need(canonical(dd.get('scope'))==canonical(policy['scope']),'PROOF_SCOPE_'+cap)
-                need(canonical(x['body'].get('evidence',[]))==canonical(refs.get(cap,default)),'PROOF_EVIDENCE_'+cap)
-                need(x['body'].get('financial_authority') is False,'PROOF_FINANCIAL_'+cap)
-                hits.append(x)
-        need(len(hits)==1,'CAPABILITY_AMBIGUOUS_OR_MISSING_'+cap)
-        x=hits[0];need(x['seq']>rr['seq'],'CAPABILITY_BEFORE_RULE_'+cap)
+                and dd.get('rule_fingerprint')==rd['fingerprint'])(x['body'].get('details',{}))]
+        need(len(loose)>0,'CAPABILITY_AMBIGUOUS_OR_MISSING_'+cap)
+        # result/financial_authority bind the verdict itself for this exact fingerprint: any
+        # non-PASS or financial-authority-claiming row for the SAME identity is a hard, non-skippable
+        # refusal (a later benign re-mint can never paper over an earlier FAIL/financial claim).
+        for x in loose:
+            dd=x['body'].get('details',{})
+            need(dd.get('result')=='PASS','PROOF_RESULT_'+cap)
+            need(x['body'].get('financial_authority') is False,'PROOF_FINANCIAL_'+cap)
+        # A proof must postdate the rule record it attests to. Superseded (pre-rule) re-mints are
+        # expected and benign; they are simply not eligible, not a reason to refuse outright.
+        fresh=[x for x in loose if x['seq']>rr['seq']]
+        need(len(fresh)>0,'CAPABILITY_BEFORE_RULE_'+cap)
+        # checker_version/scope/evidence identify WHICH current binding a fresh proof asserts.
+        # A fresh-but-stale-binding row (e.g. one that still names an earlier, now-superseded rule
+        # or raw record id even though its rule_fingerprint is unchanged) is skipped, not fatal,
+        # as long as at least one fresh row names the CURRENT binding exactly.
+        hits=[]
+        for x in fresh:
+            dd=x['body'].get('details',{})
+            if dd.get('checker_version')!=policy['checker_version']:continue
+            if canonical(dd.get('scope'))!=canonical(policy['scope']):continue
+            if canonical(x['body'].get('evidence',[]))!=canonical(refs.get(cap,default)):continue
+            hits.append(x)
+        need(len(hits)>=1,'CAPABILITY_AMBIGUOUS_OR_MISSING_'+cap)
+        if len(hits)>1:
+            # Every surviving hit above has already matched checker_version, scope, evidence, and
+            # (from the unconditional check above) result/financial_authority exactly, so multiple
+            # hits are necessarily substantively identical benign re-mints. This equality is kept as
+            # a defensive invariant, not a reachable branch, so a future refactor can never silently
+            # let two disagreeing proofs both count as valid.
+            sigs={(canonical(h['body'].get('evidence',[])),h['body'].get('details',{}).get('result')) for h in hits}
+            need(len(sigs)==1,'CAPABILITY_CONFLICTING_PROOFS_'+cap)
+        x=max(hits,key=lambda h:h['seq'])
         proofs[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
     db.close();return {'target_date':target,'rule_fingerprint':rd['fingerprint'],'proofs':proofs,'reviewed_through_seq':through}
 

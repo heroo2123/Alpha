@@ -55,7 +55,9 @@ def append(db,seq,rid,kind,event,extra):
     db.execute('insert into v11_records values(?,?,?,?,?,?,?,?)',(seq,rid,kind,event,at,at,a.canonical(body),h))
     return {'id':rid,'sha256':h}
 
-def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_offset=1,stale_receipt=False):
+def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_offset=1,stale_receipt=False,
+          proof_omit=None,proof_duplicate=None,second_rule=False,
+          metadata_material_changed=False,readiness_release_mismatch=False):
     today=datetime.now(ZoneInfo('America/New_York')).date();target=today+timedelta(days=target_offset)
     anchor=payload(today,'1118070');cand=payload(target)
     if mutate:mutate(cand)
@@ -65,9 +67,9 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_off
       'create table v11_records(seq integer primary key,record_id text unique,kind text,event_id text,recorded_at real,available_at real,body text,body_sha256 text);')
     db.executemany('insert into v11_meta values(?,?)',[('version','alpha_v11_evidence_v1'),('namespace','CHALLENGER:katl-shadow')])
     sr=append(db,1,'station-raw','STATION_METADATA','station:KATL',{'payload':{'station':'KATL'},'evidence_class':'PUBLIC_OBSERVED'})
-    sm=append(db,2,'station-meta','REGISTRY','station:KATL',{'details':{'action':'METADATA','metadata_fingerprint':'e'*64,'material_changed':False},'evidence':[sr]})
+    sm=append(db,2,'station-meta','REGISTRY','station:KATL',{'details':{'action':'METADATA','metadata_fingerprint':'e'*64,'material_changed':metadata_material_changed},'evidence':[sr]})
     ready=append(db,3,'readiness','MEASUREMENT','station:KATL',{'details':{'financial_authority':False,'real_orders':False,
-      'release_git_sha':RELEASE_GIT,'release_tree_sha':RELEASE_TREE}})
+      'release_git_sha':'0'*40 if readiness_release_mismatch else RELEASE_GIT,'release_tree_sha':RELEASE_TREE}})
     raw=append(db,4,'raw','RULES',cand['event_id'],{'evidence_class':'PUBLIC_OBSERVED','payload':{'event':event}})
     received_at=time.time()-100000 if stale_receipt else time.time()
     rule=append(db,5,'rule','RULE_STATE',cand['event_id'],{'details':{'quarantined':False,'changed':False,'fingerprint':rule_sha,
@@ -78,10 +80,27 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_off
         if cap=='IDENTITY':refs=[sm,rule]
         elif cap=='RULE_SEMANTICS':refs=[rule,ready]
         elif cap=='SOURCE_INTEGRITY':refs=[sr,raw,ready]
+        if proof_omit==cap:continue
         append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}','REGISTRY','station:KATL',
           {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
            'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'FAIL' if cap==proof_fail else 'PASS',
            'checker_version':CHECKER},'evidence':refs})
+        if proof_duplicate==cap:
+            # A second, substantively IDENTICAL re-mint of the same capability/rule_fingerprint
+            # identity at a later seq: this is the real-world "preparer reissues every 5 minutes"
+            # shape and must be accepted (the whole point of the fix), not treated as ambiguous.
+            append(db,i+100,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}:dup','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+               'checker_version':CHECKER},'evidence':refs})
+    rule2=None
+    if second_rule:
+        # A second RULE_STATE for the same event/content minted later than the capability proofs
+        # above, with a different record_id. Used to exercise RULE_NOT_LATEST (request still points
+        # at 'rule') and CAPABILITY_BEFORE_RULE (request repointed at 'rule2' by the caller, which
+        # leaves every existing capability proof at a seq before the referenced rule record).
+        rule2=append(db,14,'rule2','RULE_STATE',cand['event_id'],{'details':{'quarantined':False,'changed':False,'fingerprint':rule_sha,
+          'preimage':cand,'source_event_sha256':source_sha,'source_received_at':received_at},'evidence':[raw]})
     db.commit();db.close();os.chmod(dbp,0o444)
     live=copy.deepcopy(event)
     if bad_live_token:live['markets'][0]['clobTokenIds']=json.dumps(['1','2'])
@@ -171,8 +190,11 @@ def test_publish_fresh(tmp_path,monkeypatch):
     assert hashlib.sha256(Path(policy['review_manifest']).read_bytes()).hexdigest()==out['new_manifest_sha256']
 
 def test_publish_existing_review_republish(tmp_path,monkeypatch):
-    # An expired exact-match review must NOT block republishing (EXISTING_REVIEW_CONFLICT is
-    # only for a genuine capability_proofs mismatch, not mere expiry).
+    # An expired exact-match (same namespace/stage/scope_key/metadata_fingerprint/rule_fingerprint)
+    # review is NOT republished and does NOT raise EXISTING_REVIEW_CONFLICT: publish() returns the
+    # existing manifest entry unchanged, reporting published=False/ALREADY_EXACT_REVIEW_PRESENT, with
+    # the original (expired) expires_at preserved verbatim. EXISTING_REVIEW_CONFLICT is reserved for
+    # a genuine capability_proofs mismatch on an otherwise-exact match (see the conflict test below).
     pp,rp=setup(tmp_path,target_offset=0)
     monkeypatch.setattr(a,'root_file',lambda p:Path(p))
     monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
@@ -223,3 +245,100 @@ def test_current_v1_request(tmp_path,monkeypatch):
     today_req=Path(policy['allowed_request_root'])/f'{today}.json';today_req.write_text(json.dumps(req))
     with pytest.raises(a.Refusal,match='REQUEST_VERSION'):
         a.current(pp)
+
+def test_capability_duplicate_benign_accepted(tmp_path):
+    # Real-world shape: the live preparer re-mints a fresh, substantively identical
+    # CAPABILITY_EVIDENCE row for the same capability/rule_fingerprint every ~5 minutes. Two such
+    # rows (same result/checker_version/scope/evidence, different record_id/seq) must resolve to a
+    # single accepted proof (the higher-seq one), not CAPABILITY_AMBIGUOUS_OR_MISSING.
+    pp,rp=setup(tmp_path,proof_duplicate='PROTECTED_RISK')
+    out=a.verify(pp,rp)
+    assert out['review']['capability_proofs']['PROTECTED_RISK']['id'].endswith(':dup')
+
+def test_capability_missing(tmp_path):
+    pp,rp=setup(tmp_path,proof_omit='PROTECTED_RISK')
+    with pytest.raises(a.Refusal,match='CAPABILITY_AMBIGUOUS_OR_MISSING_PROTECTED_RISK'):
+        a.verify(pp,rp)
+
+def test_capability_before_rule(tmp_path):
+    # Every existing capability proof was minted before the rule record the request actually
+    # references (same content/fingerprint, later seq, different record_id) — a stale/superseded
+    # binding in the wrong direction, which must stay a hard refusal, not a skippable candidate.
+    pp,rp=setup(tmp_path,second_rule=True)
+    req=json.loads(rp.read_text());req['rule_record_id']='rule2';rp.write_text(json.dumps(req))
+    with pytest.raises(a.Refusal,match='CAPABILITY_BEFORE_RULE_ACCOUNTING'):
+        a.verify(pp,rp)
+
+def test_rule_not_latest(tmp_path):
+    # A newer RULE_STATE for the same event now exists (same content, later seq, new record_id);
+    # the request's referenced rule record is no longer the latest, even though its own content is
+    # still fully valid in isolation.
+    pp,rp=setup(tmp_path,second_rule=True)
+    with pytest.raises(a.Refusal,match='RULE_NOT_LATEST'):
+        a.verify(pp,rp)
+
+def test_rule_financial_authority(tmp_path):
+    pp,rp=setup(tmp_path,mutate=lambda p:p.__setitem__('financial_authority',True))
+    with pytest.raises(a.Refusal,match='RULE_FINANCIAL_AUTHORITY'):
+        a.verify(pp,rp)
+
+def test_metadata_binding(tmp_path):
+    pp,rp=setup(tmp_path,metadata_material_changed=True)
+    with pytest.raises(a.Refusal,match='METADATA_BINDING'):
+        a.verify(pp,rp)
+
+def test_readiness_release(tmp_path):
+    pp,rp=setup(tmp_path,readiness_release_mismatch=True)
+    with pytest.raises(a.Refusal,match='READINESS_RELEASE'):
+        a.verify(pp,rp)
+
+def test_model_manifest_changed(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());policy['model_manifest_sha256']='0'*64;pp.write_text(json.dumps(policy))
+    with pytest.raises(a.Refusal) as ei:
+        a.publish(pp,rp)
+    assert str(ei.value)=='MODEL_MANIFEST_CHANGED'
+
+def test_model_state_changed(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());policy['model_state_sha256']='0'*64;pp.write_text(json.dumps(policy))
+    with pytest.raises(a.Refusal) as ei:
+        a.publish(pp,rp)
+    assert str(ei.value)=='MODEL_STATE_CHANGED'
+
+def test_model_manifest_changed_post(tmp_path,monkeypatch):
+    # Simulate the model manifest changing underneath us between the pre-write check and the
+    # post-write recheck. Detection-only (as in the deployed code): the review manifest write has
+    # already landed on disk by the time this fires.
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());mmpath=Path(policy['model_manifest_path'])
+    real_replace=os.replace
+    def sneaky(src,dst):
+        real_replace(src,dst);mmpath.write_text('{"models":["tampered"]}')
+    monkeypatch.setattr(os,'replace',sneaky)
+    with pytest.raises(a.Refusal) as ei:
+        a.publish(pp,rp)
+    assert str(ei.value)=='MODEL_MANIFEST_CHANGED_POST'
+    manifest=json.loads(Path(policy['review_manifest']).read_text())
+    assert len(manifest['reviews'])==1
+
+def test_model_state_changed_post(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());mspath=Path(policy['model_state_path'])
+    real_replace=os.replace
+    def sneaky(src,dst):
+        real_replace(src,dst);mspath.write_text('{"state":"tampered"}')
+    monkeypatch.setattr(os,'replace',sneaky)
+    with pytest.raises(a.Refusal) as ei:
+        a.publish(pp,rp)
+    assert str(ei.value)=='MODEL_STATE_CHANGED_POST'
+    manifest=json.loads(Path(policy['review_manifest']).read_text())
+    assert len(manifest['reviews'])==1
