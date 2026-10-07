@@ -189,7 +189,8 @@ def test_matching_gamma_event_container_passes(tmp_path, form):
 
 @pytest.mark.parametrize('shape', ['nested-event', 'nested-event-list', 'nested-response',
                                    'top-sibling', 'unbound-market', 'unbound-market-list',
-                                   'market-events'])
+                                   'market-events', 'wrapper-sibling-events', 'top-market-events',
+                                   'top-response-events', 'top-level-mixed'])
 def test_gamma_mixed_or_conflicting_event_cannot_publish(tmp_path, shape):
     from tools.v11_brain_label_attestation import run
 
@@ -204,6 +205,10 @@ def test_gamma_mixed_or_conflicting_event_cannot_publish(tmp_path, shape):
             'unbound-market': {'event': {'id': EVENT, 'markets': []}, 'market': market},
             'unbound-market-list': {'response': [{'id': EVENT, 'markets': []}, market]},
             'market-events': {'response': {**market, 'events': [{'id': 'WRONG-EVENT'}]}},
+            'wrapper-sibling-events': {'response': {'market': market, 'events': [{'id': 'WRONG-EVENT'}]}},
+            'top-market-events': {'market': market, 'events': [{'id': 'WRONG-EVENT'}]},
+            'top-response-events': {'response': market, 'events': [{'id': 'WRONG-EVENT'}]},
+            'top-level-mixed': {'id': 'WRONG-EVENT', 'markets': [market], 'response': market},
         }[shape]
 
     store, _, _ = fixture(tmp_path, gamma_form='market' if shape == 'market-events' else 'response',

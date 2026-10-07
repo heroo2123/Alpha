@@ -234,7 +234,7 @@ def _gamma_market(payload, market_id, event_id):
                     raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
                 visit(value['markets'], depth + 1, bound_event=True)
             elif any(key in value for key in wrappers):
-                if 'id' in value or bound_event:
+                if 'id' in value or 'events' in value or bound_event:
                     raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
                 for key in wrappers:
                     if key in value:
@@ -249,6 +249,8 @@ def _gamma_market(payload, market_id, event_id):
                 if str(value.get('id')) == market_id:
                     hits.append((value, bound_event))
 
+    if any(key in payload for key in ('id', 'markets', 'events')):
+        raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
     for key in ('event', 'market', 'response'):
         if key in payload:
             visit(payload[key], force_event=key == 'event')
