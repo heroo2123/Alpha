@@ -25,8 +25,17 @@ and a genesis-derived prefix chain are recalculated. Every journal frontier
 must match the corresponding catalog prefix and final high-water; every
 declared member must have an enrollment in the journal. A checkpoint binds the
 catalog digest. PREPARE/SEAL pairs bind fresh sequence, operation and row
-digest; an unmatched PREPARE refuses. GAP, INVALIDATION and same-event rows in
-multiple members refuse.
+digest; one pending preparation per ledger reserves its target, and a sealed
+row cannot be sealed again. Admission, interval and operation IDs remain spent
+after ABORT or SEAL, including after a lost acknowledgement. An exact lost-ACK
+retry adds no journal record. An unmatched PREPARE refuses. GAP, INVALIDATION
+and same-event rows in multiple members refuse.
+
+All `TRANSITION` records return `TRANSITION_CONTRACT_UNDEFINED`. A generation
+number and reason do not define an authenticated owner, affected scope or
+before/after transition rule. This checker therefore makes no continuity
+claim across a transition. Ordinary transition-free synthetic histories can
+still reach the final `ANCHOR_UNAVAILABLE` refusal.
 
 These are format checks, not an assertion that a caller supplied catalog is
 complete or authentic. A jointly rewritten journal and catalog can claim a

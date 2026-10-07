@@ -67,7 +67,6 @@ def fixture(*, second=False):
     if second:
         add("ENROLLMENT", dict(namespace="ns-A", plan_id="plan-A", event_id="event-A"),
             ledger_id="ledger-B")
-    add("TRANSITION", dict(generation=1, reason="synthetic"))
     add("OPEN", dict(admission_id="admission-A"))
     add("PREPARE", dict(target_seq=1), row_sha256=digest(row_bytes))
     prepare_seq = len(records)
@@ -106,6 +105,108 @@ def test_valid_synthetic_history_has_no_commissioned_anchor_or_coverage():
     refuses(result(records, catalog, anchor={"commissioned": True}), "ANCHOR_UNAVAILABLE")
 
 
+@pytest.mark.parametrize("field", ("clock_lower", "clock_upper"))
+@pytest.mark.parametrize("value", (10**309, -(10**309)))
+def test_large_signed_integer_clocks_are_typed_refusals(field, value):
+    records, catalog = fixture()
+    records[1][field] = value
+    refuses(result(records, catalog), "CLOCK_INVALID")
+
+
+def test_serialized_prepare_and_unique_row_consumption():
+    records, catalog = fixture()
+    other_open = deepcopy(records[1])
+    other_open.update(interval_id="attempt-B", operation_id="operation-B",
+                      detail={"admission_id": "admission-B"})
+    other_prepare = deepcopy(records[2])
+    other_prepare.update(interval_id="attempt-B", operation_id="operation-B")
+    other_seal = deepcopy(records[3])
+    other_seal.update(interval_id="attempt-B", operation_id="operation-B", detail={"prepare_seq": 5})
+    # Two distinct attempts reserve the same frontier before either seals it.
+    concurrent = records[:3] + [other_open, other_prepare, records[3], other_seal] + records[4:]
+    refuses(result(concurrent, catalog), "INTERVAL_STATE")
+
+    # The same row cannot be claimed after the first seal, even with fresh IDs.
+    later_open = deepcopy(other_open)
+    later_open.update(ledger_seq=1, ledger_prefix_hash=catalog["views"][0]["prefix_hash"])
+    later_prepare = deepcopy(other_prepare)
+    later_prepare.update(ledger_seq=1, ledger_prefix_hash=catalog["views"][0]["prefix_hash"])
+    later = records[:4] + [later_open, later_prepare, other_seal] + records[4:]
+    refuses(result(later, catalog), "INTERVAL_STATE")
+
+
+@pytest.mark.parametrize("new_operation", (False, True))
+@pytest.mark.parametrize("abort_prepared", (False, True))
+def test_abort_keeps_interval_and_operation_terminal(new_operation, abort_prepared):
+    records, catalog = fixture()
+    abort = deepcopy(records[1])
+    abort.update(kind="ABORT", detail={"reason": "synthetic"})
+    reopened = deepcopy(records[1])
+    if new_operation:
+        reopened["operation_id"] = "operation-B"
+    cut = 3 if abort_prepared else 2
+    prior = records[:cut] + [abort, reopened]
+    refuses(result(prior + records[cut:], catalog), "INTERVAL_STATE")
+
+
+def test_abort_requires_fresh_admission_operation_and_interval():
+    records, catalog = fixture()
+    abort = deepcopy(records[1])
+    abort.update(kind="ABORT", detail={"reason": "synthetic"})
+    fresh_open = deepcopy(records[1])
+    fresh_open.update(interval_id="attempt-B", operation_id="operation-B",
+                      detail={"admission_id": "admission-B"})
+    fresh_prepare = deepcopy(records[2])
+    fresh_prepare.update(interval_id="attempt-B", operation_id="operation-B")
+    fresh_seal = deepcopy(records[3])
+    fresh_seal.update(interval_id="attempt-B", operation_id="operation-B",
+                      detail={"prepare_seq": 5})
+    retried = records[:2] + [abort, fresh_open, fresh_prepare, fresh_seal] + records[4:]
+    refuses(result(retried, catalog), "ANCHOR_UNAVAILABLE")
+    for field, value in (("interval_id", "attempt-A"),
+                         ("operation_id", "operation-A")):
+        reused = deepcopy(retried)
+        reused[3][field] = value
+        refuses(result(reused, catalog), "INTERVAL_STATE")
+    reused_admission = deepcopy(retried)
+    reused_admission[3]["detail"]["admission_id"] = "admission-A"
+    refuses(result(reused_admission, catalog), "INTERVAL_STATE")
+
+
+@pytest.mark.parametrize("position,generation", ((1, 1), (2, 2), (3, 2), (1, 0)))
+def test_undefined_owner_transitions_refuse_at_every_lifecycle_boundary(position, generation):
+    records, catalog = fixture()
+    transition = deepcopy(records[0])
+    transition.update(kind="TRANSITION", detail={"generation": generation,
+                                                 "reason": "synthetic"})
+    records.insert(position, transition)
+    refuses(result(records, catalog), "TRANSITION_CONTRACT_UNDEFINED")
+
+
+def test_lost_ack_replay_is_original_seal_only():
+    records, catalog = fixture()
+    original = wire(records)
+    refuses(journal.verify_interval(original, None, catalog, {}), "ANCHOR_UNAVAILABLE")
+    refuses(journal.verify_interval(original, None, catalog, {}), "ANCHOR_UNAVAILABLE")
+
+    duplicate_seal = records[:4] + [deepcopy(records[3])] + records[4:]
+    refuses(result(duplicate_seal, catalog), "INTERVAL_STATE")
+    replay_open = deepcopy(records[1])
+    replay_open.update(ledger_seq=1, ledger_prefix_hash=catalog["views"][0]["prefix_hash"])
+    reopened = records[:4] + [replay_open] + records[4:]
+    refuses(result(reopened, catalog), "INTERVAL_STATE")
+    fresh_open = deepcopy(records[1])
+    fresh_open.update(interval_id="attempt-B", operation_id="operation-B",
+                      ledger_seq=1, ledger_prefix_hash=catalog["views"][0]["prefix_hash"],
+                      detail={"admission_id": "admission-B"})
+    refreshed = records[:4] + [fresh_open, deepcopy(records[2]), deepcopy(records[3])] + records[4:]
+    for item in refreshed[5:7]:
+        item.update(interval_id="attempt-B", operation_id="operation-B")
+    refreshed[5].update(ledger_seq=1, ledger_prefix_hash=catalog["views"][0]["prefix_hash"])
+    refreshed[6]["detail"] = {"prepare_seq": 6}
+    refuses(result(refreshed, catalog), "INTERVAL_STATE")
+
+
 @pytest.mark.parametrize("change,code", [
     (lambda r: r.update(version=True), "UNSUPPORTED_VERSION"),
     (lambda r: r.update(financial_authority=1), "FINANCIAL_AUTHORITY"),
@@ -117,7 +218,7 @@ def test_valid_synthetic_history_has_no_commissioned_anchor_or_coverage():
 ])
 def test_strict_record_schema_and_binding(change, code):
     records, catalog = fixture()
-    change(records[2] if code != "GENESIS_MISMATCH" else records[0])
+    change(records[1] if code != "GENESIS_MISMATCH" else records[0])
     refuses(result(records, catalog), code)
 
 
@@ -137,7 +238,8 @@ def test_duplicate_key_noncanonical_oversize_and_partial_bytes():
 def test_each_kind_corruption_and_fork_refuse(kind):
     records, catalog = fixture()
     if kind not in {r["kind"] for r in records}:
-        detail = {"ABORT": {"reason": "synthetic"}, "GAP": {"reason": "synthetic"},
+        detail = {"TRANSITION": {"generation": 1, "reason": "synthetic"},
+                  "ABORT": {"reason": "synthetic"}, "GAP": {"reason": "synthetic"},
                   "INVALIDATION": {"reason": "synthetic"}}[kind]
         extra = deepcopy(records[-1])
         extra.update(kind=kind, detail=detail)
@@ -167,7 +269,7 @@ def test_sequence_hash_and_catalog_adversaries():
     refuses(journal.verify_interval(b"\n".join(lines[1:]) + b"\n", None,
                                     catalog, {}), "JOURNAL_SEQUENCE")
     swapped = lines[:]
-    swapped[2], swapped[3] = swapped[3], swapped[2]
+    swapped[1], swapped[2] = swapped[2], swapped[1]
     refuses(journal.verify_interval(b"\n".join(swapped) + b"\n", None,
                                     catalog, {}), "JOURNAL_SEQUENCE")
     bad = deepcopy(catalog)

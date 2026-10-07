@@ -137,7 +137,13 @@ def _record(raw, expected_seq, previous, identity):
     _need(_uint(item["ledger_seq"], MAX_ROWS), "SCHEMA_TYPE")
     for name in ("clock_lower", "clock_upper"):
         value = item[name]
-        _need(type(value) in (int, float) and math.isfinite(value) and value >= 0, "CLOCK_INVALID")
+        _need(type(value) in (int, float), "CLOCK_INVALID")
+        if type(value) is int:
+            # A canonical JSON integer can exceed the range of a float. Bound it
+            # before isfinite can raise OverflowError during implicit conversion.
+            _need(0 <= value <= 2**53, "CLOCK_INVALID")
+        else:
+            _need(math.isfinite(value) and value >= 0, "CLOCK_INVALID")
     _need(item["clock_lower"] <= item["clock_upper"], "CLOCK_INVALID")
     detail = item["detail"]
     _keys(detail, DETAILS[kind])
@@ -238,8 +244,13 @@ def _catalog(catalog, records):
             _need(record["detail"]["catalog_sha256"] == catalog["catalog_sha256"],
                   "CATALOG_CHECKPOINT")
     highwater = {member: 0 for member in members}
-    opened = set()
+    phases = {}
+    seen_intervals = set()
+    seen_operations = set()
+    seen_admissions = set()
     prepared = {}
+    reservations = {}
+    consumed = set()
     archived = set()
     for record in records:
         ledger_id = record["ledger_id"]
@@ -252,23 +263,50 @@ def _catalog(catalog, records):
               "FRONTIER_MISMATCH")
         _need(record["ledger_prefix_hash"] == prefixes[seq], "FRONTIER_MISMATCH")
         key = ledger_id, record["interval_id"], record["operation_id"]
-        if kind == "OPEN":
-            _need(key not in opened, "INTERVAL_STATE")
-            opened.add(key)
+        if kind == "TRANSITION":
+            # Generation alone does not authenticate an owner, affected scope,
+            # or the before/after state. No transition can be interpreted here.
+            raise _Invalid("TRANSITION_CONTRACT_UNDEFINED")
+        elif kind == "OPEN":
+            interval = ledger_id, record["interval_id"]
+            operation = ledger_id, record["operation_id"]
+            admission = ledger_id, record["detail"]["admission_id"]
+            _need(interval not in seen_intervals and operation not in seen_operations
+                  and admission not in seen_admissions,
+                  "INTERVAL_STATE")
+            seen_intervals.add(interval)
+            seen_operations.add(operation)
+            seen_admissions.add(admission)
+            phases[key] = "OPEN"
         elif kind == "PREPARE":
-            _need(key in opened and key not in prepared
-                  and record["detail"]["target_seq"] == seq + 1, "INTERVAL_STATE")
+            target = record["detail"]["target_seq"]
+            _need(phases.get(key) == "OPEN" and ledger_id not in reservations
+                  and target == seq + 1 and (ledger_id, target) not in consumed,
+                  "INTERVAL_STATE")
             prepared[key] = record
+            reservations[ledger_id] = key
+            phases[key] = "PREPARED"
         elif kind == "SEAL":
-            prior = prepared.pop(key, None)
-            _need(prior is not None and record["detail"]["prepare_seq"] == prior["seq"]
+            prior = prepared.get(key)
+            _need(phases.get(key) == "PREPARED" and prior is not None
+                  and reservations.get(ledger_id) == key
+                  and seq > highwater[ledger_id]
+                  and (ledger_id, seq) not in consumed
+                  and record["detail"]["prepare_seq"] == prior["seq"]
                   and seq == prior["detail"]["target_seq"]
                   and record["row_sha256"] == prior["row_sha256"]
                   and view["rows"][seq - 1]["body_sha256"] == record["row_sha256"],
                   "INTERVAL_STATE")
+            del prepared[key]
+            del reservations[ledger_id]
+            consumed.add((ledger_id, seq))
+            phases[key] = "SEALED"
         elif kind == "ABORT":
-            opened.discard(key)
-            prepared.pop(key, None)
+            _need(phases.get(key) in ("OPEN", "PREPARED"), "INTERVAL_STATE")
+            if phases[key] == "PREPARED":
+                del prepared[key]
+                del reservations[ledger_id]
+            phases[key] = "ABORTED"
         elif kind == "ARCHIVE":
             _need(not any(k[0] == ledger_id for k in prepared), "INTERVAL_STATE")
             archived.add(ledger_id)
