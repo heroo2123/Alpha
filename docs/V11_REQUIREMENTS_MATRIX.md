@@ -1,3 +1,7 @@
+## 2026-10-07 12:56 UTC PAPER R08/R09 exact review disposition
+
+Independent exact review of `79d9f1a` is `CHANGES_REQUIRED`: correctly linked but semantically unsupported account transitions create seven false-positive R08/R09 qualifications, and malformed account containers cause two untyped crashes. A sole isolated repair is live with retained independent reproducers. Requirements 8/9 remain PARTIAL; PAPER strict remains 9/11; Gate-3 remains 91/200 (formal 1/50), with 77 unqualified identities; READY_TO_FUND=false. No financial or qualification credit was granted.
+
 ## 2026-10-07 12:53 UTC reviewed offline integration, no gate credit
 
 Exact `35d3ad4` microcanary preparation received independent `PASS_IN_SCOPE` and was merged locally at `614fe12`; 15/15 focused post-merge tests passed in each Python mode. This enables offline decision-packet preparation only. Gate-3 remains 91/200 (formal 1/50) with 77 unqualified identities; PAPER strict remains 9/11, requirements 8/9 partial, and READY_TO_FUND=false. Provider-rights and two Gate-3 repairs are under separate repair/review without qualification credit.
