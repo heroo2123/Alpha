@@ -234,6 +234,7 @@ def test_repeated_synthetic_admission_pins_and_other_plan_are_never_forward(rig)
 
 def test_recorded_forward_group_requires_original_plan_admission_and_counts_once(rig, monkeypatch):
     """Exercise status publication after the separate grouped verifier succeeds."""
+    monkeypatch.setattr(sc, '_require_protected_interval', lambda *args: None)
     store = rig['store']
     admission = store.get('pin')
     plan = replace(rig['plan'], created_at=admission['body']['recorded_at'])

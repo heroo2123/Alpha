@@ -1,9 +1,10 @@
 """Full synthetic ledger path for reviewed nonfinancial qualification refusals."""
 from dataclasses import asdict, replace
+from copy import deepcopy
 
 import pytest
 
-from polymarket_scanner.v11 import learning_capture as lc, shadow_commission as sc
+from polymarket_scanner.v11 import certification as cert, learning_capture as lc, shadow_commission as sc
 from polymarket_scanner.v11.evidence import EvidenceError, canonical, digest
 from polymarket_scanner.v11.forward_qualification import grouped_outcome
 from polymarket_scanner.v11.model_registry import ActiveModelRegistry
@@ -98,7 +99,14 @@ def check(condition, reason):
         raise AssertionError(reason)
 
 
-def test_full_path_unique_admission_and_outcome(rig):
+@pytest.fixture
+def synthetic_interval(monkeypatch):
+    # Exercise deduplication below the protected gate with fixture-only proof.
+    # Production has no such proof and always refuses forward credit.
+    monkeypatch.setattr(sc, '_require_protected_interval', lambda *args: None)
+
+
+def test_full_path_unique_admission_and_outcome(rig, synthetic_interval):
     r = rig
     prepared(r)
     captures = [capture(r, 'repeat-' + str(i)) for i in range(10)]
@@ -117,7 +125,7 @@ def test_full_path_unique_admission_and_outcome(rig):
     check(not r['store'].records(kind='TRADE'), 'ACCOUNT_EFFECT')
 
 
-def test_second_admission_cannot_reuse_same_grouped_outcome(rig):
+def test_second_admission_cannot_reuse_same_grouped_outcome(rig, synthetic_interval):
     r = rig
     prepared(r)
     first = capture(r, 'first-capture')
@@ -133,7 +141,7 @@ def test_second_admission_cannot_reuse_same_grouped_outcome(rig):
           'GROUPED_OUTCOME_REUSED')
 
 
-def test_status_deduplicates_preexisting_semantic_replays(rig):
+def test_status_deduplicates_preexisting_semantic_replays(rig, synthetic_interval):
     r = rig
     prepared(r)
     captures = [capture(r, 'legacy-repeat-' + str(i)) for i in range(10)]
@@ -232,7 +240,7 @@ def test_capture_publication_atomically_guards_source_heads(rig):
     refuses(lambda: capture(r, 'publication-race'), 'AUDIT_GUARDED_STATE_CHANGED')
 
 
-def test_malformed_extra_label_refuses_without_status_crash(rig):
+def test_malformed_extra_label_refuses_without_status_crash(rig, synthetic_interval):
     r = rig
     prepared(r)
     cap = capture(r, 'status-capture')
@@ -248,3 +256,176 @@ def test_malformed_extra_label_refuses_without_status_crash(rig):
     check(status['targets'][0]['forward_admission_count'] == 0, 'MALFORMED_LABEL_ADMISSION_CREDIT')
     check(status['targets'][0]['qualifying_forward_sample_count'] == 0, 'MALFORMED_LABEL_SAMPLE_CREDIT')
     check(status['forward_evidence_available'] is False, 'MALFORMED_LABEL_FORWARD_CREDIT')
+
+
+@pytest.mark.parametrize('early_count,roleless', [(1, False), (3, False), (1, True)])
+def test_unselected_early_payout_recapture_refuses(rig, early_count, roleless):
+    r = rig
+    prepared(r)
+    store = r['store']
+    original = store.capture
+    seen = []
+    def earlier(key, **kwargs):
+        seen.append(key)
+        if len(seen) > early_count:
+            kwargs['event_id'] = 'unrelated-event'
+        if roleless:
+            kwargs['payload'].pop('capture_role')
+        return original('earlier:' + key, **kwargs)
+    store.capture = earlier
+    try:
+        payouts(r)
+    finally:
+        store.capture = original
+    cap = capture(r, 'recaptured-payout')
+    ids = labels(r, payouts(r))
+    refuses(lambda: sc.record_forward_admission(r['plan'], store,
+        capture_id=cap['id'], label_ids=ids), 'FORWARD_LABEL_PROVENANCE_OR_CHRONOLOGY')
+    check(sc.evidence_status(r['plan'], store)['targets'][0]['forward_admission_count'] == 0,
+          'EARLY_RECAPTURE_CREDIT')
+
+
+def test_payout_interleaved_before_durable_capture_refuses(rig):
+    r = rig
+    prepared(r)
+    store = r['store']
+    original_audit, original_capture = store.audit, store.capture
+    def during_publication(*args, **kwargs):
+        if kwargs.get('kind') == 'MEASUREMENT':
+            store.capture = lambda key, **kw: original_capture('interleaved:' + key, **kw)
+            try:
+                payouts(r)
+            finally:
+                store.capture = original_capture
+        return original_audit(*args, **kwargs)
+    store.audit = during_publication
+    cap = capture(r, 'payout-publication-interleave')
+    ids = labels(r, payouts(r))
+    refuses(lambda: sc.record_forward_admission(r['plan'], store,
+        capture_id=cap['id'], label_ids=ids), 'FORWARD_LABEL_PROVENANCE_OR_CHRONOLOGY')
+    check(sc.evidence_status(r['plan'], store)['targets'][0]['forward_admission_count'] == 0,
+          'INTERLEAVED_PAYOUT_CREDIT')
+
+
+@pytest.mark.parametrize('market_id', [[], {}, None, 123, ''])
+def test_malformed_nested_label_identity_refuses(rig, synthetic_interval, market_id):
+    r = rig
+    prepared(r)
+    cap = capture(r, 'malformed-nested')
+    ids = labels(r, payouts(r))
+    sc.record_forward_admission(r['plan'], r['store'], capture_id=cap['id'], label_ids=ids)
+    r['store'].capture('bad-nested-label', event_id=r['context'].event_id,
+        kind='LABEL', provider='LOCAL_TEST_FIXTURE', source_identity='junk', revision='1',
+        payload={'target_identity': {'market_id': market_id, 'condition_id': 'unrelated-condition',
+                                     'token_id': 'unrelated-token', 'side': 'YES'}})
+    refuses(lambda: grouped_outcome(r['store'], cap['id'], ids), 'FORWARD_LABEL_SCHEMA_INVALID')
+    result = sc.evidence_status(r['plan'], r['store'])
+    check(result['targets'][0]['forward_admission_count'] == 0, 'MALFORMED_NESTED_CREDIT')
+
+
+@pytest.mark.parametrize('complete', [False, True])
+def test_unrelated_label_identity_requires_schema(rig, synthetic_interval, complete):
+    r = rig
+    prepared(r)
+    cap = capture(r, 'unrelated-label-schema')
+    ids = labels(r, payouts(r))
+    sc.record_forward_admission(r['plan'], r['store'], capture_id=cap['id'], label_ids=ids)
+    target = {'market_id': 'unrelated-market'}
+    if complete:
+        target.update(condition_id='unrelated-condition', token_id='unrelated-token', side='YES')
+    r['store'].capture('unrelated-label', event_id=r['context'].event_id,
+        kind='LABEL', provider='LOCAL_TEST_FIXTURE', source_identity='junk', revision='1',
+        payload={'target_identity': target})
+    if complete:
+        check(grouped_outcome(r['store'], cap['id'], ids)['market_ids'], 'UNRELATED_LABEL_BROKE_GROUP')
+        check(sc.evidence_status(r['plan'], r['store'])['targets'][0]['forward_admission_count'] == 1,
+              'VALID_UNRELATED_LABEL_REMOVED_CREDIT')
+    else:
+        refuses(lambda: grouped_outcome(r['store'], cap['id'], ids), 'FORWARD_LABEL_SCHEMA_INVALID')
+        check(sc.evidence_status(r['plan'], r['store'])['targets'][0]['forward_admission_count'] == 0,
+              'MALFORMED_UNRELATED_LABEL_CREDIT')
+
+
+@pytest.mark.parametrize('phase', ['decision', 'publication'])
+def test_transient_protected_withdrawal_cannot_earn_credit(rig, monkeypatch, phase):
+    r = rig
+    prepared(r)
+    store = r['store']
+    manifest = cert.protected_reviews()
+    current = [manifest]
+    monkeypatch.setattr(cert, 'protected_reviews', lambda: deepcopy(current[0]))
+    original = store.decision if phase == 'decision' else store.audit
+    def interleave(*args, **kwargs):
+        if phase == 'decision' or kwargs.get('kind') == 'MEASUREMENT':
+            current[0] = {'version': manifest['version'], 'reviews': []}
+            try:
+                return original(*args, **kwargs)
+            finally:
+                current[0] = manifest
+        return original(*args, **kwargs)
+    if phase == 'decision':
+        store.decision = interleave
+    else:
+        store.audit = interleave
+    cap = capture(r, 'protected-withdrawal-' + phase)
+    ids = labels(r, payouts(r))
+    refuses(lambda: sc.record_forward_admission(r['plan'], store,
+        capture_id=cap['id'], label_ids=ids), 'FORWARD_PROTECTED_INTERVAL_UNPROVEN')
+    check(sc.evidence_status(r['plan'], store)['targets'][0]['forward_admission_count'] == 0,
+          'PROTECTED_WITHDRAWAL_CREDIT')
+
+
+def test_protected_interval_missing_refuses_even_with_valid_current_state(rig):
+    r = rig
+    prepared(r)
+    cap = capture(r, 'unproven-protected-interval')
+    ids = labels(r, payouts(r))
+    refuses(lambda: sc.record_forward_admission(r['plan'], r['store'],
+        capture_id=cap['id'], label_ids=ids), 'FORWARD_PROTECTED_INTERVAL_UNPROVEN')
+    check(sc.evidence_status(r['plan'], r['store'])['targets'][0]['forward_admission_count'] == 0,
+          'UNPROVEN_PROTECTED_CREDIT')
+
+
+def test_preexisting_receipt_without_protected_interval_loses_status_credit(rig):
+    r = rig
+    pin = prepared(r)
+    cap = capture(r, 'legacy-unproven-interval')
+    ids = labels(r, payouts(r))
+    group = grouped_outcome(r['store'], cap['id'], ids)
+    target = r['plan'].targets[0]
+    q = dict(group, admission_id=pin['id'], admission_sha256=pin['sha256'],
+             plan_key=r['plan'].key, scope_key=target.scope.key)
+    r['store'].audit('legacy-unproven-receipt', event_id='admission:' + target.scope.key,
+        kind='REGISTRY', details=dict(version=sc.FORWARD_VERSION,
+                                      qualification=q, label_ids=ids, financial_authority=False))
+    result = sc.evidence_status(r['plan'], r['store'])
+    check(result['targets'][0]['forward_admission_count'] == 0, 'LEGACY_PROTECTED_CREDIT')
+    check(result['targets'][0]['qualifying_forward_sample_count'] == 0, 'LEGACY_PROTECTED_SAMPLE')
+
+
+@pytest.mark.parametrize('authority_type', ['model', 'certification'])
+def test_persistent_protected_change_at_publication_cannot_earn_credit(rig, monkeypatch,
+                                                                         authority_type):
+    r = rig
+    prepared(r)
+    store = r['store']
+    original = store.audit
+    def publish(*args, **kwargs):
+        if kwargs.get('kind') == 'MEASUREMENT':
+            if authority_type == 'model':
+                from test_v11_model_governance import authority
+                state = r['model_state'][0]
+                r['model_state'][0] = authority.transition(state, action='DEMOTE',
+                    expected_state_sha256=digest(state), now=r['now'][0],
+                    reason='REPAIR_RACE_PROBE', size_multiplier=0.)
+            else:
+                monkeypatch.setattr(cert, 'protected_reviews', lambda: {
+                    'version': 'alpha_v11_certification_reviews_v1', 'reviews': []})
+        return original(*args, **kwargs)
+    store.audit = publish
+    cap = capture(r, 'persistent-protected-' + authority_type)
+    ids = labels(r, payouts(r))
+    refuses(lambda: sc.record_forward_admission(r['plan'], store,
+        capture_id=cap['id'], label_ids=ids), 'FORWARD_PROTECTED_INTERVAL_UNPROVEN')
+    check(sc.evidence_status(r['plan'], store)['targets'][0]['forward_admission_count'] == 0,
+          'PERSISTENT_PROTECTED_CREDIT')

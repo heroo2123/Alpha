@@ -9,6 +9,11 @@ outcomes for the exact plan target. Repeated captures of one admission or payout
 group are refused, and both distinct counts must meet the sample target.
 The receipt has no order, account, settlement, calibration or promotion authority.
 Independent code review is still required before release or any readiness claim.
+Forward qualification currently fails closed with
+`FORWARD_PROTECTED_INTERVAL_UNPROVEN`: the protected certification manifest has
+no historical transition record and cannot be fenced by the ledger append.
+No real forward sample can receive credit until a separately reviewed authority
+mechanism proves continuous eligibility through durable capture publication.
 
 Qualification requires all partition markets from the original rule, one YES
 decision and one label for each, exactly one payout winner, pinned feature and
@@ -44,14 +49,13 @@ proposal, account reservation, PWS, independent label attestation, or PAPER
 readiness credit from them.
 
 Tests use only local retained SQLite reads and an isolated synthetic store.
-A read-only test view chooses one label per market and uses its actual source
-receipt as knowability to exercise the rest of the real Oct 5/6 record shapes;
-that view is an adversarial probe, not an acceptance or backfill. Production
-qualification always reads the unchanged complete archive.
+A read-only test view chooses one label per market, uses its actual source
+receipt as knowability, and omits raw history to exercise other lineage checks.
+That deliberately incomplete proxy is a diagnostic probe, not an acceptance or
+backfill. Production qualification reads the unchanged complete archive.
 
 The original protected certification and model assessment is pinned in the
-admission; capture revalidates it against the protected readers. The protected
-readers do not expose an independent historical transition journal to this
-qualifier, so this code does not independently attest every possible transient
-protected-state change between those reads. It grants no forward acceptance
-or readiness claim without the separate independent review.
+admission; capture revalidates it against the protected readers. Those reads
+do not prove uninterrupted validity through publication. The qualifier rejects
+every such capture until an independently custodied historical interval proof
+and publication fence are available. Same-ledger head checks remain in force.

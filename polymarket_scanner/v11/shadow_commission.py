@@ -499,8 +499,21 @@ def _qualified_admission(plan, store, target, capture_id, label_ids):
             or not admission['seq'] < capture['seq']
             or capture['event_id'] != target.event_id):
         raise EvidenceError('FORWARD_ADMISSION_PLAN_LINEAGE_MISMATCH')
+    _require_protected_interval(admission, capture, decisions)
     return dict(group, admission_id=admission['id'], admission_sha256=admission['sha256'],
                 plan_key=plan.key, scope_key=target.scope.key)
+
+
+def _require_protected_interval(admission, capture, decisions):
+    """Refuse credit until independently custodied interval evidence exists.
+
+    Current model state records monotonic model events, but certification is a
+    replaceable manifest. Neither protected reader is fenced by the SQLite
+    publication transaction. An admission snapshot or a final current-state
+    read cannot prove validity at every child append and durable capture.
+    No untrusted ledger field is accepted as a substitute for that proof.
+    """
+    raise EvidenceError('FORWARD_PROTECTED_INTERVAL_UNPROVEN')
 
 
 def record_forward_admission(plan, store, *, capture_id, label_ids):

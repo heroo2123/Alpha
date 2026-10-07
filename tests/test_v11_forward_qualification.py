@@ -27,7 +27,7 @@ def retained(request):
 
 
 class RepairedView:
-    """One selected label per market with receipt-based knowability for probes."""
+    """Deliberately incomplete diagnostic proxy for nonchronology mutations."""
     def __init__(self, source, labels):
         self.source, self.labels = source, labels
         self.changes = {}
@@ -47,6 +47,9 @@ class RepairedView:
         return row
 
     def records(self, **kwargs):
+        if kwargs['kind'] == 'RULES':
+            # Mutation-only proxy: it does not represent complete raw history.
+            return []
         rows = self.source.records(**kwargs)
         if kwargs['kind'] == 'LABEL' and self.keep_selected_only:
             rows = [row for row in rows if row['id'] in self.labels.values()]

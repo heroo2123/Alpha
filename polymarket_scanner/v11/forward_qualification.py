@@ -73,12 +73,46 @@ def grouped_outcome(store, capture_id, label_ids):
     relevant = []
     for row in all_labels:
         payload = row['body'].get('payload')
-        _require(isinstance(payload, dict) and isinstance(payload.get('target_identity'), dict),
+        target = payload.get('target_identity') if isinstance(payload, dict) else None
+        _require(isinstance(target, dict)
+                 and set(target) == {'market_id', 'condition_id', 'token_id', 'side'}
+                 and all(type(target[k]) is str and target[k] for k in target),
                  'LABEL_SCHEMA_INVALID')
-        if payload['target_identity'].get('market_id') in expected:
+        if target['market_id'] in expected:
             relevant.append(row)
     _require(len(relevant) == len(expected)
              and {r['id'] for r in relevant} == set(label_ids.values()), 'MISSING_DUPLICATE_OR_CONFLICTING_LABEL')
+    # The selected label's source is not the first possible disclosure. Scan
+    # every raw payout receipt for this event, including unselected recaptures.
+    # A truncated event history cannot establish that the vector was earlier.
+    raw_history = []
+    cursor = 0
+    while True:
+        page = store.records(kind='RULES', event_id=event, after_seq=cursor, limit=200)
+        raw_history.extend(page)
+        _require(len(raw_history) <= 10000, 'RAW_PAYOUT_HISTORY_INCOMPLETE')
+        if not page or len(page) < 200:
+            break
+        cursor = page[-1]['seq']
+    for raw_row in raw_history:
+        body = raw_row['body']
+        payload = body.get('payload')
+        if body.get('provider') != 'GAMMA_CLOSED_MARKET' or not isinstance(payload, dict):
+            continue
+        response = payload.get('response')
+        if not isinstance(response, dict) or str(response.get('id')) not in expected:
+            continue
+        target = expected[str(response['id'])]
+        _require(response.get('conditionId') == target['condition_id'], 'RAW_PAYOUT_SCHEMA_INVALID')
+        try:
+            payout = exact_token_payout(target['token_id'], response)
+        except (EvidenceError, KeyError, TypeError, ValueError):
+            raise EvidenceError('FORWARD_RAW_PAYOUT_SCHEMA_INVALID') from None
+        if payout is not None:
+            _require(capture['seq'] < raw_row['seq']
+                     and capture['body']['recorded_at'] < body['recorded_at']
+                     and capture['body']['recorded_at'] < body['available_at'],
+                     'LABEL_PROVENANCE_OR_CHRONOLOGY')
     cutoff = finite(d['inference_cutoff'])
     decision_ids, feature_ids, model_ids, label_refs, values, probabilities = set(), set(), set(), [], [], []
     for child in rows:
