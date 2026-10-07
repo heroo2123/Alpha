@@ -1,6 +1,8 @@
 """Offline, nonfinancial observer refusals on temporary synthetic PAPER archives."""
 from dataclasses import asdict, replace
 from copy import deepcopy
+from decimal import Inexact, ROUND_DOWN, ROUND_UP, localcontext
+import math
 import socket
 
 from polymarket_scanner.v11.evidence import digest
@@ -42,6 +44,48 @@ def sample(r, *, configuration=None, archive=None, **scope):
                    event_id=scope.get('event_id', r['rule'].payload['event_id']),
                    rule_fingerprint=scope.get('rule_fingerprint', r['rule'].sha256),
                    collateral_asset='FIXTURE_COLLATERAL')
+
+
+def replay_cut(r, cut, *, at=None, configuration=None, collateral_asset='FIXTURE_COLLATERAL'):
+    return observe(tuple(cut), tip_sha256=cut[-1]['sha256'] if isinstance(cut[-1], dict) else 'a'*64,
+                   at=r['now'][0] if at is None else at, policy=configuration or policy(),
+                   account_id='account', event_id=r['rule'].payload['event_id'],
+                   rule_fingerprint=r['rule'].sha256, collateral_asset=collateral_asset)
+
+
+def _row(cut, key):
+    return next(row for row in cut if row['id'] == key)
+
+
+def _rehash(cut):
+    """Keep embedded evidence hashes coherent to exercise semantic refusals."""
+    for _ in range(12):
+        changes = {}
+        for row in cut:
+            if not isinstance(row, dict) or not isinstance(row.get('body'), dict):
+                continue
+            updated = digest(row['body'])
+            if updated != row['sha256']:
+                changes[row['sha256']] = updated
+                row['sha256'] = updated
+        if not changes:
+            return
+
+        def replace_hash(value):
+            if isinstance(value, str):
+                return changes.get(value, value)
+            if isinstance(value, dict):
+                return {key: replace_hash(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [replace_hash(item) for item in value]
+            if isinstance(value, tuple):
+                return tuple(replace_hash(item) for item in value)
+            return value
+
+        for row in cut:
+            if isinstance(row, dict):
+                row['body'] = replace_hash(row['body'])
+    raise AssertionError('test reference hashes did not converge')
 
 
 def test_no_fill_is_unknown_for_engine_and_deterministic(rig, monkeypatch):
@@ -175,3 +219,170 @@ def test_late_receipt_and_wrong_token_remain_unknown(rig, monkeypatch):
 def test_wrong_horizon_token_remains_unknown(rig, monkeypatch):
     sequenced_fill(rig, monkeypatch, wrong_token=True)
     check(sample(rig)['execution_status'] == 'UNKNOWN', 'wrong token')
+
+
+def test_r1_malformed_nested_shapes_and_numeric_overflow_are_typed(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    original = list(rows(rig['store']))
+    mutations = (
+        lambda c: c.__setitem__(-1, None),
+        lambda c: _row(c, 'rules')['body'].update(details=None),
+        lambda c: _row(c, 'rules')['body']['details'].update(preimage=None),
+        lambda c: _row(c, 'rules')['body'].update(evidence=[None]),
+        lambda c: _row(c, 'record-explicit')['body']['details'].update(state=None),
+        lambda c: _row(c, 'explicit')['body'].update(payload=None),
+        lambda c: _row(c, 'horizon-book')['body'].update(payload=None),
+        lambda c: _row(c, 'explicit')['body']['payload']['execution_details'].update(fee_collateral='1e9999999'),
+    )
+    for index, mutate in enumerate(mutations):
+        cut = deepcopy(original); mutate(cut)
+        if index:
+            _rehash(cut)
+        result = replay_cut(rig, cut)
+        check(result['execution_status'] == 'UNKNOWN', f'R1 case {index}: {result}')
+
+
+def test_r2_replay_binds_collateral_and_json_container_shape(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    cut = list(rows(rig['store']))
+    good = replay_cut(rig, cut)
+    wrong = replay_cut(rig, cut, collateral_asset='WRONG_COLLATERAL')
+    check(good['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', good['reason'])
+    check(wrong['execution_status'] == 'UNKNOWN' and wrong['replay_sha256'] != good['replay_sha256'], 'collateral replay')
+    check(wrong['collateral_asset'] == 'WRONG_COLLATERAL', 'collateral output')
+    alias = deepcopy(cut)
+    evidence = _row(alias, 'rules')['body']['evidence']
+    _row(alias, 'rules')['body']['evidence'] = tuple(evidence)
+    check(digest(_row(alias, 'rules')['body']) == _row(cut, 'rules')['sha256'], 'fixture alias')
+    result = replay_cut(rig, alias)
+    check(result['execution_status'] == 'UNKNOWN' and result['replay_sha256'] != good['replay_sha256'], 'container replay')
+
+
+def test_r3_rule_source_receipt_class_order_and_quarantine_lineage(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    base = list(rows(rig['store']))
+
+    def raw_after(c):
+        raw = _row(c, 'rules:raw'); c.remove(raw); c.append(raw)
+        for index, row in enumerate(c, 1): row['seq'] = index
+
+    def quarantine(c):
+        earlier = deepcopy(_row(c, 'rules'))
+        earlier['id'] = earlier['body']['record_id'] = 'prior-quarantine'
+        earlier['body']['details'].update(state='RULE_DRIFT', quarantined=True, changed=True)
+        c.insert(c.index(_row(c, 'rules')), earlier)
+        for index, row in enumerate(c, 1): row['seq'] = index
+
+    mutations = (
+        lambda c: _row(c, 'rules')['body']['details'].update(source_event_sha256='f'*64),
+        lambda c: _row(c, 'rules')['body']['details'].update(source_receipt_seq=9999),
+        lambda c: _row(c, 'rules:raw')['body'].update(evidence_class='HISTORICAL_AVAILABILITY_UNKNOWN'),
+        lambda c: _row(c, 'rules:raw')['body']['payload'].update(discovery_page_id='absent', discovery_page_sha256='a'*64, page_index=0),
+        raw_after, quarantine,
+    )
+    for index, mutate in enumerate(mutations):
+        cut = deepcopy(base); mutate(cut); _rehash(cut)
+        result = replay_cut(rig, cut)
+        check(result['execution_status'] == 'UNKNOWN', f'R3 case {index}: {result}')
+
+
+def test_r4_account_reconciliation_provenance_and_direction(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    base = list(rows(rig['store']))
+
+    def state(c): return _row(c, 'record-explicit')['body']['details']['state']
+    def before_proof(c):
+        account = _row(c, 'record-explicit'); c.remove(account)
+        c.insert(c.index(_row(c, 'explicit')), account)
+        for index, row in enumerate(c, 1): row['seq'] = index
+
+    mutations = (
+        lambda c: _row(c, 'record-explicit')['body']['details'].update(version='WRONG', policy_sha256='f'*64),
+        before_proof,
+        lambda c: state(c)['intents']['basket:leg:0'].update(filled_units='0'),
+        lambda c: state(c)['lots'].clear(),
+        lambda c: state(c)['rules'][rig['rule'].payload['event_id']].update(canonical_json='{}'),
+        lambda c: (_row(c, 'explicit')['body']['payload'].update(direction='INVALID', all_in_collateral='.16'),
+                   state(c)['intents']['basket:leg:0'].update(direction='INVALID')),
+    )
+    for index, mutate in enumerate(mutations):
+        cut = deepcopy(base); mutate(cut); _rehash(cut)
+        result = replay_cut(rig, cut)
+        check(result['execution_status'] == 'UNKNOWN', f'R4 case {index}: {result}')
+
+
+def test_r5_all_declared_book_updates_count_for_continuity(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    base = list(rows(rig['store']))
+    hidden = deepcopy(base)
+    update = deepcopy(_row(hidden, 'horizon-book'))
+    update['id'] = update['body']['record_id'] = 'contradictory-update'
+    update['body']['payload']['token_id'] = 'wrong-token'
+    hidden.insert(hidden.index(_row(hidden, 'horizon-book')), update)
+    for index, row in enumerate(hidden, 1): row['seq'] = index
+    _row(hidden, 'horizon-book')['body']['payload']['book_sequence'].update(sequence=3, previous_sequence=1)
+    _rehash(hidden)
+    check(replay_cut(rig, hidden)['execution_status'] == 'UNKNOWN', 'hidden wrong-token update')
+
+    prefill = deepcopy(base)
+    update = deepcopy(_row(prefill, 'horizon-book'))
+    update['id'] = update['body']['record_id'] = 'prefill-update'
+    proof_time = _row(prefill, 'explicit')['body']['received_at']
+    update['body'].update(observed_at=proof_time, received_at=proof_time,
+                          available_at=proof_time, recorded_at=proof_time)
+    update['body']['payload']['book_sequence'].update(sequence=2, previous_sequence=1)
+    prefill.insert(prefill.index(_row(prefill, 'explicit')), update)
+    for index, row in enumerate(prefill, 1): row['seq'] = index
+    _row(prefill, 'record-explicit')['body']['details']['state']['lots']['explicit']['acquired_sequence'] = _row(prefill, 'explicit')['seq']
+    _row(prefill, 'horizon-book')['body']['payload']['book_sequence'].update(sequence=3, previous_sequence=1)
+    _rehash(prefill)
+    check(replay_cut(rig, prefill)['execution_status'] == 'UNKNOWN', 'unaccounted prefill update')
+
+
+def test_r6_pre_serialization_byte_and_node_bounds(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    cut = list(rows(rig['store']))
+    large = deepcopy(cut)
+    _row(large, 'horizon-book')['body']['payload']['unused_padding'] = 'x' * (8 * 1024 * 1024 + 1)
+    # The observer must reject before hashing the oversized mutation.
+    check(replay_cut(rig, large)['reason'] == 'OBSERVATION_RECORD_BOUND', 'record byte bound')
+    broad = deepcopy(cut)
+    _row(broad, 'horizon-book')['body']['payload']['unused_nodes'] = [None] * 20_001
+    check(replay_cut(rig, broad)['reason'] == 'OBSERVATION_RECORD_BOUND', 'record node bound')
+
+
+def test_r7_decimal_context_is_fixed_for_validation_and_markout(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    cut = list(rows(rig['store']))
+    precise = deepcopy(cut)
+    _row(precise, 'horizon-book')['body']['payload']['bids'][0]['price'] = '.100000000000000000000000000001'
+    _rehash(precise)
+    with localcontext() as ctx:
+        ctx.traps[Inexact] = True
+        trapped = replay_cut(rig, precise)
+    check(trapped['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', trapped['reason'])
+    fractional = deepcopy(cut)
+    payload = _row(fractional, 'explicit')['body']['payload']
+    payload.update(units='1.5', all_in_collateral='.29')
+    state = _row(fractional, 'record-explicit')['body']['details']['state']
+    state['intents']['basket:leg:0']['filled_units'] = '1.5'
+    state['lots']['explicit'].update(units='1.5', all_in_cost_basis='.29')
+    _rehash(fractional)
+    results = []
+    for rounding in (ROUND_DOWN, ROUND_UP):
+        with localcontext() as ctx:
+            ctx.rounding = rounding
+            results.append(replay_cut(rig, fractional))
+    check(results[0] == results[1] and results[0]['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', 'ambient decimal context')
+
+
+def test_r8_positive_horizon_and_deadline_stay_representable(rig, monkeypatch):
+    sequenced_fill(rig, monkeypatch)
+    cut = list(rows(rig['store']))
+    execution = _row(cut, 'explicit')['body']['payload']['execution_details']['executed_at']
+    tiny = policy(horizon_seconds=1e-20)
+    result = replay_cut(rig, cut, at=execution, configuration=tiny)
+    check(result['execution_status'] == 'UNKNOWN', 'sub-ULP horizon')
+    huge = policy(maximum_measurement_age_seconds=1e308)
+    result = replay_cut(rig, cut, at=1e308, configuration=huge)
+    check(result['execution_status'] == 'UNKNOWN' and result['valid_until'] is None, 'infinite deadline')
