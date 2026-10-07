@@ -5,7 +5,8 @@ Its result is never an admission input. A caller must supply every archive row f
 sequence 1 through the pinned tip; gaps and oversized cuts stay UNKNOWN.
 """
 from dataclasses import asdict, dataclass
-from decimal import Context, Decimal, DecimalException, ROUND_HALF_EVEN, localcontext
+from decimal import (Context, Decimal, DecimalException, DivisionByZero, InvalidOperation,
+                      Overflow, ROUND_HALF_EVEN, localcontext)
 import math
 
 from .evidence import EvidenceError, canonical, digest, finite, identity, sha
@@ -22,7 +23,13 @@ MAX_RECORD_BYTES = 8 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
 MAX_RECORD_NODES = 20_000
 MAX_ARCHIVE_NODES = 100_000
-NUMERIC_CONTEXT = Context(prec=160, rounding=ROUND_HALF_EVEN, Emin=-999999, Emax=999999)
+# Every field is pinned explicitly (not just prec/rounding/Emin/Emax) so this
+# context is fully self-contained and import-order-independent: it must not
+# inherit traps/flags/clamp/capitals from whatever decimal.DefaultContext
+# happens to be at import time (PRO-R7).
+NUMERIC_CONTEXT = Context(prec=160, rounding=ROUND_HALF_EVEN, Emin=-999999, Emax=999999,
+                           traps=[InvalidOperation, DivisionByZero, Overflow],
+                           flags=[], clamp=0, capitals=1)
 
 
 def _bounded_json(value):
@@ -434,7 +441,11 @@ def _observe(rows, *, tip_sha256, at, policy, account_id, event_id, rule_fingerp
                     or anchor['body'].get('source_identity') != intent['token_id']):
                 raise EvidenceError('OBSERVATION_BOOK_ANCHOR_SCOPE')
             evidence.append(anchor['id'])
-            books = [r for r in rows if r['kind'] == 'BOOK' and r['event_id'] == event_id
+            # Select on stream identity (provider, source_identity) alone, not on
+            # envelope event_id: a same-stream update carrying a contradictory
+            # event_id must reach _touch's scope check below and be refused,
+            # never be silently dropped from the continuity scan (PRO-R5).
+            books = [r for r in rows if r['kind'] == 'BOOK'
                      and r['seq'] > anchor['seq'] and r['body'].get('provider') == policy.book_provider
                      and r['body'].get('source_identity') == intent['token_id']]
             # A declared stream chain must cover every received update after the

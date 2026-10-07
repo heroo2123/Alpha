@@ -2,8 +2,12 @@
 from dataclasses import asdict, replace
 from copy import deepcopy
 from decimal import Inexact, ROUND_DOWN, ROUND_UP, localcontext
+import json
 import math
+import pathlib
 import socket
+import subprocess
+import sys
 
 from polymarket_scanner.v11.evidence import digest
 from polymarket_scanner.v11.paper_risk_observation import ObservationPolicy, observe
@@ -339,6 +343,27 @@ def test_r5_all_declared_book_updates_count_for_continuity(rig, monkeypatch):
     check(replay_cut(rig, prefill)['execution_status'] == 'UNKNOWN', 'unaccounted prefill update')
 
 
+def test_r5_cross_event_id_update_on_same_stream_is_refused_not_skipped(rig, monkeypatch):
+    """PRO2-R5a: a same-provider/source_identity update cannot be hidden from the
+    continuity scan merely because its envelope event_id contradicts the token's
+    event. Previously, selecting books by event_id BEFORE scope/sequence
+    continuity let this case skip the update and complete with a markout."""
+    sequenced_fill(rig, monkeypatch)
+    base = list(rows(rig['store']))
+    crossed = deepcopy(base)
+    update = deepcopy(_row(crossed, 'horizon-book'))
+    update['id'] = update['body']['record_id'] = 'cross-event-update'
+    update['event_id'] = update['body']['event_id'] = 'some-other-event'
+    update['body']['payload']['book_sequence'].update(sequence=2, previous_sequence=1)
+    crossed.insert(crossed.index(_row(crossed, 'horizon-book')), update)
+    for index, row in enumerate(crossed, 1): row['seq'] = index
+    _row(crossed, 'horizon-book')['body']['payload']['book_sequence'].update(sequence=3, previous_sequence=1)
+    _rehash(crossed)
+    result = replay_cut(rig, crossed)
+    check(result['execution_status'] == 'UNKNOWN', f'cross-event update must not be silently skipped: {result}')
+    check(result['reason'] == 'OBSERVATION_BOOK_SCOPE_OR_HEALTH', f'PRO2-R5a reason: {result}')
+
+
 def test_r6_pre_serialization_byte_and_node_bounds(rig, monkeypatch):
     sequenced_fill(rig, monkeypatch)
     cut = list(rows(rig['store']))
@@ -374,6 +399,67 @@ def test_r7_decimal_context_is_fixed_for_validation_and_markout(rig, monkeypatch
             ctx.rounding = rounding
             results.append(replay_cut(rig, fractional))
     check(results[0] == results[1] and results[0]['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', 'ambient decimal context')
+
+
+_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+# A fresh child interpreter is required because NUMERIC_CONTEXT is fixed once,
+# at module import time; a mutation of decimal.DefaultContext in this already-
+# running test process cannot reproduce an import-order difference (PRO2-R7a).
+_IMPORT_ORDER_PROBE = """
+import decimal, json, sys
+if sys.argv[1] == 'mutated':
+    decimal.DefaultContext.traps[decimal.Inexact] = True
+    decimal.DefaultContext.capitals = 0
+from polymarket_scanner.v11 import paper_risk_observation as mod
+payload = json.loads(sys.stdin.read())
+policy_obj = mod.ObservationPolicy(**payload['policy'])
+result = mod.observe(tuple(payload['rows']), tip_sha256=payload['rows'][-1]['sha256'],
+                      at=payload['at'], policy=policy_obj, account_id=payload['account_id'],
+                      event_id=payload['event_id'], rule_fingerprint=payload['rule_fingerprint'],
+                      collateral_asset=payload['collateral_asset'])
+context = mod.NUMERIC_CONTEXT
+print(json.dumps({'result': result, 'context_traps_inexact': context.traps[decimal.Inexact],
+                   'context_capitals': context.capitals, 'context_clamp': context.clamp}))
+"""
+
+
+def _observe_in_fresh_interpreter(payload, mode):
+    proc = subprocess.run([sys.executable, '-c', _IMPORT_ORDER_PROBE, mode],
+                          input=json.dumps(payload), capture_output=True, text=True,
+                          cwd=str(_ROOT), timeout=30)
+    check(proc.returncode == 0, f'subprocess ({mode}) failed: {proc.stderr}')
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def test_r7_numeric_context_is_explicit_and_import_order_independent(rig, monkeypatch):
+    """PRO2-R7a: NUMERIC_CONTEXT must pin traps/flags/clamp/capitals explicitly,
+    not inherit them from decimal.DefaultContext at import time. Otherwise the
+    same replay input can flip between a completed result and UNKNOWN depending
+    on whatever mutated the ambient decimal context before this module import."""
+    sequenced_fill(rig, monkeypatch)
+    cut = list(rows(rig['store']))
+    fractional = deepcopy(cut)
+    payload = _row(fractional, 'explicit')['body']['payload']
+    payload.update(units='1.5', all_in_collateral='.29')
+    state = _row(fractional, 'record-explicit')['body']['details']['state']
+    state['intents']['basket:leg:0']['filled_units'] = '1.5'
+    state['lots']['explicit'].update(units='1.5', all_in_cost_basis='.29')
+    _rehash(fractional)
+    request = dict(rows=fractional, at=rig['now'][0], policy=asdict(policy()),
+                   account_id='account', event_id=rig['rule'].payload['event_id'],
+                   rule_fingerprint=rig['rule'].sha256, collateral_asset='FIXTURE_COLLATERAL')
+    default_run = _observe_in_fresh_interpreter(request, 'default')
+    mutated_run = _observe_in_fresh_interpreter(request, 'mutated')
+    check(default_run['context_traps_inexact'] is False and default_run['context_capitals'] == 1
+          and default_run['context_clamp'] == 0, f'context must be explicit by default: {default_run}')
+    check(mutated_run['context_traps_inexact'] is False,
+          f'NUMERIC_CONTEXT must not inherit an ambient Inexact trap at import: {mutated_run}')
+    check(mutated_run['context_capitals'] == 1,
+          f'NUMERIC_CONTEXT must not inherit ambient capitals at import: {mutated_run}')
+    check(default_run['result']['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', default_run['result'])
+    check(default_run['result'] == mutated_run['result'],
+          f'import-order must not change the outcome for the same replay input: {default_run} vs {mutated_run}')
 
 
 def test_r8_positive_horizon_and_deadline_stay_representable(rig, monkeypatch):
