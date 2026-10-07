@@ -260,6 +260,16 @@ class CanaryJournal:
         _require(target.is_absolute() and ".." not in target.parts and
                  not target.is_symlink() and not target.parent.is_symlink(),
                  "STATUS_PATH_INVALID")
+        # Replacing the SQLite file (or one of its sidecars) would destroy
+        # the only durable rehearsal history. Resolve ancestor aliases and
+        # also reject existing hard links to any active SQLite file.
+        destination = target.resolve(strict=False)
+        journal = self.path.resolve(strict=False)
+        protected = (journal, *(Path(str(journal) + suffix)
+                                for suffix in ("-journal", "-wal", "-shm")))
+        _require(all(destination != item and
+                     not (target.exists() and item.exists() and os.path.samefile(target, item))
+                     for item in protected), "STATUS_PATH_INVALID")
         report = self.status(now=now)
         encoded = (_canonical(report) + "\n").encode("utf-8")
         temporary = None
@@ -370,8 +380,9 @@ class CanaryJournal:
                       "MAX_LOSS_HALT" if state == "LOSS_HALT" else
                       "OPERATOR_ABORT" if state == "ABORTED" else
                       "OPEN_ORDER_REQUIRES_ABORT_OR_TERMINAL" if state == "RECOVERY_HOLD" else
-                      "DELAYED_FILL_AFTER_CANCEL" if row["remote_status"] == "CANCELLED" and
-                      snapshot["status"] == "FILLED" else
+                      "DELAYED_FILL_AFTER_CANCEL" if snapshot["status"] == "FILLED" and
+                      (row["remote_status"] == "CANCELLED" or
+                       row["reason"] == "DELAYED_FILL_AFTER_CANCEL") else
                       "RECONCILED_TERMINAL")
             self.db.execute("UPDATE canary SET state=?,remote_order_id=?,remote_status=?,cumulative_fill=?,"
                             "realized_loss=?,reason=?", (state, snapshot["remote_order_id"], snapshot["status"],

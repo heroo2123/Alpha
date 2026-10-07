@@ -184,6 +184,46 @@ def test_credential_metadata_only_status_artifact_and_packet(tmp_path, monkeypat
     journal.close()
 
 
+def test_status_cannot_replace_journal_or_sqlite_sidecar(tmp_path):
+    path = tmp_path / "canary.sqlite"
+    journal = CanaryJournal(path, scope())
+    journal.prepare(order(), now=110)
+    before = path.read_bytes()
+    for protected in (path, Path(str(path) + "-journal"),
+                      Path(str(path) + "-wal"), Path(str(path) + "-shm")):
+        expect_refusal("STATUS_PATH_INVALID", lambda: journal.write_status(protected, now=110))
+    alias_parent = tmp_path / "parent-alias"
+    alias_parent.symlink_to(tmp_path, target_is_directory=True)
+    expect_refusal("STATUS_PATH_INVALID",
+                   lambda: journal.write_status(alias_parent / path.name, now=110))
+    alias_file = tmp_path / "hardlink"
+    os.link(path, alias_file)
+    expect_refusal("STATUS_PATH_INVALID", lambda: journal.write_status(alias_file, now=110))
+    alias_file.unlink()
+    assert path.read_bytes() == before
+    assert journal.status(now=110)["state"] == "PREPARED"
+    journal.close()
+    recovered = CanaryJournal(path, scope())
+    assert recovered.status(now=110)["state"] == "RECOVERY_HOLD"
+    recovered.close()
+
+
+def test_delayed_fill_reason_survives_identical_replay(tmp_path):
+    journal = CanaryJournal(tmp_path / "canary.sqlite", scope())
+    key = journal.prepare(order(), now=110)["client_key"]
+    cancelled = snapshot(key, status="CANCELLED", open_order_count=0)
+    journal.reconcile(cancelled, now=110)
+    filled = snapshot(key, status="FILLED", open_order_count=0,
+                      cumulative_fill_usd="0.5")
+    first = journal.reconcile(filled, now=110)
+    if first["reason"] != "DELAYED_FILL_AFTER_CANCEL":
+        raise AssertionError(first)
+    second = journal.reconcile(filled, now=110)
+    if second != first:
+        raise AssertionError((first, second))
+    journal.close()
+
+
 def test_packet_cli_rejects_duplicate_keys_and_never_claims_activation(tmp_path):
     tool = Path(__file__).resolve().parents[1] / "tools/v11_microcanary_packet.py"
     request = tmp_path / "request.json"
