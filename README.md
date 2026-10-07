@@ -36,6 +36,8 @@ python tests/validate_shadow_scale.py --output /tmp/alpha-shadow-scale.json
 
 CI covers Python 3.11 and 3.12. Financial writes and Telegram delivery in tests are mocked. Public source/census workflows are read-only. Repository verification does not certify the real host, account funding, geographic eligibility or credentials; deployment and real-money activation remain separate operator-controlled steps.
 
+The V11 offline micro-canary preparation candidate and its funding blockers are documented in [docs/V11_MICROCANARY_PREFUNDING_PACKET.md](docs/V11_MICROCANARY_PREFUNDING_PACKET.md). Its packet generator always reports `NOT_READY_TO_FUND` and has no live order path.
+
 The [continuation checkpoint](docs/OPERATOR_CONTINUATION_CHECKPOINT.md) records this operator pass; the [engine checkpoint](docs/PRODUCTION_CHECKPOINT.md) retains the previous production baseline. A working-tree implementation is not release approval.
 
 The unrelated legacy scanner and its research tools are preserved; their historical setup is in [the legacy shadow guide](docs/LEGACY_SHADOW_README.md). They are not the canonical weather production startup path.
