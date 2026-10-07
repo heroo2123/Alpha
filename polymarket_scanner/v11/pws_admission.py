@@ -106,12 +106,19 @@ class PWSPreconfirmation:
             row = self.store.get(key); a = _mapping(row['body'].get('details', {}))
             if row['kind'] != 'REGISTRY' or a.get('version') != ADMISSION_VERSION:
                 raise EvidenceError('PWS_SEPARATE_STRATEGY_ADMISSION_REQUIRED')
+            before = _mapping(_field(a, 'assessment'))
+            for field in ('certification', 'heads', 'model_epoch', 'model_state_sha256',
+                          'model_bundle_sha256', 'model_size_multiplier'):
+                _field(before, field)
+            finite(_field(before, 'valid_until'))
             original = _mapping(_field(a, 'request'))
             scope = _record(_field(original, 'scope'), CapabilityScope)
             if scope.strategy != STRATEGY or _field(original, 'rule') != asdict(rule):
                 raise EvidenceError('PWS_OBSERVATION_AND_PAYOUT_SCOPE_MISMATCH')
             binding = _record(_field(original, 'binding'), ReleaseBinding)
             context = _record(_field(original, 'context'), EventContext)
+            stage = _string_field(original, 'stage')
+            finite(_field(original, 'rule_max_age_seconds'))
             leases = {}
             for lease in _sequence(_field(original, 'source_leases')):
                 lease = _mapping(lease)
@@ -122,7 +129,7 @@ class PWSPreconfirmation:
                 leases[evidence_id] = lease
             result = StrategyAdmission(self.store).revalidate(key, context=context,
                         rule=rule, binding=asdict(binding), strategies=(STRATEGY,))
-            mode = 'V11_PAPER' if _field(original, 'stage') == 'PAPER' else 'V11_SHADOW'
+            mode = 'V11_PAPER' if stage == 'PAPER' else 'V11_SHADOW'
             model = ActiveModelRegistry().pin(scope_key=scope.key, mode=mode)
             if (model.state_sha256 != result['model_state_sha256']
                     or model.bundle.sha256 != binding.bundle_sha256 or model.bundle.payload['bundle']['target'] != target):
@@ -199,7 +206,7 @@ class PWSPreconfirmation:
                  evidence_ids=tuple(request.values()), expected_heads=result['heads'])
 
     def revalidate(self, record_id, *, context, rule, binding, payout_admission_ids):
-        row = self.store.get(record_id); d = row['body'].get('details', {})
+        row = self.store.get(record_id); d = _mapping(row['body'].get('details', {}))
         if row['kind'] != 'REGISTRY' or d.get('version') != VERSION:
             raise EvidenceError('PWS_PRECONFIRMATION_PIN_REQUIRED')
         # Explicit shape/type checks, not exception translation: the pin's own

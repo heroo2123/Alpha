@@ -252,6 +252,39 @@ def test_wrong_type_admission_lease_field_refuses(joined, field):
     assert result.financial_authority is False
 
 
+@pytest.mark.parametrize('path,value', [
+    ('assessment', '__DELETE__'), ('assessment', None), ('assessment', []),
+    ('assessment.valid_until', '__DELETE__'), ('assessment.valid_until', []),
+    ('assessment.certification', '__DELETE__'), ('assessment.heads', '__DELETE__'),
+    ('request.stage', '__DELETE__'), ('request.stage', []),
+    ('request.rule_max_age_seconds', '__DELETE__'), ('request.rule_max_age_seconds', []),
+])
+def test_malformed_nested_admission_assessment_and_request_refuse(joined, path, value):
+    c = coordinator(joined)
+    c.coordinate('batch', (synthetic_proposal(joined),))
+    admission = c.store.get('observation-pin')
+    details = deepcopy(admission['body']['details'])
+    target = details
+    parts = path.split('.')
+    for part in parts[:-1]:
+        target = target[part]
+    if value == '__DELETE__':
+        del target[parts[-1]]
+    else:
+        target[parts[-1]] = value
+    bad_admission = c.store.audit('bad-admission', event_id=admission['event_id'],
+                                  kind=admission['kind'], details=details)
+    assert c.store.get('bad-admission') == bad_admission
+    pin = c.store.get('paired-pin')
+    pin_details = deepcopy(pin['body']['details'])
+    pin_details['request']['observation_admission_id'] = 'bad-admission'
+    c.store.audit('bad-pin', event_id=pin['event_id'], kind=pin['kind'], details=pin_details)
+    result = probe(joined, c, preconfirmation_id='bad-pin')
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is False
+    assert result.financial_authority is False
+
+
 @pytest.mark.parametrize('error', [KeyError, TypeError, ValueError, AttributeError])
 def test_valid_pin_does_not_hide_admission_revalidation_defect(joined, monkeypatch, error):
     c = coordinator(joined)
