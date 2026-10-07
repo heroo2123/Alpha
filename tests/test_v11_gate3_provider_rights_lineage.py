@@ -23,7 +23,7 @@ from tools.v11_gate3_provider_rights_lineage import (
     ARTIFACT, ENVELOPE_OK, IN_SCOPE_IDS, NOAA_S3, NOMADS, ECMWF_PORTAL, ECMWF_CDN,
     OBSERVED, PINNED_SOURCES, RECOVERED_DIR, REFUSED, REQUIRED_EVENT_IDS,
     LineageError, canonical_bytes, check_lineage, evaluate_request, load_sources,
-    strict_loads, verify_recovered_bodies,
+    strict_loads, verify_recovered_bodies, verify_reviewed_refs,
 )
 from tools.v11_r09_gate3_g3l_prep import INDEX_CAP, REQUIRED, RUN_SPECIFIC
 
@@ -839,3 +839,590 @@ def test_malformed_json_nested_values_refuse_deterministically():
     doc["request_envelope"]["reviewed_origin_path_specs"][0]["path_regex"] = None
     assert "REVIEWED_SPEC_INVALID" in check_lineage(doc)
     refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+
+
+# -- Offline reviewed-reference resolution (verify_reviewed_refs) -----------
+#
+# ``_is_ref`` only checks {sha256, byte_length, path} shape; ``synthetic_resumed``
+# above deliberately uses unresolved ``synthetic://`` refs to exercise the
+# envelope logic without claiming a real review exists. These tests exercise
+# the separate resolution/binding seam: it must refuse every shape-valid but
+# unresolved, forged, mismatched, self-authored or unpinned reviewed
+# reference, and it must accept only a fully bound offline synthetic case
+# that still carries no execution_authority and no G3-L credit.
+
+def _review_record(kind, **extra):
+    record = {
+        "schema": lineage_mod.REVIEW_SCHEMA, "kind": kind, "outcome": lineage_mod.REVIEW_OUTCOME_OK,
+        "reviewer_identity": "offline-reviewer-1", "reviewer_is_self_interested": False,
+        "decision_utc": "2026-10-07T00:00:00Z", "basis": "Independent offline synthetic review.",
+    }
+    record.update(extra)
+    return record
+
+
+def _write_record(root, relname, record):
+    raw = json.dumps(record, sort_keys=True).encode()
+    (root / relname).write_bytes(raw)
+    return {"sha256": hashlib.sha256(raw).hexdigest(), "byte_length": len(raw), "path": relname}, \
+        hashlib.sha256(raw).hexdigest()
+
+
+def _rewrite_record(root, ref, manifest, kind, **changes):
+    """Mutate a placed review record in place, re-pinning its ref and manifest entry."""
+    record = strict_loads((root / ref["path"]).read_bytes())
+    record.update(changes)
+    raw = json.dumps(record, sort_keys=True).encode()
+    (root / ref["path"]).write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    ref.update(sha256=digest, byte_length=len(raw))
+    manifest[digest] = {"kind": kind, "reviewer_identity": record["reviewer_identity"]}
+    return record
+
+
+def _positive_seam(tmp_path):
+    """A fully bound offline synthetic reviewed-reference seam: no real rights."""
+    doc = synthetic_resumed()
+    root = tmp_path / "trusted"
+    root.mkdir()
+    manifest: dict = {}
+
+    def place(relname, record):
+        ref, digest = _write_record(root, relname, record)
+        manifest[digest] = {"kind": record["kind"], "reviewer_identity": record["reviewer_identity"]}
+        return ref
+
+    for name, domain in doc["control_domains"].items():
+        scope = _review_record("SCOPE_INDEPENDENCE", control_domain=name,
+                               independent_origins=sorted(domain["origins"]))
+        domain["scope_independence_review"] = place(f"scope-{name}.json", scope)
+        resumption = _review_record(
+            "RESUMPTION", control_domain=name,
+            hold_basis_event_ids=sorted(domain["hold_basis"]), scope_independent=True,
+            permitted_resumption_basis="Synthetic offline resumption basis.",
+            requested_at_utc="2026-10-08T00:00:00Z")
+        domain["resumption_review"] = place(f"resumption-{name}.json", resumption)
+
+    for event in doc["restriction_events"]:
+        original = lineage_mod._historical_event_digest(event)
+        expiry = _review_record(
+            "EXPIRY_ADJUDICATION", event_id=event["event_id"], control_domain=event["control_domain"],
+            origin=event["origin"], original_restriction_sha256=original,
+            valid_until_utc="2026-10-09T00:00:00Z")
+        event["expiry_adjudication"] = place(f"expiry-{event['event_id']}.json", expiry)
+
+    licence_raw = b"Synthetic offline licence/access-term bytes for GEFS."
+    (root / "licence.txt").write_bytes(licence_raw)
+    licence_ref = {"sha256": hashlib.sha256(licence_raw).hexdigest(),
+                  "byte_length": len(licence_raw), "path": "licence.txt"}
+    perm = doc["permissions"]["GEFS"]["reviewed_permissions"][0]
+    perm["licence_document"] = licence_ref
+    licence_review = _review_record(
+        "LICENCE_PERMISSION", provider="GEFS", licence_document_sha256=licence_ref["sha256"],
+        origins=list(perm["origins"]), purposes=list(perm["purposes"]), revoked=False,
+        valid_until_utc="2026-10-09T00:00:00Z")
+    perm["review_ref"] = place("licence-review.json", licence_review)
+
+    spec = doc["request_envelope"]["reviewed_origin_path_specs"][0]
+    spec_review = _review_record(
+        "PATH_SPEC", permission_id=spec["permission_id"], origin=spec["origin"],
+        provider=spec["provider"], purpose=spec["purpose"],
+        path=lineage_mod._literal_path_spec(spec["path_regex"]))
+    spec["review_ref"] = place("spec-review.json", spec_review)
+
+    assert check_lineage(doc) == []
+    return doc, root, manifest
+
+
+def test_positive_synthetic_seam_passes_but_grants_no_authority(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    assert verify_reviewed_refs(doc, root, manifest) == []
+    assert check_lineage(doc) == []
+    result = run(good_request(), doc=doc)
+    assert result["outcome"] == ENVELOPE_OK and result["execution_authority"] is False
+    assert doc["g3l"] == "NO_GO" and doc["qualification_credit"] == 0
+
+
+def test_committed_artifact_has_no_reviewed_refs_and_stays_held(tmp_path):
+    doc = committed()
+    for domain in doc["control_domains"].values():
+        assert domain["scope_independence_review"] is None and domain["resumption_review"] is None
+        assert domain["status"] == "HELD"
+    for event in doc["restriction_events"]:
+        assert event["expiry_adjudication"] is None
+    for provider_doc in doc["permissions"].values():
+        assert provider_doc["reviewed_permissions"] == []
+    assert verify_reviewed_refs(doc, tmp_path, {}) == []
+
+
+def test_shape_valid_forged_refs_are_rejected_by_resolution(tmp_path):
+    doc = synthetic_resumed()
+    assert check_lineage(doc) == []
+    findings = verify_reviewed_refs(doc, tmp_path, {})
+    assert findings, "unresolved synthetic:// refs must not pass reviewed-reference resolution"
+    assert check_lineage(doc) == []
+
+
+def test_forged_zero_digest_expiry_ref_is_rejected(tmp_path):
+    """Reproduces the retained review's N1 bypass: shape passes, resolution must not."""
+    doc = synthetic_resumed()
+    event = _appended_noaa_event(doc)
+    event["expiry_adjudication"] = {"sha256": "0" * 64, "byte_length": 1, "path": "forged://nothing"}
+    doc["control_domains"]["NOAA_GEFS"]["hold_basis"].append(event["event_id"])
+    assert check_lineage(doc) == []
+    findings = verify_reviewed_refs(doc, tmp_path, {})
+    assert any(f.startswith(f"EXPIRY_REF:{event['event_id']}:") for f in findings), findings
+
+
+def test_missing_review_file_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    (root / doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"]).unlink()
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f.startswith("SCOPE_INDEPENDENCE_REF:ECMWF:") for f in findings), findings
+
+
+def test_changed_review_bytes_after_pin_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    path = root / doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"]
+    path.write_bytes(path.read_bytes() + b"tampered")
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEWED_REF_CONTENT_MISMATCH" in f for f in findings), findings
+
+
+def test_oversized_review_record_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    path = root / doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"]
+    path.write_bytes(b"0" * (lineage_mod.REVIEW_RECORD_LIMIT + 1))
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("SOURCE_TOO_LARGE" in f for f in findings), findings
+
+
+@pytest.mark.parametrize("bad_path", ["../outside.json", "/etc/passwd", "a/../../outside.json"])
+def test_escaping_or_absolute_ref_path_rejected(tmp_path, bad_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"] = bad_path
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("SCOPE_INDEPENDENCE_REF:ECMWF:" in f for f in findings), findings
+
+
+def test_parent_symlink_in_review_path_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "scope-ECMWF.json").write_bytes((root / "scope-ECMWF.json").read_bytes())
+    os.symlink(outside, root / "linked")
+    doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"] = "linked/scope-ECMWF.json"
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEWED_REF_PATH_SYMLINK" in f for f in findings), findings
+
+
+def test_final_component_symlink_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    real = root / "scope-ECMWF.json"
+    os.symlink(real, root / "scope-ECMWF-link.json")
+    doc["control_domains"]["ECMWF"]["scope_independence_review"]["path"] = "scope-ECMWF-link.json"
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEWED_REF_PATH_SYMLINK" in f for f in findings), findings
+
+
+def test_expiry_review_event_mismatch_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    event, other = doc["restriction_events"][0], doc["restriction_events"][1]
+    assert event["event_id"] != other["event_id"]
+    event["expiry_adjudication"] = other["expiry_adjudication"]
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f.startswith(f"EXPIRY_REF:{event['event_id']}:EVENT_BINDING_MISMATCH") for f in findings), findings
+
+
+def test_scope_review_cannot_clear_another_domain(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"] = \
+        doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("SCOPE_INDEPENDENCE_REF:NOAA_GEFS:DOMAIN_MISMATCH" in f for f in findings), findings
+
+
+def test_resumption_review_partial_hold_basis_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    name = "NOAA_GEFS"
+    assert len(doc["control_domains"][name]["hold_basis"]) > 1
+    record = _review_record(
+        "RESUMPTION", control_domain=name,
+        hold_basis_event_ids=sorted(doc["control_domains"][name]["hold_basis"])[:1],
+        scope_independent=True, permitted_resumption_basis="partial",
+        requested_at_utc="2026-10-08T00:00:00Z")
+    ref, digest = _write_record(root, "resumption-partial.json", record)
+    manifest[digest] = {"kind": "RESUMPTION", "reviewer_identity": record["reviewer_identity"]}
+    doc["control_domains"][name]["resumption_review"] = ref
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f"RESUMPTION_REF:{name}:HOLD_BASIS_NOT_BOUND" in f for f in findings), findings
+
+
+def test_resumption_scope_not_independent_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    name = "NOAA_GEFS"
+    ref = doc["control_domains"][name]["resumption_review"]
+    _rewrite_record(root, ref, manifest, "RESUMPTION", scope_independent=False)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f"RESUMPTION_REF:{name}:SCOPE_NOT_INDEPENDENT" in f for f in findings), findings
+
+
+def test_self_authored_review_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE", reviewer_is_self_interested=True)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEW_RECORD_SELF_AUTHORED" in f for f in findings), findings
+
+
+def test_absent_or_wrong_outcome_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"]
+    _rewrite_record(root, ref, manifest, "LICENCE_PERMISSION", outcome="PENDING")
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEW_RECORD_OUTCOME" in f for f in findings), findings
+
+
+def test_incomplete_review_record_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    event = doc["restriction_events"][0]
+    ref = event["expiry_adjudication"]
+    record = strict_loads((root / ref["path"]).read_bytes())
+    del record["valid_until_utc"]
+    raw = json.dumps(record, sort_keys=True).encode()
+    (root / ref["path"]).write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    ref.update(sha256=digest, byte_length=len(raw))
+    manifest[digest] = {"kind": "EXPIRY_ADJUDICATION", "reviewer_identity": record["reviewer_identity"]}
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f.startswith(f"EXPIRY_REF:{event['event_id']}:REVIEW_RECORD_SCHEMA") for f in findings), findings
+
+
+def test_review_record_absent_from_manifest_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["NOAA_GEFS"]["resumption_review"]
+    manifest.pop(ref["sha256"], None)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEW_RECORD_NOT_IN_MANIFEST" in f for f in findings), findings
+
+
+def test_manifest_kind_mismatch_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["NOAA_GEFS"]["resumption_review"]
+    manifest[ref["sha256"]]["kind"] = "SCOPE_INDEPENDENCE"
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("REVIEW_RECORD_NOT_IN_MANIFEST" in f for f in findings), findings
+
+
+def test_revoked_permission_review_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"]
+    _rewrite_record(root, ref, manifest, "LICENCE_PERMISSION", revoked=True)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("PERMISSION_REVOKED" in f for f in findings), findings
+
+
+def test_permission_review_wrong_provider_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"]
+    _rewrite_record(root, ref, manifest, "LICENCE_PERMISSION", provider="IFS")
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("PROVIDER_MISMATCH" in f for f in findings), findings
+
+
+def test_licence_bytes_changed_after_review_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    perm = doc["permissions"]["GEFS"]["reviewed_permissions"][0]
+    licence_path = root / perm["licence_document"]["path"]
+    new_raw = licence_path.read_bytes() + b" amended"
+    licence_path.write_bytes(new_raw)
+    perm["licence_document"].update(sha256=hashlib.sha256(new_raw).hexdigest(), byte_length=len(new_raw))
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any("LICENCE_DOCUMENT_UNBOUND" in f for f in findings), findings
+
+
+def test_path_spec_review_wrong_path_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    spec = doc["request_envelope"]["reviewed_origin_path_specs"][0]
+    ref = spec["review_ref"]
+    _rewrite_record(root, ref, manifest, "PATH_SPEC", path="/different/path.idx")
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f"PATH_SPEC_REF:{spec['permission_id']}:PATH_SPEC_UNBOUND" in f for f in findings), findings
+
+
+def test_expiry_validity_window_invalid_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    event = doc["restriction_events"][0]
+    ref = event["expiry_adjudication"]
+    record = strict_loads((root / ref["path"]).read_bytes())
+    _rewrite_record(root, ref, manifest, "EXPIRY_ADJUDICATION", valid_until_utc=record["decision_utc"])
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f"EXPIRY_REF:{event['event_id']}:EXPIRY_VALIDITY_INVALID" in f for f in findings), findings
+
+
+def test_trusted_root_missing_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    findings = verify_reviewed_refs(doc, tmp_path / "does-not-exist", manifest)
+    assert len(findings) == 1 and findings[0].startswith("TRUSTED_ROOT_UNAVAILABLE"), findings
+
+
+def test_trusted_root_not_directory_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    not_dir = tmp_path / "file.txt"
+    not_dir.write_bytes(b"x")
+    assert verify_reviewed_refs(doc, not_dir, manifest) == ["TRUSTED_ROOT_INVALID"]
+
+
+def test_trusted_root_symlink_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    link = tmp_path / "trusted-link"
+    os.symlink(root, link)
+    assert verify_reviewed_refs(doc, link, manifest) == ["TRUSTED_ROOT_INVALID"]
+
+
+def test_non_path_trusted_root_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    assert verify_reviewed_refs(doc, str(root), manifest) == ["REVIEWED_REFS_INPUT_INVALID"]
+
+
+def test_non_mapping_review_manifest_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    assert verify_reviewed_refs(doc, root, []) == ["REVIEWED_REFS_INPUT_INVALID"]
+
+
+def test_malformed_lineage_input_to_verify_reviewed_refs_fails_closed(tmp_path):
+    assert verify_reviewed_refs({"control_domains": None}, tmp_path, {}) == ["MALFORMED_REVIEWED_REFS_INPUT"]
+
+
+def test_wrongly_typed_review_field_fails_closed_without_crashing(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE", independent_origins=42)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert any(f.startswith("SCOPE_INDEPENDENCE_REF:ECMWF:MALFORMED_REVIEWED_REF") for f in findings), findings
+
+
+@pytest.mark.parametrize("field,value", [
+    ("reviewed_at_utc", "2026-10-06T00:00:00Z"),
+    ("valid_until_utc", "2030-01-01T00:00:00Z"),
+])
+def test_permission_dates_cannot_widen_pinned_review(tmp_path, field, value):
+    doc, root, manifest = _positive_seam(tmp_path)
+    before = copy.deepcopy(manifest)
+    perm = doc["permissions"]["GEFS"]["reviewed_permissions"][0]
+    record_before = (root / perm["review_ref"]["path"]).read_bytes()
+    perm[field] = value
+    assert check_lineage(doc) == []
+    assert any("PERMISSION_VALIDITY_UNBOUND" in f for f in verify_reviewed_refs(doc, root, manifest))
+    assert manifest == before
+    assert (root / perm["review_ref"]["path"]).read_bytes() == record_before
+
+
+@pytest.mark.parametrize("start,end", [
+    ("2026-10-08T00:00:00Z", "2026-10-09T00:00:00Z"),
+    ("2026-10-08T01:00:00Z", "2026-10-08T23:00:00Z"),
+])
+def test_bound_permission_subset_valid_control(tmp_path, start, end):
+    doc, root, manifest = _positive_seam(tmp_path)
+    perm = doc["permissions"]["GEFS"]["reviewed_permissions"][0]
+    perm.update(reviewed_at_utc=start, valid_until_utc=end)
+    assert verify_reviewed_refs(doc, root, manifest) == []
+    result = run(good_request(), doc=doc)
+    assert result["outcome"] == ENVELOPE_OK
+    assert result["execution_authority"] is False
+    assert doc["g3l"] == "NO_GO" and doc["qualification_credit"] == 0
+    assert run(good_request(planned_at_utc=end), doc=doc, now=end)["outcome"] == REFUSED
+    assert run(good_request(planned_at_utc="2026-10-07T23:59:59Z"), doc=doc,
+               now="2026-10-07T23:59:59Z")["outcome"] == REFUSED
+
+
+@pytest.mark.parametrize("kind,changes,expected", [
+    ("RESUMPTION", {"requested_at_utc": "2026-12-01T00:00:00Z"}, "RESUMPTION_OUTSIDE_EXPIRY_WINDOW"),
+    ("RESUMPTION", {"requested_at_utc": "2026-10-08T01:00:00Z"}, "PERMISSION_BEFORE_RESUMPTION"),
+    ("RESUMPTION", {"requested_at_utc": "2026-10-06T00:00:00Z"}, "RESUMPTION_TIME_INVALID"),
+    ("EXPIRY_ADJUDICATION", {"valid_until_utc": "2026-10-08T00:00:00Z"}, "RESUMPTION_OUTSIDE_EXPIRY_WINDOW"),
+    ("EXPIRY_ADJUDICATION", {"valid_until_utc": "2026-10-08T23:59:59Z"}, "PERMISSION_OUTSIDE_EXPIRY_WINDOW"),
+    ("EXPIRY_ADJUDICATION", {"decision_utc": "2026-10-08T00:00:01Z"}, "RESUMPTION_OUTSIDE_EXPIRY_WINDOW"),
+    ("SCOPE_INDEPENDENCE", {"decision_utc": "2026-10-08T00:00:01Z"}, "PERMISSION_BEFORE_RESUMPTION"),
+    ("PATH_SPEC", {"decision_utc": "2026-10-08T00:00:01Z"}, "PATH_SPEC_VALIDITY_UNBOUND"),
+])
+def test_review_temporal_intersection(tmp_path, kind, changes, expected):
+    doc, root, manifest = _positive_seam(tmp_path)
+    refs = {
+        "RESUMPTION": doc["control_domains"]["NOAA_GEFS"]["resumption_review"],
+        "SCOPE_INDEPENDENCE": doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"],
+        "PATH_SPEC": doc["request_envelope"]["reviewed_origin_path_specs"][0]["review_ref"],
+        "EXPIRY_ADJUDICATION": next(e["expiry_adjudication"] for e in doc["restriction_events"]
+                                    if e["control_domain"] == "NOAA_GEFS"),
+    }
+    _rewrite_record(root, refs[kind], manifest, kind, **changes)
+    assert any(expected in f for f in verify_reviewed_refs(doc, root, manifest))
+
+
+@pytest.mark.parametrize("field,kind", [
+    ("origins", "LICENCE_PERMISSION"), ("purposes", "LICENCE_PERMISSION"),
+    ("independent_origins", "SCOPE_INDEPENDENCE"), ("hold_basis_event_ids", "RESUMPTION"),
+])
+@pytest.mark.parametrize("variant", ["dict", "string", "empty", "nested", "null", "number", "duplicate", "oversize", "unknown"])
+def test_review_collections_closed_before_interpretation(tmp_path, field, kind, variant):
+    doc, root, manifest = _positive_seam(tmp_path)
+    refs = {
+        "LICENCE_PERMISSION": doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"],
+        "SCOPE_INDEPENDENCE": doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"],
+        "RESUMPTION": doc["control_domains"]["NOAA_GEFS"]["resumption_review"],
+    }
+    ref = refs[kind]
+    original = strict_loads((root / ref["path"]).read_bytes())[field]
+    bad = {"dict": {v: False for v in original}, "string": original[0], "empty": [],
+           "nested": [original], "null": None, "number": 1,
+           "duplicate": original + original, "oversize": [str(i) for i in range(257)],
+           "unknown": ["unreviewed"]}[variant]
+    _rewrite_record(root, ref, manifest, kind, **{field: bad})
+    assert check_lineage(doc) == []
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert findings
+    assert any("MALFORMED_REVIEWED_REF" in f or "HOLD_BASIS_NOT_BOUND" in f for f in findings)
+
+
+@pytest.mark.parametrize("kind,field,value", [
+    ("RESUMPTION", "scope_independent", 1),
+    ("RESUMPTION", "permitted_resumption_basis", {}),
+    ("LICENCE_PERMISSION", "revoked", 0),
+    ("LICENCE_PERMISSION", "licence_document_sha256", []),
+    ("EXPIRY_ADJUDICATION", "event_id", {}),
+    ("EXPIRY_ADJUDICATION", "original_restriction_sha256", "not-a-digest"),
+    ("SCOPE_INDEPENDENCE", "control_domain", []),
+    ("PATH_SPEC", "permission_id", {}),
+    ("PATH_SPEC", "purpose", ["INDEX"]),
+    ("PATH_SPEC", "path", {}),
+])
+def test_review_kind_field_types(tmp_path, kind, field, value):
+    doc, root, manifest = _positive_seam(tmp_path)
+    refs = {
+        "RESUMPTION": doc["control_domains"]["NOAA_GEFS"]["resumption_review"],
+        "LICENCE_PERMISSION": doc["permissions"]["GEFS"]["reviewed_permissions"][0]["review_ref"],
+        "EXPIRY_ADJUDICATION": doc["restriction_events"][0]["expiry_adjudication"],
+        "SCOPE_INDEPENDENCE": doc["control_domains"]["NOAA_GEFS"]["scope_independence_review"],
+        "PATH_SPEC": doc["request_envelope"]["reviewed_origin_path_specs"][0]["review_ref"],
+    }
+    _rewrite_record(root, refs[kind], manifest, kind, **{field: value})
+    assert any("MALFORMED_REVIEWED_REF" in f for f in verify_reviewed_refs(doc, root, manifest))
+
+
+@pytest.mark.parametrize("nested_object", [False, True])
+def test_deep_review_json_yields_deterministic_finding(tmp_path, nested_object):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    raw = b"[" * 20000 + b"0" + b"]" * 20000
+    if nested_object:
+        raw = b'{"basis":' + raw + b'}'
+    assert len(raw) < lineage_mod.REVIEW_RECORD_LIMIT
+    (root / ref["path"]).write_bytes(raw)
+    ref.update(sha256=hashlib.sha256(raw).hexdigest(), byte_length=len(raw))
+    # Digest intentionally absent from independent manifest: parsing must still refuse safely.
+    expected = "SCOPE_INDEPENDENCE_REF:ECMWF:REVIEW_RECORD_JSON_TOO_DEEP"
+    assert expected in verify_reviewed_refs(doc, root, manifest)
+    assert expected in verify_reviewed_refs(doc, root, manifest)
+
+
+def test_nul_root_yields_deterministic_finding(tmp_path):
+    assert verify_reviewed_refs(committed(), Path(str(tmp_path) + "\x00"), {}) == ["TRUSTED_ROOT_INVALID"]
+
+
+def test_root_ancestor_symlink_rejected(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    alias = tmp_path / "alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    assert verify_reviewed_refs(doc, alias / "trusted", manifest) == ["TRUSTED_ROOT_INVALID"]
+
+
+@pytest.mark.parametrize("component", ["ancestor", "root", "parent", "final"])
+@pytest.mark.parametrize("timing", ["before", "after"])
+def test_descriptor_anchoring_under_deterministic_swaps(tmp_path, monkeypatch, component, timing):
+    """Swap at os.open itself; identical hashes cannot hide an outside read."""
+    import shutil
+    base = tmp_path / "container"
+    base.mkdir()
+    doc, root, manifest = _positive_seam(base)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    nested = root / "nested"
+    nested.mkdir()
+    (root / ref["path"]).rename(nested / "scope.json")
+    ref["path"] = "nested/scope.json"
+    outside = tmp_path / "outside"
+    shutil.copytree(base, outside)
+    victim = {"ancestor": base, "root": root, "parent": nested,
+              "final": nested / "scope.json"}[component]
+    replacement = outside / victim.relative_to(base) if component != "ancestor" else outside
+    outside_inodes = {(p.stat().st_dev, p.stat().st_ino) for p in outside.rglob("*") if p.is_file()}
+    original_open, original_read = os.open, os.read
+    swapped = []
+    reads = []
+
+    def swap():
+        victim.rename(tmp_path / "saved")
+        victim.symlink_to(replacement, target_is_directory=component != "final")
+        swapped.append(True)
+
+    def hooked_open(path, flags, *args, **kwargs):
+        target = path == victim.name and kwargs.get("dir_fd") is not None and not swapped
+        if target and timing == "before":
+            swap()
+        fd = original_open(path, flags, *args, **kwargs)
+        if target and timing == "after":
+            swap()
+        return fd
+
+    def guarded_read(fd, length):
+        info = os.fstat(fd)
+        identity = (info.st_dev, info.st_ino)
+        if identity in outside_inodes:
+            raise RuntimeError("Read escaped the pinned directory descriptors")
+        reads.append(identity)
+        return original_read(fd, length)
+
+    monkeypatch.setattr(os, "open", hooked_open)
+    monkeypatch.setattr(os, "read", guarded_read)
+    findings = verify_reviewed_refs(doc, root, manifest)
+    assert swapped
+    if timing == "before":
+        assert findings
+    else:
+        assert findings == []
+        assert reads
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_review_descriptors_closed_on_success_and_failure(tmp_path, monkeypatch, broken):
+    doc, root, manifest = _positive_seam(tmp_path)
+    if broken:
+        (root / "scope-ECMWF.json").unlink()
+    opened = set()
+    original_open, original_dup, original_close = os.open, os.dup, os.close
+
+    def tracked_open(*args, **kwargs):
+        fd = original_open(*args, **kwargs)
+        opened.add(fd)
+        return fd
+
+    def tracked_dup(*args):
+        fd = original_dup(*args)
+        opened.add(fd)
+        return fd
+
+    def tracked_close(fd):
+        opened.remove(fd)
+        return original_close(fd)
+
+    monkeypatch.setattr(os, "open", tracked_open)
+    monkeypatch.setattr(os, "dup", tracked_dup)
+    monkeypatch.setattr(os, "close", tracked_close)
+    assert bool(verify_reviewed_refs(doc, root, manifest)) is broken
+    assert opened == set()
+
+
+def test_resumption_requires_scope_decision_even_without_permissions(tmp_path):
+    doc, root, manifest = _positive_seam(tmp_path)
+    ref = doc["control_domains"]["ECMWF"]["scope_independence_review"]
+    _rewrite_record(root, ref, manifest, "SCOPE_INDEPENDENCE", decision_utc="2026-10-08T00:00:01Z")
+    assert "RESUMPTION_REF:ECMWF:RESUMPTION_BEFORE_SCOPE_REVIEW" in verify_reviewed_refs(doc, root, manifest)
