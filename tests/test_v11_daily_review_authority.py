@@ -5,9 +5,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import pytest
 
-P=Path('/tmp/alpha-v11-perpetual-rollforward-20261004/host_trust/v11-daily-review-authority/authority.py')
+P=Path(__file__).resolve().parent.parent/'host_trust'/'v11-daily-review-authority'/'authority.py'
 s=importlib.util.spec_from_file_location('auth',P);a=importlib.util.module_from_spec(s);s.loader.exec_module(a)
 CHECKER='ALPHA_V11_PERPETUAL_DAY_PREP_0DD809E_V1'
+RELEASE_GIT='f'*40
+RELEASE_TREE='a'*40
 SCOPE={'family':'HIGH','horizon':'D0','model_version':'v11-exact-day-historical-v2','season':'FALL',
 'source_rule_family':'NWS_WRH_TIMESERIES','station':'KATL','strategy':'FUTURE_FORECAST','time_of_day':'ALL_DAY'}
 
@@ -53,8 +55,8 @@ def append(db,seq,rid,kind,event,extra):
     db.execute('insert into v11_records values(?,?,?,?,?,?,?,?)',(seq,rid,kind,event,at,at,a.canonical(body),h))
     return {'id':rid,'sha256':h}
 
-def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False):
-    today=datetime.now(ZoneInfo('America/New_York')).date();target=today+timedelta(days=1)
+def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_offset=1,stale_receipt=False):
+    today=datetime.now(ZoneInfo('America/New_York')).date();target=today+timedelta(days=target_offset)
     anchor=payload(today,'1118070');cand=payload(target)
     if mutate:mutate(cand)
     event=event_for(cand);rule_sha=a.digest(cand);source_sha=a.digest(event);scope_key=a.digest(SCOPE)
@@ -64,10 +66,12 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False):
     db.executemany('insert into v11_meta values(?,?)',[('version','alpha_v11_evidence_v1'),('namespace','CHALLENGER:katl-shadow')])
     sr=append(db,1,'station-raw','STATION_METADATA','station:KATL',{'payload':{'station':'KATL'},'evidence_class':'PUBLIC_OBSERVED'})
     sm=append(db,2,'station-meta','REGISTRY','station:KATL',{'details':{'action':'METADATA','metadata_fingerprint':'e'*64,'material_changed':False},'evidence':[sr]})
-    ready=append(db,3,'readiness','MEASUREMENT','station:KATL',{'details':{'financial_authority':False,'real_orders':False}})
+    ready=append(db,3,'readiness','MEASUREMENT','station:KATL',{'details':{'financial_authority':False,'real_orders':False,
+      'release_git_sha':RELEASE_GIT,'release_tree_sha':RELEASE_TREE}})
     raw=append(db,4,'raw','RULES',cand['event_id'],{'evidence_class':'PUBLIC_OBSERVED','payload':{'event':event}})
+    received_at=time.time()-100000 if stale_receipt else time.time()
     rule=append(db,5,'rule','RULE_STATE',cand['event_id'],{'details':{'quarantined':False,'changed':False,'fingerprint':rule_sha,
-      'preimage':cand,'source_event_sha256':source_sha,'source_received_at':time.time()},'evidence':[raw]})
+      'preimage':cand,'source_event_sha256':source_sha,'source_received_at':received_at},'evidence':[raw]})
     fixed={'station_raw':sr,'station_metadata':sm,'technical_readiness':ready}
     for i,cap in enumerate(a.REQUIRED_CAPS,6):
         refs=[ready]
@@ -83,9 +87,14 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False):
     if bad_live_token:live['markets'][0]['clobTokenIds']=json.dumps(['1','2'])
     a.live_event=lambda _d,e=live:copy.deepcopy(e)
     manifest=tmp_path/'station.json';manifest.write_text(a.canonical({'version':a.MANIFEST_VERSION,'reviews':[]}))
+    mmpath=tmp_path/'model-manifest.json';mmpath.write_text('{"models":[]}')
+    mspath=tmp_path/'model-state.json';mspath.write_text('{"state":"ok"}')
     policy={'version':a.POLICY_VERSION,'namespace':'CHALLENGER:katl-shadow','stage':'SHADOW','scope':SCOPE,'scope_key':scope_key,
       'metadata_fingerprint':'e'*64,'anchor_rule_payload':anchor,'envelope_sha256':a.digest(a.normalized_rule(anchor)),
       'required_capabilities':list(a.REQUIRED_CAPS),'checker_version':CHECKER,'fixed_evidence':fixed,
+      'release_git_sha':RELEASE_GIT,'release_tree_sha':RELEASE_TREE,
+      'model_manifest_path':str(mmpath),'model_manifest_sha256':hashlib.sha256(mmpath.read_bytes()).hexdigest(),
+      'model_state_path':str(mspath),'model_state_sha256':hashlib.sha256(mspath.read_bytes()).hexdigest(),
       'reviewer':'ROOT_DAILY_ROLLFORWARD_V2','maximum_target_days_ahead':3,'review_ttl_seconds':259200,
       'maximum_request_age_seconds':900,'allowed_request_root':str(tmp_path),'request_owner_uid':os.getuid(),
       'allowed_snapshot_root':str(tmp_path),'snapshot_owner_uid':os.getuid(),'review_manifest':str(manifest),
@@ -116,3 +125,101 @@ def test_capability_fail(tmp_path):
 def test_manifest_race(tmp_path):
     pp,rp=setup(tmp_path);r=json.loads(rp.read_text());r['expected_manifest_sha256']='1'*64;rp.write_text(json.dumps(r))
     with pytest.raises(a.Refusal,match='MANIFEST_RACE'):a.verify(pp,rp)
+
+def test_rule_receipt_stale(tmp_path):
+    pp,rp=setup(tmp_path,stale_receipt=True)
+    with pytest.raises(a.Refusal,match='RULE_RECEIPT_STALE'):a.verify(pp,rp)
+
+def test_symlink_refused(tmp_path):
+    # Regression test: user_file() must check symlink-ness on the UNRESOLVED path before
+    # resolving it. If resolve() happens first, is_symlink() on the resolved path can never
+    # see the symlink and FILE_SYMLINK_REFUSED can never fire.
+    target=tmp_path/'real.txt';target.write_text('x');os.chmod(target,0o600)
+    link=tmp_path/'link.txt';link.symlink_to(target)
+    with pytest.raises(a.Refusal,match='FILE_SYMLINK_REFUSED'):
+        a.user_file(str(link),str(tmp_path),os.getuid(),False)
+
+def test_root_custody_refused(tmp_path):
+    f=tmp_path/'root_target.txt';f.write_text('x');os.chmod(f,0o600)
+    with pytest.raises(a.Refusal,match='ROOT_FILE_CUSTODY'):
+        a.root_file(str(f))
+
+def test_root_custody_symlink_refused(tmp_path):
+    target=tmp_path/'real2.txt';target.write_text('x')
+    link=tmp_path/'link2.txt';link.symlink_to(target)
+    with pytest.raises(a.Refusal,match='FILE_SYMLINK_REFUSED'):
+        a.root_file(str(link))
+
+def test_lock_path_prefix_refused(tmp_path):
+    # Real production LOCK_PATH prefix check, exercised directly so it stays covered without
+    # requiring actual root ownership of /var/lock/alpha-v11 (see other publish tests, which
+    # monkeypatch lock_path_for to a tmp_path lock purely to avoid a root-owned directory).
+    with pytest.raises(a.Refusal,match='LOCK_PATH'):
+        a.lock_path_for({'lock_path':str(tmp_path/'evil.lock')})
+    assert a.lock_path_for({'lock_path':'/var/lock/alpha-v11/x.lock'})==Path('/var/lock/alpha-v11/x.lock')
+
+def test_publish_fresh(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    out=a.publish(pp,rp)
+    assert out['published'] is True and out['state']=='PUBLISHED'
+    assert out['financial_authority'] is False and out['activation_authorized'] is False
+    policy=json.loads(pp.read_text());manifest=json.loads(Path(policy['review_manifest']).read_text())
+    assert len(manifest['reviews'])==1
+    assert manifest['reviews'][0]['rule_fingerprint']==out['verified']['rule_fingerprint']
+    assert hashlib.sha256(Path(policy['review_manifest']).read_bytes()).hexdigest()==out['new_manifest_sha256']
+
+def test_publish_existing_review_republish(tmp_path,monkeypatch):
+    # An expired exact-match review must NOT block republishing (EXISTING_REVIEW_CONFLICT is
+    # only for a genuine capability_proofs mismatch, not mere expiry).
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());verified=a.verify(pp,rp)
+    review=dict(verified['review']);review['expires_at']=time.time()-10
+    manifest_path=Path(policy['review_manifest'])
+    manifest_path.write_text(a.canonical({'version':a.MANIFEST_VERSION,'reviews':[review]}))
+    req=json.loads(rp.read_text());req['expected_manifest_sha256']=hashlib.sha256(manifest_path.read_bytes()).hexdigest();rp.write_text(json.dumps(req))
+    out=a.publish(pp,rp)
+    assert out['published'] is False
+    assert out['state']=='ALREADY_EXACT_REVIEW_PRESENT'
+    assert out['review']['expires_at']==review['expires_at']
+
+def test_publish_existing_review_conflict(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());verified=a.verify(pp,rp)
+    review=dict(verified['review']);review['capability_proofs']=dict(review['capability_proofs'])
+    review['capability_proofs']['IDENTITY']={'id':'some-other-record','sha256':'0'*64}
+    manifest_path=Path(policy['review_manifest'])
+    manifest_path.write_text(a.canonical({'version':a.MANIFEST_VERSION,'reviews':[review]}))
+    req=json.loads(rp.read_text());req['expected_manifest_sha256']=hashlib.sha256(manifest_path.read_bytes()).hexdigest();rp.write_text(json.dumps(req))
+    with pytest.raises(a.Refusal,match='EXISTING_REVIEW_CONFLICT'):
+        a.publish(pp,rp)
+
+def test_current_no_request(tmp_path):
+    pp,rp=setup(tmp_path,target_offset=0)
+    out=a.current(pp)
+    assert out['published'] is False and out['state']=='NO_CURRENT_DAY_REQUEST'
+    assert out['financial_authority'] is False and out['activation_authorized'] is False
+
+def test_current_policy_version_mismatch(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    policy=json.loads(pp.read_text());policy['version']='alpha_v11_daily_review_rollforward_policy_v2';pp.write_text(json.dumps(policy))
+    today=datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+    today_req=Path(policy['allowed_request_root'])/f'{today}.json';today_req.write_text(rp.read_text())
+    with pytest.raises(a.Refusal,match='POLICY_VERSION'):
+        a.current(pp)
+
+def test_current_v1_request(tmp_path,monkeypatch):
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    policy=json.loads(pp.read_text())
+    req=json.loads(rp.read_text());req['version']='alpha_v11_daily_review_rollforward_request_v1'
+    today=datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+    today_req=Path(policy['allowed_request_root'])/f'{today}.json';today_req.write_text(json.dumps(req))
+    with pytest.raises(a.Refusal,match='REQUEST_VERSION'):
+        a.current(pp)

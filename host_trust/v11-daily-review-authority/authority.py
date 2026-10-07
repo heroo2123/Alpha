@@ -5,7 +5,7 @@ from datetime import date,datetime,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-POLICY_VERSION='alpha_v11_daily_review_rollforward_policy_v2'
+POLICY_VERSION='alpha_v11_daily_review_rollforward_policy_v1'
 REQUEST_VERSION='alpha_v11_daily_review_rollforward_request_v2'
 MANIFEST_VERSION='alpha_v11_certification_reviews_v1'
 REQUIRED_CAPS=('ACCOUNTING','CONSERVATIVE_CONTRACT_VALUATION','EXECUTION_MECHANICS',
@@ -29,7 +29,7 @@ def shafile(p):
 def norm(s): return re.sub(r'\s+',' ',str(s or '').strip().lower())
 
 def regular_file(p):
-    p=Path(p);i=p.lstat();need(stat.S_ISREG(i.st_mode),'FILE_NOT_REGULAR');need(not p.is_symlink(),'FILE_SYMLINK_REFUSED');return p,i
+    p=Path(p);i=p.lstat();need(not stat.S_ISLNK(i.st_mode) and not p.is_symlink(),'FILE_SYMLINK_REFUSED');need(stat.S_ISREG(i.st_mode),'FILE_NOT_REGULAR');return p,i
 def root_file(p):
     p,i=regular_file(p);need(i.st_uid==0 and not(i.st_mode&0o022),'ROOT_FILE_CUSTODY')
     for q in p.parents:
@@ -37,7 +37,8 @@ def root_file(p):
         if str(q)=='/':break
     return p
 def user_file(p,root,uid,readonly=False):
-    p=Path(p).resolve();root=Path(root).resolve();need(root in p.parents,'USER_FILE_ROOT');_,i=regular_file(p)
+    praw=Path(p);i=praw.lstat();need(not stat.S_ISLNK(i.st_mode) and not praw.is_symlink(),'FILE_SYMLINK_REFUSED');need(stat.S_ISREG(i.st_mode),'FILE_NOT_REGULAR')
+    p=praw.resolve();root=Path(root).resolve();need(root in p.parents,'USER_FILE_ROOT')
     need(i.st_uid==int(uid),'USER_FILE_OWNER')
     need((i.st_mode&0o222)==0 if readonly else not(i.st_mode&0o022),'USER_FILE_MODE')
     return p
@@ -134,20 +135,27 @@ def verify_snapshot(policy,req):
     need(re.fullmatch(r'daily-\d{4}-\d{2}-\d{2}\.sqlite',snap.name) is not None,'SNAPSHOT_NAME')
     db=sqlite3.connect('file:'+str(snap)+'?mode=ro&immutable=1',uri=True);db.row_factory=sqlite3.Row
     meta=dict(db.execute('select key,value from v11_meta'));need(meta.get('namespace')==policy['namespace'],'DB_NAMESPACE')
-    rr=get(db,req['rule_record_id']);need(rr['kind']=='RULE_STATE','RULE_KIND');rd=rr['body'].get('details',{})
+    rr=get(db,req['rule_record_id']);need(rr['kind']=='RULE_STATE','RULE_KIND')
+    latest=db.execute("select * from v11_records where kind='RULE_STATE' and event_id=? order by seq desc limit 1",(rr['event_id'],)).fetchone()
+    need(latest is not None and latest['record_id']==rr['id'],'RULE_NOT_LATEST')
+    rd=rr['body'].get('details',{})
     need(rd.get('changed') is False and rd.get('quarantined') is False,'RULE_QUARANTINED')
     maxage=float(policy['maximum_request_age_seconds']);now=time.time();received=float(rd.get('source_received_at',-1));need(0<=now-received<=maxage,'RULE_RECEIPT_STALE')
     p=rd.get('preimage');need(isinstance(p,dict),'RULE_PREIMAGE');need(digest(p)==rd.get('fingerprint'),'RULE_HASH')
+    need(p.get('financial_authority') is False,'RULE_FINANCIAL_AUTHORITY')
     need(normalized_rule(p)==normalized_rule(policy['anchor_rule_payload']),'RULE_ENVELOPE');need(digest(normalized_rule(policy['anchor_rule_payload']))==policy['envelope_sha256'],'POLICY_ENVELOPE')
     target=p['target_date'];need(req.get('target_date')==target and snap.name==f'daily-{target}.sqlite','TARGET_BINDING')
     today=datetime.now(ZoneInfo('America/New_York')).date();td=date.fromisoformat(target);need(today-timedelta(days=1)<=td<=today+timedelta(days=int(policy['maximum_target_days_ahead'])),'TARGET_WINDOW')
     bind_event(p,live_event(target),True)
     ev=rr['body'].get('evidence',[]);need(len(ev)==1,'RULE_EVIDENCE_COUNT');raw=get(db,ev[0]['id']);need(raw['sha256']==ev[0]['sha256'] and raw['kind']=='RULES','RULE_EVIDENCE')
     stored=raw['body'].get('payload',{}).get('event');need(isinstance(stored,dict) and digest(stored)==rd.get('source_event_sha256'),'RAW_EVENT_HASH');bind_event(p,stored,False)
-    fixed=policy['fixed_evidence'];fr={}
+    fixed=policy['fixed_evidence'];need(set(fixed)=={'station_raw','station_metadata','technical_readiness'},'FIXED_KEYS');fr={}
     for name in ('station_raw','station_metadata','technical_readiness'):
         ref=fixed[name];x=get(db,ref['id']);need(x['sha256']==ref['sha256'],'FIXED_'+name);fr[name]=x
+    smd=fr['station_metadata']['body'].get('details',{})
+    need(smd.get('metadata_fingerprint')==policy['metadata_fingerprint'] and smd.get('material_changed') is False,'METADATA_BINDING')
     tr=fr['technical_readiness']['body'].get('details',{});need(tr.get('financial_authority') is False and tr.get('real_orders') is False,'READINESS_NONFINANCIAL')
+    need(tr.get('release_git_sha')==policy['release_git_sha'] and tr.get('release_tree_sha')==policy['release_tree_sha'],'READINESS_RELEASE')
     rows=[rec(x) for x in db.execute("select * from v11_records where kind='REGISTRY' and event_id='station:KATL' order by seq")]
     need(not any(x['body'].get('details',{}).get('action')=='DEMOTION' and x['body']['details'].get('scope_key')==policy['scope_key'] for x in rows),'DEMOTION')
     refs={'IDENTITY':[{'id':fr['station_metadata']['id'],'sha256':fr['station_metadata']['sha256']},{'id':rr['id'],'sha256':rr['sha256']}],
@@ -155,44 +163,67 @@ def verify_snapshot(policy,req):
           'SOURCE_INTEGRITY':[{'id':fr['station_raw']['id'],'sha256':fr['station_raw']['sha256']},{'id':raw['id'],'sha256':raw['sha256']},{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}]}
     default=[{'id':fr['technical_readiness']['id'],'sha256':fr['technical_readiness']['sha256']}];proofs={};through=0
     for cap in REQUIRED_CAPS:
-        rid=f"rollforward:capability:{p['event_id']}:{rr['seq']}:{cap.lower()}";x=get(db,rid);dd=x['body'].get('details',{})
-        need(dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('result')=='PASS','PROOF_RESULT_'+cap)
-        need(dd.get('checker_version')==policy['checker_version'] and dd.get('scope_key')==policy['scope_key'],'PROOF_POLICY_'+cap)
-        need(dd.get('metadata_fingerprint')==policy['metadata_fingerprint'] and dd.get('rule_fingerprint')==rd['fingerprint'],'PROOF_BINDING_'+cap)
-        need(canonical(dd.get('scope'))==canonical(policy['scope']),'PROOF_SCOPE_'+cap);need(canonical(x['body'].get('evidence',[]))==canonical(refs.get(cap,default)),'PROOF_EVIDENCE_'+cap)
-        need(x['body'].get('financial_authority') is False,'PROOF_FINANCIAL_'+cap);proofs[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
+        hits=[]
+        for x in rows:
+            dd=x['body'].get('details',{})
+            if (dd.get('action')=='CAPABILITY_EVIDENCE' and dd.get('scope_key')==policy['scope_key']
+                and dd.get('capability')==cap and dd.get('metadata_fingerprint')==policy['metadata_fingerprint']
+                and dd.get('rule_fingerprint')==rd['fingerprint']):
+                need(dd.get('result')=='PASS','PROOF_RESULT_'+cap)
+                need(dd.get('checker_version')==policy['checker_version'],'PROOF_POLICY_'+cap)
+                need(canonical(dd.get('scope'))==canonical(policy['scope']),'PROOF_SCOPE_'+cap)
+                need(canonical(x['body'].get('evidence',[]))==canonical(refs.get(cap,default)),'PROOF_EVIDENCE_'+cap)
+                need(x['body'].get('financial_authority') is False,'PROOF_FINANCIAL_'+cap)
+                hits.append(x)
+        need(len(hits)==1,'CAPABILITY_AMBIGUOUS_OR_MISSING_'+cap)
+        x=hits[0];need(x['seq']>rr['seq'],'CAPABILITY_BEFORE_RULE_'+cap)
+        proofs[cap]={'id':x['id'],'sha256':x['sha256']};through=max(through,x['seq'])
     db.close();return {'target_date':target,'rule_fingerprint':rd['fingerprint'],'proofs':proofs,'reviewed_through_seq':through}
 
 def verify(policy_path,request_path):
-    policy=load(policy_path);req=load(request_path);need(policy.get('version')==POLICY_VERSION and req.get('version')==REQUEST_VERSION,'VERSION')
+    policy=load(policy_path);req=load(request_path)
+    need(policy.get('version')==POLICY_VERSION,'POLICY_VERSION');need(req.get('version')==REQUEST_VERSION,'REQUEST_VERSION')
     need(policy.get('namespace')=='CHALLENGER:katl-shadow' and policy.get('stage')=='SHADOW','POLICY_STAGE')
     need(set(policy.get('required_capabilities',[]))==set(REQUIRED_CAPS),'POLICY_CAPS');need(digest(policy['scope'])==policy['scope_key'],'POLICY_SCOPE')
-    need(30<=float(policy['maximum_request_age_seconds'])<=900,'POLICY_AGE');age=time.time()-float(req.get('prepared_at',-1));need(0<=age<=float(policy['maximum_request_age_seconds']),'REQUEST_STALE')
+    need(HEX64.fullmatch(str(policy.get('scope_key',''))) is not None and HEX64.fullmatch(str(policy.get('metadata_fingerprint',''))) is not None,'POLICY_HASHES')
+    need(isinstance(policy.get('checker_version'),str),'POLICY_CHECKER')
+    need(isinstance(policy.get('allowed_request_root'),str) and isinstance(policy.get('request_owner_uid'),int),'POLICY_REQUEST_CUSTODY')
+    need(30<=float(policy['maximum_request_age_seconds'])<=900,'POLICY_AGE')
+    need(0<float(policy['review_ttl_seconds'])<=7*86400,'POLICY_REVIEW_TTL')
+    age=time.time()-float(req.get('prepared_at',-1));need(0<=age<=float(policy['maximum_request_age_seconds']),'REQUEST_STALE')
     current=shafile(policy['review_manifest']);need(req.get('expected_manifest_sha256')==current,'MANIFEST_RACE')
     v=verify_snapshot(policy,req);now=time.time();review={'scope_key':policy['scope_key'],'namespace':policy['namespace'],'stage':'SHADOW',
       'metadata_fingerprint':policy['metadata_fingerprint'],'rule_fingerprint':v['rule_fingerprint'],'reviewer':policy['reviewer'],
       'review_id':f"katl-shadow-auto-{v['target_date']}-{v['rule_fingerprint'][:12]}",'approved_at':now,
-      'expires_at':now+min(float(policy['review_ttl_seconds']),7*86400),'reviewed_through_seq':v['reviewed_through_seq'],'capability_proofs':v['proofs']}
+      'expires_at':now+float(policy['review_ttl_seconds']),'reviewed_through_seq':v['reviewed_through_seq'],'capability_proofs':v['proofs']}
     return {'verified':v,'review':review,'current_manifest_sha256':current,'financial_authority':False,'activation_authorized':False}
+
+def lock_path_for(policy):
+    lock=Path(policy['lock_path']);need(str(lock).startswith('/var/lock/alpha-v11/'),'LOCK_PATH');return lock
 
 def publish(policy_path,request_path):
     root_file(policy_path);policy=load(policy_path);root_file(policy['review_manifest'])
+    root_file(policy['model_manifest_path']);root_file(policy['model_state_path'])
+    need(shafile(policy['model_manifest_path'])==policy['model_manifest_sha256'],'MODEL_MANIFEST_CHANGED')
+    need(shafile(policy['model_state_path'])==policy['model_state_sha256'],'MODEL_STATE_CHANGED')
     user_file(request_path,policy['allowed_request_root'],policy['request_owner_uid'],False)
     result=verify(policy_path,request_path);need(result['verified']['target_date']==datetime.now(ZoneInfo('America/New_York')).date().isoformat(),'PUBLISH_ONLY_TARGET_DATE')
-    lock=Path(policy['lock_path']);need(str(lock).startswith('/var/lock/alpha-v11/'),'LOCK_PATH');lock.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
+    lock=lock_path_for(policy);lock.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
     fd=os.open(lock,os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW,0o600)
     try:
         fcntl.flock(fd,fcntl.LOCK_EX);mp=Path(policy['review_manifest']);need(shafile(mp)==result['current_manifest_sha256'],'MANIFEST_RACE_AFTER_LOCK')
         m=load(mp);need(m.get('version')==MANIFEST_VERSION and isinstance(m.get('reviews'),list),'MANIFEST_SCHEMA');r=result['review']
         exact=[x for x in m['reviews'] if x.get('namespace')==r['namespace'] and x.get('stage')=='SHADOW' and x.get('scope_key')==r['scope_key'] and x.get('metadata_fingerprint')==r['metadata_fingerprint'] and x.get('rule_fingerprint')==r['rule_fingerprint']]
         if exact:
-            need(len(exact)==1 and float(exact[0].get('expires_at',0))>time.time(),'EXISTING_REVIEW_CONFLICT')
+            need(len(exact)==1 and exact[0].get('capability_proofs')==r['capability_proofs'],'EXISTING_REVIEW_CONFLICT')
             result.update(published=False,state='ALREADY_EXACT_REVIEW_PRESENT',review=exact[0]);return result
         need(len(m['reviews'])<1000,'MANIFEST_BOUND');m['reviews'].append(r);raw=canonical(m).encode();tmp=mp.parent/('.daily-review.'+str(os.getpid())+'.tmp')
         f=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
         try:os.write(f,raw);os.fsync(f)
         finally:os.close(f)
         os.replace(tmp,mp);dd=os.open(mp.parent,os.O_RDONLY|os.O_DIRECTORY);os.fsync(dd);os.close(dd)
+        need(shafile(policy['model_manifest_path'])==policy['model_manifest_sha256'],'MODEL_MANIFEST_CHANGED_POST')
+        need(shafile(policy['model_state_path'])==policy['model_state_sha256'],'MODEL_STATE_CHANGED_POST')
         result.update(published=True,state='PUBLISHED',new_manifest_sha256=hashlib.sha256(raw).hexdigest());return result
     finally:os.close(fd)
 
@@ -201,7 +232,7 @@ def current(policy_path):
     if not p.exists():return {'published':False,'state':'NO_CURRENT_DAY_REQUEST','target_date':today,'financial_authority':False,'activation_authorized':False}
     try:return publish(policy_path,str(p))
     except Refusal as e:
-        if str(e) in {'VERSION','REQUEST_STALE','MANIFEST_RACE'}:return {'published':False,'state':str(e),'target_date':today,'financial_authority':False,'activation_authorized':False}
+        if str(e) in {'REQUEST_STALE','MANIFEST_RACE'}:return {'published':False,'state':str(e),'target_date':today,'financial_authority':False,'activation_authorized':False}
         raise
 
 def main():
