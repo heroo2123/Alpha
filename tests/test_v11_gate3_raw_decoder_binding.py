@@ -153,6 +153,37 @@ def test_current_transport_closure_binds_read_bytes(tmp_path):
         _close(acquired)
 
 
+_MISSING_READ_BYTES = object()
+
+
+@pytest.mark.parametrize('value', [
+    len(BODY) - 1, len(BODY) + 1, 0, float(len(BODY)), str(len(BODY)), True,
+    None, _MISSING_READ_BYTES, 'EXTRA_KEY'])
+def test_tampered_read_bytes_closure_refuses(tmp_path, value):
+    acquired, runtime, request = _attempt(tmp_path)
+    try:
+        real_close = runtime.session.transport_closed
+
+        def tamper(rid, **kwargs):
+            closure = json.loads(kwargs['closure_evidence_raw'])
+            if value == 'EXTRA_KEY':
+                closure['unexpected_field'] = 1
+            elif value is _MISSING_READ_BYTES:
+                del closure['read_bytes']
+            else:
+                closure['read_bytes'] = value
+            kwargs['closure_evidence_raw'] = json.dumps(
+                closure, sort_keys=True, separators=(',', ':')).encode()
+            return real_close(rid, **kwargs)
+
+        runtime.session.transport_closed = tamper
+        assert runtime.run_attempt(request)['outcome'] == 'SUCCESS'
+        with pytest.raises(RawBindingRefusal, match='BINDING_CLOSURE'):
+            _read(runtime, request)
+    finally:
+        _close(acquired)
+
+
 def test_replayed_receipt_has_unknown_acknowledgement_and_refuses(tmp_path):
     acquired, runtime, request = _attempt(tmp_path)
     try:
