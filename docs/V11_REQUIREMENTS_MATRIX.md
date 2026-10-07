@@ -1,3 +1,7 @@
+## 2026-10-07 15:46 UTC receipt controls and pending reviews
+
+InventoryTransform receipt negative-control tests `7b0839a` were independently PASS_IN_SCOPE and integrated as `c2ea67a`; 67/67 post-integration tests pass. This adds no transaction-level qualification. PAPER PWS `5992df0` and forward-journal amendment `be58ff5` are under independent exact review; neither grants requirement or forward-qualification credit. Gate-3 **91/200 (formal 1/50)**, 77 unqualified identities, G3-L **NO-GO**, PAPER **9/11**, READY_TO_FUND=false.
+
 ## 2026-10-07 15:40 UTC integration boundary
 
 Reviewed current-executable binding re-pin is integrated on main at `1ee5f0d` and post-merge 29/29 focused tests pass. This closes the four-file verifier drift regression only. No C/J/E/A score boundary, G3-L identity, PAPER requirement 8/9 or READY_TO_FUND boundary crossed. Gate-3 **91/200 (formal 1/50)**, **77 unqualified identities**, G3-L **NO-GO**, PAPER **9/11**, READY_TO_FUND=false. Reviewed-reference successor `eba0d13` is under independent exact re-review; pre-funding rehearsal `0aa6e3e` remains CHANGES_REQUIRED with a sole repair writer.
