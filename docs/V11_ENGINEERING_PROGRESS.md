@@ -1,3 +1,7 @@
+## 2026-10-07 11:46 UTC interrupted Brain worker recovered
+
+Inspected the sealed 11:43:17 UTC Brain label-attestation worker exit and preserved all three uncommitted files in its isolated worktree. Host-side focused tests passed 14/14 in normal and optimized Python. Found two acceptance risks in the provisional code: endpoint-only METAR coverage can produce a false complete-day result, and a METAR proxy can be reported as independent Gamma settlement-label attestation. Launched one Sonnet recovery writer in the same worktree with retained prompt, runner, output/final and terminal paths under `/tmp/alpha-v11-brain-label-recovery`; no second writer was started there. A clean successor still requires different-model exact review, reconciliation and post-merge tests. No score or readiness claim changed.
+
 ## 2026-10-03 23:32 UTC transport exact PASS and local integration
 
 Independent Astra/high exact review passed clean transport `5a0ce21`. Conflict-free local merge `c13c2a4` imported all three reviewed blobs; 25 focused post-merge tests passed in normal and optimized Python. The read-only allocation compatibility map finished without a demonstrated defect and identified a next calculator-to-allocation boundary test. RAW custody/closure repair remains live and unreviewed. No provider request, physical qualification, G3-L PASS, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

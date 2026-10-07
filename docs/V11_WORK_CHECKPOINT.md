@@ -1,3 +1,11 @@
+## Live coordinator recovery: Brain label attestation — 2026-10-07 11:46 UTC
+
+Current main is `800b458` before this documentation update; the Oct 4 entries below are historical. The active nonfinancial Shadow, structural observer, forward observer, Brain supervisor and InventoryTransform observer processes remain live. The root commissioning gateway reports V10 inactive/disabled, scanner inactive/disabled, controller inactive/disabled, and financial execution inactive/masked; no financial authority or orders were enabled. Disk has about 21.2 GiB free and MemAvailable about 5.9 GiB.
+
+A Sonnet Brain label-attestation worker exited at 11:43:17 UTC with three uncommitted files and no sealed final test result. Its preserved worktree is `/home/alphaadmin/AlphaV11_Reviews/brain-label-attestation-20261007`. Host-side focused tests passed 14/14 in normal and optimized Python, but inspection found that two endpoint METAR samples can falsely appear complete and NOAA_AWC METAR proxy agreement can be mislabeled as independent settlement-label attestation. A sole Sonnet recovery writer is now live in that same worktree under tmux `alpha-brain-label-recovery-20261007`, with retained `/tmp/alpha-v11-brain-label-recovery.{prompt,runner,out,final,terminal}`; prompt SHA-256 `97536bf8afb2a9406a524fb9ed5aa5cfc7a35a08227a664ba38a916f9eddac9c`, runner SHA-256 `113e58b9ae7e0dbf1c7d4500b5df26cb6d5811e360cbb7a2c719ea25a93bee39`. It must repair, test and commit a successor, then receive different-model exact review before integration. Other weather/PAPER/microcanary implementation and review lanes remain active and owned by their existing workers; do not duplicate them.
+
+No independent Oct 5/6 settlement observation was found; no Brain label attestation, Gate-3 identity, PAPER requirement 8/9, or READY_TO_FUND credit follows from this recovery. The historical Gate-3 score remains 91/200 (formal 1/50), and PAPER strict subgate remains 9/11 pending genuine evidence and review.
+
 ## Current-input census completed; first fully prepared cycle healthy — 2026-10-04 18:20 UTC
 
 **PAPER V11 READY subgate:** 9/11 strict PASS (81.8%). Requirements 8 and 9 remain partial. **READY_TO_FUND remains false and CODE READY is not claimed.**
