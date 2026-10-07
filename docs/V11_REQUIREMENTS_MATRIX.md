@@ -1,3 +1,7 @@
+## 2026-10-07 12:40 UTC offline microcanary repair review
+
+Successor `35d3ad4` addresses the independent SQLite journal overwrite finding from rejected `54b49fc` and is under separate exact review. Author tests pass, but no PASS, integration, READY_TO_FUND or financial authority is claimed. Gate-3 remains 91/200 (formal 1/50); PAPER strict remains 9/11 with requirements 8/9 partial.
+
 ## 2026-10-07 12:25 UTC evidence audit and pending reviews
 
 The independently completed read-only 77-row G3-L audit confirms 77 unqualified PRE_REVIEW identities in the retained October 2 and October 8 screens. A historical G3-P terminal package author is live, but creates no qualified entry or G3-L credit. The offline microcanary `54b49fc` repair is under a separately retained different-model exact review; no integration or READY_TO_FUND claim follows. Gate-3 remains 91/200 (formal 1/50), PAPER strict 9/11, requirements 8/9 PARTIAL, READY_TO_FUND=false.
