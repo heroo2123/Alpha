@@ -22,13 +22,10 @@ sec. 7.3). This candidate asked the two questions the task required:
    freshness/settlement/execution-health gate)? **No** — see "Why requirement
    8 cannot reach PASS from retained evidence" below.
 2. Is the requirement-9 PWS sleeve missing *code*, or missing a *live
-   collection-plan setting* outside this repository? **The latter** — every
-   piece of the PWS observe/QC/lead/precconfirmation/netting path already
-   exists and is independently reviewed/tested; only the live deployment's
-   `CensusPlan.pws` was never set for KATL (confirmed: `CensusPlan(` and
-   `PWSQualityPlan(` are constructed nowhere in this repository outside
-   `tests/`, i.e. the real plan assembly lives entirely on the deployment
-   host, out of scope for this worktree).
+   collection-plan setting* outside this repository? The repository has the
+   observe/QC/lead/preconfirmation/netting path, while the reviewed retained
+   ledgers have no PWS observations. Deployment configuration was not
+   inspected, so the exact live cause remains unconfirmed.
 
 Per the task's own instruction ("if current evidence cannot legitimately
 produce it, implement the missing reviewed plumbing so the next legitimate
@@ -103,7 +100,7 @@ reports `NO_GENUINE_SCENARIO_RESERVATION_RECORDED`. Today, against the actual
 retained Oct 5-7 ledgers, the probe reports the latter — there is no genuine
 reservation anywhere in them.
 
-## Why requirement 9's gap is a live config, not a code, gap
+## Requirement 9's remaining live evidence gap
 
 Traced end to end in this review: `weather_sources.madis_request` /
 `parse_madis_xml` / `normalize_weather_capture` (real MADIS CWOP capture +
@@ -114,13 +111,11 @@ a real `madis_request` to the census cycle), `pws_runtime.PWSQualityWorker` +
 observation-only research, never settlement), and `pws_admission.PWSPreconfirmation`
 (the revocable join described in `docs/V11_PWS_OBSERVATION_LEAD.md`). Every
 one of these is already implemented, typed, and covered by its own test file.
-`grep -rn "CensusPlan(\|PWSQualityPlan("` across the whole repository matches
-only inside `tests/`: the actual live KATL `CensusPlan` is assembled entirely
-by a deployment-host script that is not part of this git repository, and this
-worktree has no business changing deployment-host configuration. That is the
-entire requirement-9 gap: the live collection plan simply never turns PWS
-collection on, which is why the harvest found zero `PWS_OBSERVATION` records
-of any kind in any retained ledger.
+The repository search found `CensusPlan(` and `PWSQualityPlan(` construction
+only in tests. The deployment-host plan was not inspected in either independent
+review. The retained-ledger snapshot had zero `PWS_OBSERVATION` records, but
+the exact live configuration and any additional collection blockers require
+separate verification by the deployment owner.
 
 The positive-path test
 `test_genuine_pws_lead_observed_and_netted_as_lead_only_is_demonstrated`
@@ -154,8 +149,8 @@ implemented in this one candidate; neither blocked the other.
   (`docs/V11_PWS_OBSERVATION_LEAD.md`: "No actual eligible strategy is
   claimed").
 - It does not touch `census_worker.py`, any deployment script, or any
-  Gate-3/Brain module. It adds two new files under `tools/` and two new test
-  files under `tests/`; nothing else in the repository was modified.
+  Gate-3/Brain module. The successor also adds the independent review's
+  adversarial cases under `tests/` and updates these probe modules and notes.
 - It does not grant execution, order, model, promotion, or settlement
   authority. `financial_authority` is `False` by construction in every result
   either probe can return.
@@ -179,7 +174,52 @@ This is a candidate only: independent exact-commit review by a different
 model, per the standing review-separation requirement already in force
 across this repository's other candidates. Separately, and not requested or
 scheduled by this document: the two actual blockers this review confirms
-(live book/event-risk freshness for requirement 8; the live KATL collection
-plan's missing `pws=` setting for requirement 9) remain for an owner with
-deployment-host access to address; this worktree cannot and does not touch
-either.
+(live book/event-risk freshness for requirement 8; absent retained PWS
+observations for requirement 9) remain for an owner with deployment-host
+access to investigate; this worktree cannot and does not touch either.
+
+## Successor repair after independent reviews of `bc2c29d` and `9889483`
+
+The independent exact review of `9889483` returned CHANGES_REQUIRED. Its
+adversarial probes found accepted-looking results from invented/rejected
+lineage, from a reservation with a changed PWS context or rule, and untyped
+crashes on malformed admissions. This successor keeps the original production
+gates and adds a read-only, bounded historical verifier:
+
+- The first account record containing a contributing intent must be an
+  accepted `COORDINATE` command that names the exact proposal and reservation.
+  Admission assessments, event safety/binding, and valuation economic outcome,
+  target, units, costs, and authority must match that acceptance. Later account
+  records must preserve the intent's fixed identity and stored context/rule.
+  Each account command must also link its prior record/state and request digest
+  through the coordinator's original effect-input envelope. The archived
+  prepared candidate must produce the exact ranked reservation. Malformed or
+  incomplete evidence fails closed.
+- Only verified BUY intents contribute to the reported qualifying reserved
+  cash. Unverified active intents prevent a demonstrated result. The account
+  risk computation still uses `PaperCoordinator._risk` as its separate
+  diagnostic; it is not itself evidence of accepted provenance.
+- The PWS reader takes one account head and uses that snapshot for both the
+  R08 result and qualifying intent. It compares the full stored context and
+  rule, intent fingerprint, binding, admissions, and exact referenced pair
+  before accepting the caller's revalidated pair.
+
+The supplied review's `test_successor.py` is retained as
+`tests/test_v11_r08_r09_lineage_adversarial.py`; the earlier adversarial and
+exact-code controls are also run against the successor. These are synthetic
+test stores, not live evidence. Ordinary `EvidenceStore.audit()` records are
+hash checked but not independently signed attestations of which Python method
+produced them. A party able to forge a complete accepted command and all of
+its supporting rows remains outside what this local reader can prove; retained
+acceptance needs independent evidence custody and exact-commit review.
+
+Requirements 8 and 9 remain PARTIAL at 9/11. No retained ledger was refreshed
+in this successor worktree, no deployment configuration was inspected, and
+neither reader grants execution, settlement, funding, or promotion authority.
+The seven original focused suites, successor probes, earlier independent
+adversarial/mutation suites, and exact-code controls passed together (215
+tests in normal Python and 215 under `-O`) before the final predecessor-link
+check. On the final code, the 57 directly affected readiness/adversarial/code
+tests and 27 earlier independent adversarial/mutation tests passed in both
+modes under the offline guard. The expected pytest optimized-mode warning
+concerns assertions outside rewritten test modules.

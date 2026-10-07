@@ -2,15 +2,11 @@
 
 Requirement 9 ("PWS_OBSERVATION_LEAD causal replay/shadow path; PWS never
 settlement authority; coordinator conflict/netting",
-`docs/V11_SHADOW_READINESS_20261004.md`) stays PARTIAL because the current
-live KATL Shadow plan has never included a PWS source: the Oct 5-7 forward
-harvest found zero `PWS_OBSERVATION` records of any kind in any retained
-ledger (`docs/V11_FORWARD_EVIDENCE_HARVEST_20261007.md` sec. 2.4). That is a
-live collection-plan omission (the deployed `census_worker.CensusPlan` for
-KATL is never constructed with `pws=PWSQualityPlan(...)`), not a missing code
-path, and that live plan construction lives entirely outside this repository
-(on the deployment host) -- out of scope for this isolated, nonfinancial
-worktree, which makes no service or provider-configuration change.
+`docs/V11_SHADOW_READINESS_20261004.md`) stays PARTIAL. The reviewed Oct 5-7
+forward-harvest snapshot found zero `PWS_OBSERVATION` records in retained
+ledgers. Deployment configuration was not inspected, so the live cause is
+not established by this reader or its tests. This nonfinancial worktree
+makes no service or provider-configuration change.
 
 Every piece of the actual PWS sleeve already exists and is independently
 reviewed/tested in this repository: `weather_sources.madis_request` /
@@ -59,7 +55,7 @@ source, that evidence is recognized rather than argued about.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from polymarket_scanner.v11.evidence import EvidenceError
 from polymarket_scanner.v11.paper_coordinator import PaperCoordinator
@@ -68,6 +64,7 @@ from tools.v11_r08_scenario_reservation_readiness import (
     OUTCOME_DEMONSTRATED as RESERVATION_DEMONSTRATED,
     evaluate_scenario_reservation_readiness,
     genuine_reserved_intents,
+    _account_history,
 )
 
 SCHEMA = "R09_PWS_LEAD_READINESS_V1"
@@ -128,7 +125,7 @@ class PWSLeadReadiness:
 
 
 def _qualifying_pws_intent(coordinator: PaperCoordinator, *, preconfirmation_id: str, context, rule,
-                           binding: dict, payout_admission_ids: tuple):
+                           binding: dict, payout_admission_ids: tuple, state: dict, history: tuple):
     """The one genuinely-reserved intent this exact revalidated pair backs.
 
     Only a provenance-verified reservation (``genuine_reserved_intents``, R08)
@@ -138,12 +135,20 @@ def _qualifying_pws_intent(coordinator: PaperCoordinator, *, preconfirmation_id:
     be substituted in -- fresh unused evidence cannot rescue a different,
     expired reservation's pair.
     """
-    for intent in genuine_reserved_intents(coordinator):
+    stored_context = state.get("contexts", {}).get(context.event_id)
+    stored_rule = state.get("rules", {}).get(context.event_id)
+    if stored_context != asdict(context) or stored_rule != asdict(rule):
+        return None
+    for intent in genuine_reserved_intents(coordinator, state=state, history=history):
         if (any(a["strategy"] == PWS_STRATEGY for a in intent["attribution"])
                 and intent.get("preconfirmation_id") == preconfirmation_id
                 and intent.get("event_id") == context.event_id
+                and intent.get("rule_fingerprint") == rule.sha256
                 and intent.get("binding") == binding
                 and tuple(intent.get("admission_ids") or ()) == tuple(payout_admission_ids)):
+            # The caller's revalidation above is for this same stored pair ID
+            # with these exact arguments; repeating it would introduce a
+            # second clock/read window and duplicate negative reasons.
             return intent
     return None
 
@@ -195,9 +200,13 @@ def evaluate_pws_lead_readiness(
         if not unpaired_pws_proposal_refused:
             reasons.append("UNEXPECTED_UNPAIRED_REFUSAL_REASON:" + str(exc))
 
-    reservation = evaluate_scenario_reservation_readiness(coordinator)
+    head = coordinator._head()
+    state = coordinator._state(head)
+    history = _account_history(coordinator, head)
+    reservation = evaluate_scenario_reservation_readiness(coordinator, _snapshot=(state, history))
     qualifying_intent = _qualifying_pws_intent(coordinator, preconfirmation_id=preconfirmation_id, context=context,
-                                                rule=rule, binding=binding, payout_admission_ids=payout_admission_ids)
+                                                rule=rule, binding=binding, payout_admission_ids=payout_admission_ids,
+                                                state=state, history=history)
     genuine_pws_reservation_present = reservation.outcome == RESERVATION_DEMONSTRATED and qualifying_intent is not None
     if not genuine_pws_reservation_present:
         if reservation.outcome != RESERVATION_DEMONSTRATED:

@@ -50,10 +50,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from polymarket_scanner.v11.evidence import EvidenceError
+from polymarket_scanner.v11.account_effects import VERSION as EFFECT_INPUT_VERSION, ref
+from polymarket_scanner.v11.allocation import rank_candidates
+from polymarket_scanner.v11.evidence import EvidenceError, canonical, digest
+from polymarket_scanner.v11.certification import CapabilityScope
 from polymarket_scanner.v11.event_risk import VERSION as EVENT_RISK_VERSION
-from polymarket_scanner.v11.paper_coordinator import PaperCoordinator, UNRESOLVED
+from polymarket_scanner.v11.paper_coordinator import ACCOUNT_KEY, VERSION as COORDINATOR_VERSION, PaperCoordinator, UNRESOLVED
 from polymarket_scanner.v11.scenario_risk import number
+from polymarket_scanner.v11.source_release import VERSION as SOURCE_RELEASE_VERSION
 from polymarket_scanner.v11.strategy_admission import VERSION as STRATEGY_ADMISSION_VERSION
 from polymarket_scanner.v11.valuation import VERSION as EV_VERSION
 
@@ -108,79 +112,320 @@ class ScenarioReservationReadiness:
 
 
 def _candidate_intents(state: dict) -> list:
-    return [
-        intent for intent in state["intents"].values()
-        if intent["status"] in UNRESOLVED and number(intent["units"]) > number(intent["filled_units"])
-    ]
+    intents = state.get("intents")
+    if type(intents) is not dict:
+        return []
+    candidates = []
+    for intent in intents.values():
+        if type(intent) is not dict:
+            continue
+        try:
+            if intent.get("status") in UNRESOLVED and number(intent.get("units")) > number(intent.get("filled_units")):
+                candidates.append(intent)
+        except (EvidenceError, TypeError, ValueError):
+            continue
+    return candidates
 
 
-def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent: dict) -> bool:
-    """Fail-closed historical check that ``intent`` has genuine originating lineage.
+def _account_history(coordinator: PaperCoordinator, head: dict | None) -> tuple:
+    """Read the complete account command chain through the selected head."""
+    if head is None:
+        return ()
+    rows = []
+    after = 0
+    while len(rows) < 10000:
+        page = coordinator.store.records(kind="COORDINATOR_EVENT", event_id=ACCOUNT_KEY,
+                                         after_seq=after, limit=1000)
+        for row in page:
+            if row["seq"] > head["seq"]:
+                break
+            rows.append(row)
+            after = row["seq"]
+            if row["seq"] == head["seq"]:
+                return tuple(rows) if row["sha256"] == head["sha256"] else ()
+        if not page or len(page) < 1000 or page[-1]["seq"] > head["seq"]:
+            break
+    return ()  # Bounded failure is safer than a partial history.
 
-    Reuses the exact-equality comparisons ``PaperCoordinator._prepare()`` itself
-    already enforces at admission time (per-intent authority, admission scope,
-    event-state context, valuation binding) instead of re-deriving risk/EV
-    arithmetic. Deliberately does not require current freshness: a historical
-    admission/event-state/valuation that has since expired is still real
-    evidence that ``coordinate()`` once accepted it -- only its *existence and
-    internal consistency* are checked here, never re-admitted. Any missing,
-    malformed, or inconsistent reference means the intent cannot be trusted
-    and must not count toward genuine reservation evidence.
-    """
-    if intent.get("financial_authority") is not False:
+
+def _same(a, b) -> bool:
+    return canonical(a) == canonical(b)
+
+
+def _account_step_valid(coordinator: PaperCoordinator, before_row: dict | None,
+                        before: dict, row: dict, details: dict) -> bool:
+    """Bind each stored command to its predecessor and allowed state fields."""
+    request, after = details["request"], details["state"]
+    inputs = details.get("effect_inputs")
+    if (type(inputs) is not dict or inputs.get("version") != EFFECT_INPUT_VERSION
+            or inputs.get("before_ref") != ref(before_row)
+            or inputs.get("before_state_sha256") != digest(before)
+            or inputs.get("request_sha256") != digest(request)
+            or inputs.get("financial_authority") is not False
+            or inputs.get("control_flow_replayed") is not False):
         return False
+    allowed = {
+        "COORDINATE": {"rules", "contexts", "intents", "baskets"},
+        "TRANSITION": {"intents"},
+        "RECOVER": {"intents"},
+        "FILL": {"intents", "cash", "lots", "fills", "event_realized_pnl", "realized_entries", "faults"},
+        "TERMINAL": {"intents"},
+    }[request["action"]]
+    return all(before.get(key) == after.get(key) for key in set(before) | set(after) if key not in allowed)
+
+
+def _historical_lineage(coordinator: PaperCoordinator, state: dict, intent: dict,
+                        proposal: dict, origin_seq: int, accepted_at: float) -> bool:
+    """Check persisted acceptance-time gate outputs without reapplying freshness."""
     admission_ids = intent.get("admission_ids")
-    if (type(admission_ids) not in (list, tuple) or not 1 <= len(admission_ids) <= 4
+    if (type(admission_ids) is not list or not 1 <= len(admission_ids) <= 4
+            or any(type(key) is not str or not key for key in admission_ids)
             or len(set(admission_ids)) != len(admission_ids)):
         return False
+    event_id = intent.get("event_id")
+    contexts, rules = state.get("contexts"), state.get("rules")
+    if type(contexts) is not dict or type(rules) is not dict or type(event_id) is not str:
+        return False
+    context, rule = contexts.get(event_id), rules.get(event_id)
     binding = intent.get("binding")
-    if type(binding) is not dict:
+    attribution = intent.get("attribution")
+    if (type(context) is not dict or type(rule) is not dict or type(binding) is not dict
+            or type(attribution) is not list or not attribution
+            or any(type(a) is not dict or type(a.get("strategy")) is not str for a in attribution)):
         return False
-    strategies = {a.get("strategy") for a in intent.get("attribution", [])}
+    strategies = [a["strategy"] for a in attribution]
+    if (proposal.get("context") != context or proposal.get("rule") != rule
+            or proposal.get("admission_ids") != admission_ids
+            or proposal.get("attribution") != attribution
+            or proposal.get("valuation_id") != intent.get("valuation_id")
+            or proposal.get("event_state_id") != intent.get("event_state_id")
+            or proposal.get("preconfirmation_id") != intent.get("preconfirmation_id")
+            or proposal.get("source_release_id") != intent.get("source_release_id")
+            or proposal.get("proposal_id") != intent.get("proposal_id")
+            or proposal.get("thesis_id") != intent.get("thesis_id")
+            or proposal.get("desired_total_units") != intent.get("desired_total_units")
+            or intent.get("rule_fingerprint") != rule.get("sha256")
+            or binding.get("rule_fingerprint") != rule.get("sha256")
+            or context.get("account_id") != coordinator.policy.account_id):
+        return False
+    covered = set()
+    for admission_id in admission_ids:
+        row = coordinator.store.get(admission_id)
+        details = row["body"].get("details")
+        if row["seq"] >= origin_seq or row["kind"] != "REGISTRY" or type(details) is not dict or details.get("version") != STRATEGY_ADMISSION_VERSION:
+            return False
+        request, assessment = details.get("request"), details.get("assessment")
+        if type(request) is not dict or type(assessment) is not dict or type(request.get("scope")) is not dict:
+            return False
+        strategy = request["scope"].get("strategy")
+        if row["event_id"] != "admission:" + CapabilityScope(**request["scope"]).key:
+            return False
+        if (request.get("context") != context or request.get("rule") != rule
+                or request.get("binding") != binding or strategy not in strategies
+                or assessment.get("strategy") != strategy
+                or assessment.get("financial_authority") is not False
+                or type(assessment.get("heads")) is not list
+                or type(assessment.get("valid_until")) not in (int, float)
+                or assessment["valid_until"] <= accepted_at
+                or type(assessment.get("certification")) is not dict
+                or type(assessment.get("rule")) is not dict
+                or type(assessment.get("source_refs")) is not list):
+            return False
+        covered.add(strategy)
+    if covered != set(strategies):
+        return False
+    event_row = coordinator.store.get(intent.get("event_state_id"))
+    event = event_row["body"].get("details")
+    if (event_row["seq"] >= origin_seq or event_row["kind"] != "COORDINATOR_EVENT"
+            or event_row["event_id"] != "event-risk:" + digest(event_id)
+            or type(event) is not dict or event.get("version") != EVENT_RISK_VERSION
+            or type(event.get("request")) is not dict or type(event["request"].get("binding")) is not dict
+            or event["request"].get("context") != context or event["request"].get("binding") != binding
+            or event.get("financial_authority") is not False
+            or type(event.get("valid_until")) not in (int, float)
+            or event["valid_until"] <= accepted_at
+            or type(event.get("safety")) is not dict or type(event["safety"].get("flags")) is not dict):
+        return False
+    flags = event["safety"]["flags"]
+    if (any(flags.get(k) is not False for k in ("no_new_orders", "manual_review", "quarantined"))
+            or (intent.get("direction") == "BUY" and flags.get("reduce_only") is not False)):
+        return False
+    value_row = coordinator.store.get(intent.get("valuation_id"))
+    value = value_row["body"].get("details")
+    if (value_row["seq"] >= origin_seq or value_row["kind"] != "MEASUREMENT"
+            or value_row["event_id"] != event_id or type(value) is not dict
+            or value.get("version") != EV_VERSION or value.get("binding") != binding
+            or value.get("financial_authority") is not False
+            or value.get("target") != intent.get("target")
+            or value.get("collateral_asset") != coordinator.policy.collateral_asset
+            or type(value.get("as_of")) not in (int, float)
+            or value["as_of"] > accepted_at
+            or value.get("execution_status") != "NOT_SUBMITTED"
+            or number(value.get("units")) != number(intent.get("units"))
+            or number(intent.get("filled_units")) != 0
+            or intent.get("cancel_requested") is not False):
+        return False
+    release_id = intent.get("source_release_id")
+    directional_release = False
+    if release_id is not None:
+        release_row = coordinator.store.get(release_id)
+        release = release_row["body"].get("details")
+        if (release_row["seq"] >= origin_seq or release_row["kind"] != "REGISTRY"
+                or type(release) is not dict or release.get("version") != SOURCE_RELEASE_VERSION
+                or type(release.get("assessment")) is not dict):
+            return False
+        assessment = release["assessment"]
+        if (assessment.get("context") != context or assessment.get("rule") != rule
+                or assessment.get("binding") != binding
+                or assessment.get("admission_id") not in admission_ids
+                or assessment.get("event_state_id") != intent.get("event_state_id")
+                or assessment.get("book_id") != value.get("book", {}).get("book_id")
+                or assessment.get("financial_authority") is not False
+                or type(assessment.get("valid_until")) not in (int, float)
+                or assessment["valid_until"] <= accepted_at):
+            return False
+        directional_release = assessment.get("directional_event_data_eligible") is True
+    if (intent.get("direction") == "BUY" and event.get("ordinary_new_risk_research_allowed") is not True
+            and not directional_release):
+        return False
+    if intent.get("direction") == "BUY":
+        if value.get("valuation_type") != "SETTLEMENT" or value.get("outcome") != "ACCEPT_RESEARCH":
+            return False
+        ev, costs = value.get("conservative_ev_per_share"), value.get("costs")
+    elif intent.get("direction") == "SELL":
+        if value.get("valuation_type") != "EXIT_COMPARISON" or value.get("outcome") != "REDUCE_RESEARCH_CANDIDATE":
+            return False
+        ev, costs = value.get("sale_advantage_per_share"), value.get("sale_costs")
+    else:
+        return False
+    book = value.get("book")
+    if (type(book) is not dict or type(costs) is not dict or costs.get("complete") is not True
+            or value["target"].get("token_id") != intent.get("token_id")
+            or number(ev) <= coordinator.policy_amount("minimum_ev_per_share")
+            or number(intent.get("conservative_ev_total")) != number(ev)*number(intent["units"])):
+        return False
+    price, fees = number(book.get("worst_consumed_price")), number(costs.get("known_total_per_share"))
+    bound = price+fees if intent["direction"] == "BUY" else price-fees
+    capital = number(intent["units"])*bound if intent["direction"] == "BUY" else number(intent["units"])
+    return (number(intent.get("unit_collateral_bound")) == bound
+            and number(intent.get("capital_at_risk")) == capital)
+
+
+def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent: dict, history: tuple) -> bool:
+    """Fail-closed historical check that ``intent`` has genuine originating lineage.
+
+    Requires the first account record containing this intent to be an accepted
+    COORDINATE command with the exact proposal and complete historical gate
+    lineage. Later account records must preserve its fixed fields and event
+    identity. This does not demand that the old gate evidence remain fresh now.
+    The bounded history and malformed evidence fail closed.
+    """
+    if type(intent) is not dict or intent.get("financial_authority") is not False or not history:
+        return False
+    intent_id = intent.get("proposal_id")
+    if type(intent_id) is not str or not intent_id or state.get("intents", {}).get(intent_id) != intent:
+        return False
+    origin = None
+    origin_context = None
+    origin_rule = None
+    previous = None
+    previous_row = None
+    previous_state = coordinator._state(None)
+    mutable = {"status", "filled_units", "cancel_requested"}
     try:
-        for admission_id in admission_ids:
-            row = coordinator.store.get(admission_id)
-            details = row["body"].get("details", {})
-            if row["kind"] != "REGISTRY" or details.get("version") != STRATEGY_ADMISSION_VERSION:
+        for row in history:
+            details = row["body"].get("details")
+            if (type(details) is not dict or details.get("version") != COORDINATOR_VERSION
+                    or details.get("policy_sha256") != coordinator.policy_sha
+                    or type(details.get("state")) is not dict
+                    or details["state"].get("account_id") != coordinator.policy.account_id
+                    or details["state"].get("execution_namespace") != coordinator.store.namespace
+                    or details["state"].get("financial_authority") is not False
+                    or type(details["state"].get("intents")) is not dict
+                    or type(details.get("request")) is not dict
+                    or details["request"].get("action") not in {
+                        "COORDINATE", "TRANSITION", "RECOVER", "FILL", "TERMINAL"}):
                 return False
-            request = details.get("request", {})
-            if request.get("binding") != binding or request.get("scope", {}).get("strategy") not in strategies:
+            if not _account_step_valid(coordinator, previous_row, previous_state, row, details):
                 return False
-        event_row = coordinator.store.get(intent.get("event_state_id"))
-        event_details = event_row["body"].get("details", {})
-        if event_row["kind"] != "COORDINATOR_EVENT" or event_details.get("version") != EVENT_RISK_VERSION:
-            return False
-        if event_details.get("request", {}).get("context") != state["contexts"].get(intent.get("event_id")):
-            return False
-        value_row = coordinator.store.get(intent.get("valuation_id"))
-        value_details = value_row["body"].get("details", {})
-        if (value_row["kind"] != "MEASUREMENT" or value_details.get("version") != EV_VERSION
-                or value_details.get("binding") != binding or value_row["event_id"] != intent.get("event_id")):
-            return False
-    except EvidenceError:
+            current = details["state"]["intents"].get(intent_id)
+            if origin is None:
+                if current is None:
+                    previous_row = row
+                    previous_state = details["state"]
+                    continue
+                request = details.get("request")
+                results = details.get("results")
+                if (type(request) is not dict or request.get("action") != "COORDINATE"
+                        or type(request.get("proposals")) is not list
+                        or type(results) is not list
+                        or type(details.get("reserved_intent_ids")) is not list
+                        or intent_id not in details["reserved_intent_ids"]
+                        or details.get("execution_status") != "NOT_SUBMITTED"
+                        or details.get("risk", {}).get("accepted") is not True
+                        or sum(r.get("proposal_id") == intent_id and r.get("outcome") == "RESERVED_RESEARCH" for r in results if type(r) is dict) != 1
+                        or type(current) is not dict or current.get("status") != "RESERVED"
+                        or current.get("financial_authority") is not False):
+                    return False
+                proposals = [p for p in request["proposals"] if type(p) is dict and p.get("proposal_id") == intent_id]
+                preparation = details["effect_inputs"].get("preparation")
+                prepared = preparation.get("prepared") if type(preparation) is dict else None
+                if (type(prepared) is not list or any(type(p) is not dict for p in prepared)
+                        or details.get("ranking") != rank_candidates(tuple(prepared))
+                        or sum(p.get("proposal_id") == intent_id and p == {
+                            k: v for k, v in current.items() if k != "conservative_ev_per_capital"}
+                               for p in prepared) != 1
+                        or current not in details["ranking"]):
+                    return False
+                if len(proposals) != 1 or not _historical_lineage(coordinator, details["state"], current, proposals[0],
+                                                               row["seq"], row["body"]["recorded_at"]):
+                    return False
+                origin = current
+                origin_context = details["state"]["contexts"][current["event_id"]]
+                origin_rule = details["state"]["rules"][current["event_id"]]
+            else:
+                if type(current) is not dict:
+                    return False
+                if not _same({k: v for k, v in current.items() if k not in mutable},
+                             {k: v for k, v in origin.items() if k not in mutable}):
+                    return False
+                if (details["state"].get("contexts", {}).get(origin["event_id"]) != origin_context
+                        or details["state"].get("rules", {}).get(origin["event_id"]) != origin_rule):
+                    return False
+                if current != previous and details.get("request", {}).get("action") not in {
+                    "TRANSITION", "RECOVER", "FILL", "TERMINAL"}:
+                    return False
+            previous = current
+            previous_row = row
+            previous_state = details["state"]
+        return origin is not None and previous == intent
+    except (EvidenceError, TypeError, KeyError, ValueError, AttributeError):
         return False
-    return True
 
 
-def genuine_reserved_intents(coordinator: PaperCoordinator) -> tuple:
+def genuine_reserved_intents(coordinator: PaperCoordinator, *, state: dict | None = None,
+                            history: tuple | None = None) -> tuple:
     """The subset of ``coordinator``'s currently-reserved intents with verified
     originating provenance (public reuse point for other readiness probes).
 
-    Grants no execution, order, or funding authority: it only narrows the raw
-    unresolved/reserved intents in persisted state down to those whose
-    admission/event-state/valuation lineage and per-intent authority flag
-    independently verify against this same evidence store, fail-closed.
+    Grants no execution, order, or funding authority. It narrows unresolved
+    intents to those with accepted command, historical gate, and continuous
+    account-state evidence in this store.
     """
     if type(coordinator) is not PaperCoordinator:
         raise EvidenceError("R08_TYPED_COORDINATOR_REQUIRED")
-    state = coordinator._state(coordinator._head())
+    if state is None or history is None:
+        head = coordinator._head()
+        state = coordinator._state(head)
+        history = _account_history(coordinator, head)
     return tuple(
         intent for intent in _candidate_intents(state)
-        if _verify_intent_provenance(coordinator, state, intent)
+        if _verify_intent_provenance(coordinator, state, intent, history)
     )
 
 
-def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator) -> ScenarioReservationReadiness:
+def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator, *,
+                                            _snapshot: tuple | None = None) -> ScenarioReservationReadiness:
     """Classify the *current* persisted state of ``coordinator``'s account.
 
     ``coordinator`` must already be a real ``PaperCoordinator`` the caller
@@ -197,29 +442,37 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator) -> Sc
     """
     if type(coordinator) is not PaperCoordinator:
         raise EvidenceError("R08_TYPED_COORDINATOR_REQUIRED")
-    row = coordinator._head()
-    state = coordinator._state(row)
+    if _snapshot is None:
+        row = coordinator._head()
+        state = coordinator._state(row)
+        history = _account_history(coordinator, row)
+    else:
+        state, history = _snapshot
     risk = coordinator._risk(state)
     reasons: list = []
     candidates = _candidate_intents(state)
-    active = [intent for intent in candidates if _verify_intent_provenance(coordinator, state, intent)]
+    active = genuine_reserved_intents(coordinator, state=state, history=history)
     financial_authority_clean = (
         risk.get("financial_authority") is False and state.get("financial_authority") is False
     )
     if not financial_authority_clean:
         reasons.append("FINANCIAL_AUTHORITY_FLAG_UNEXPECTED")
-    if not active:
-        reasons.append("RESERVED_INTENT_PROVENANCE_UNVERIFIED" if candidates else "NO_UNRESOLVED_RESERVED_INTENT")
+    if len(active) != len(candidates):
+        reasons.append("RESERVED_INTENT_PROVENANCE_UNVERIFIED")
+    elif not active:
+        reasons.append("NO_UNRESOLVED_RESERVED_INTENT")
+    verified_cash = sum((number(i["units"])-number(i["filled_units"]))*number(i["unit_collateral_bound"])
+                        for i in active if i["direction"] == "BUY")
     if not risk["accepted"]:
         reasons.append("ACCOUNT_SCENARIO_RISK_NOT_ACCEPTED")
-    elif Decimal(risk["reserved_cash"]) <= 0:
+    elif active and verified_cash <= 0:
         reasons.append("NO_POSITIVE_CASH_RESERVATION")
     outcome = OUTCOME_NO_RESERVATION if reasons else OUTCOME_DEMONSTRATED
     return ScenarioReservationReadiness(
         schema=SCHEMA,
         outcome=outcome,
         reserved_intent_count=len(active),
-        reserved_cash=risk["reserved_cash"],
+        reserved_cash=str(verified_cash),
         risk_accepted=bool(risk["accepted"]),
         financial_authority=False,
         reasons=tuple(sorted(reasons)),
