@@ -386,6 +386,23 @@ def _history(store, *, kind, event_id, maximum_rows=STATUS_MAX_ROWS):
                      scanned_through_seq=cursor, rows_scanned=len(rows), maximum_rows=maximum_rows)
 
 
+def _head_at(store, *, kind, event_id, through_seq):
+    """Find a guarded head at a historical capture frontier with a hard scan bound."""
+    cursor = count = head = 0
+    while True:
+        page = store.records(kind=kind, event_id=event_id, after_seq=cursor, limit=STATUS_PAGE_SIZE)
+        if not page:
+            return head
+        for row in page:
+            if row['seq'] > through_seq:
+                return head
+            count += 1
+            if count > STATUS_MAX_ROWS:
+                raise EvidenceError('FORWARD_GUARD_HISTORY_INCOMPLETE')
+            head = row['seq']
+        cursor = page[-1]['seq']
+
+
 def _linked_outcome(plan, store, row):
     d = row['body']['details']
     try:
@@ -431,20 +448,31 @@ def _qualified_admission(plan, store, target, capture_id, label_ids):
     if len(matching) != 1:
         raise EvidenceError('FORWARD_PLAN_TARGET_MISMATCH')
     cohort = matching[0]
-    rule_heads = {tuple(head[:2]): head[2] for head in assessment.get('heads', [])}
-    rule_history, rule_coverage = _history(store, kind='RULE_STATE', event_id=target.event_id)
-    if not rule_coverage['complete']:
-        raise EvidenceError('FORWARD_RULE_HISTORY_INCOMPLETE')
-    prior_rules = [row for row in rule_history if row['seq'] <= capture['seq']]
-    current_rule = prior_rules[-1] if prior_rules else None
+    pinned_heads = assessment.get('heads')
+    if (not isinstance(pinned_heads, list) or not 3 <= len(pinned_heads) <= 64
+            or any(not isinstance(h, list) or len(h) != 3 or not isinstance(h[0], str)
+                   or not isinstance(h[1], str) or type(h[2]) is not int or h[2] < 0
+                   for h in pinned_heads)
+            or len({(h[0], h[1]) for h in pinned_heads}) != len(pinned_heads)):
+        raise EvidenceError('FORWARD_ADMISSION_GUARDS_INVALID')
+    guarded = {(h[0], h[1]): h[2] for h in pinned_heads}
+    if not {('RULE_STATE', target.event_id), ('REGISTRY', 'station:' + target.scope.station),
+            ('OFFICIAL_OBSERVATION', target.event_id), ('MODEL', target.event_id)} <= guarded.keys():
+        raise EvidenceError('FORWARD_ADMISSION_GUARDS_INVALID')
+    for (kind, event), expected in guarded.items():
+        if (_head_at(store, kind=kind, event_id=event, through_seq=admission['seq']) != expected
+                or _head_at(store, kind=kind, event_id=event, through_seq=capture['seq']) != expected):
+            raise EvidenceError('FORWARD_ADMISSION_GUARD_CHANGED')
     decisions = [store.get(child['decision_id']) for child in cd['rows']]
     model_leases = {lease['evidence_id'] for lease in request.get('source_leases', [])
                     if lease.get('role') == 'MODEL'}
     assessed_models = {ref['id'] for ref in assessment.get('source_refs', [])
                        if ref.get('role') == 'MODEL'}
-    assessed_hashes_match = all(store.get(ref['id'])['sha256'] == ref['sha256']
-                                for ref in assessment.get('source_refs', [])
-                                if ref.get('role') == 'MODEL')
+    source_refs = assessment.get('source_refs', [])
+    assessed_hashes_match = all(store.get(source['id'])['sha256'] == source['sha256']
+                                for source in source_refs)
+    leases_match = {(lease['evidence_id'], lease['role']) for lease in request.get('source_leases', [])} == {
+        (source['id'], source['role']) for source in source_refs}
     if (admission['kind'] != 'REGISTRY' or admission['event_id'] != 'admission:' + target.scope.key
             or admission['sha256'] != ref['sha256']
             or ad.get('version') != 'alpha_v11_strategy_admission_v1'
@@ -464,9 +492,8 @@ def _qualified_admission(plan, store, target, capture_id, label_ids):
             or assessment.get('valid_until', 0) <= capture['body']['recorded_at']
             or not decisions or admission['seq'] >= min(x['seq'] for x in decisions)
             or assessment.get('valid_until', 0) <= max(x['body']['recorded_at'] for x in decisions)
-            or not assessed_hashes_match or model_leases != assessed_models
+            or not assessed_hashes_match or not leases_match or model_leases != assessed_models
             or model_leases != set(group['model_source_ids'])
-            or rule_heads.get(('RULE_STATE', target.event_id)) != (current_rule['seq'] if current_rule else 0)
             or admission['body'].get('financial_authority') is not False
             or not plan.created_at <= admission['body']['recorded_at'] <= capture['body']['recorded_at']
             or not admission['seq'] < capture['seq']
@@ -503,10 +530,22 @@ def record_forward_admission(plan, store, *, capture_id, label_ids):
         if existing['body'].get('details', {}).get('qualification') != qualified:
             raise EvidenceError('FORWARD_QUALIFICATION_CONFLICT')
         return existing
+    prior, coverage = _history(store, kind='REGISTRY', event_id='admission:' + target.scope.key)
+    if not coverage['complete']:
+        raise EvidenceError('FORWARD_ADMISSION_HISTORY_INCOMPLETE')
+    for row in prior:
+        details = row['body'].get('details', {})
+        q = details.get('qualification', {}) if isinstance(details, dict) else {}
+        if (isinstance(q, dict) and details.get('version') == FORWARD_VERSION
+                and q.get('plan_key') == plan.key
+                and (q.get('admission_id') == qualified['admission_id']
+                     or q.get('grouped_outcome_id') == qualified['grouped_outcome_id'])):
+            raise EvidenceError('FORWARD_DUPLICATE_ADMISSION_OR_OUTCOME')
     return store.audit(key, event_id='admission:' + target.scope.key, kind='REGISTRY',
                        details=dict(version=FORWARD_VERSION, qualification=qualified,
                                     label_ids=label_ids, financial_authority=False,
-                                    forward_acceptance_pending_independent_review=True))
+                                    forward_acceptance_pending_independent_review=True),
+                       expected_previous_seq=coverage['frontier_seq'])
 
 
 def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_ROWS):
@@ -544,7 +583,7 @@ def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_
     for target in plan.targets:
         admissions, scan = _history(store, kind='REGISTRY', event_id='admission:' + target.scope.key,
                                      maximum_rows=maximum_rows)
-        qualified = set()
+        qualified_admissions, qualified_outcomes = set(), set()
         for row in admissions:
             details = row['body'].get('details', {})
             if not isinstance(details, dict) or details.get('version') != FORWARD_VERSION:
@@ -560,16 +599,19 @@ def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_
                     continue
                 checked = _qualified_admission(plan, store, target, q['capture_id'], details['label_ids'])
                 if checked == q and max(x['knowable_at'] for x in q['labels']) <= row['body']['recorded_at']:
-                    qualified.add(q['capture_id'])
+                    qualified_admissions.add(q['admission_id'])
+                    qualified_outcomes.add(q['grouped_outcome_id'])
             except (EvidenceError, KeyError, TypeError, ValueError):
                 continue
-        count = len(qualified)
+        admission_count, sample_count = len(qualified_admissions), len(qualified_outcomes)
         targets.append(dict(scope_key=target.scope.key, event_id=target.event_id, station=target.scope.station,
             family=target.scope.family, unit=target.unit, strategy=target.scope.strategy,
-            sample_target=target.sample_target, qualifying_forward_sample_count=count,
-            forward_admission_count=count, unqualified_admission_rows_scanned=len(admissions)-count,
-            admission_history_coverage=scan, sample_target_reached=scan['complete'] and count >= target.sample_target,
-            reason=None if count else FORWARD_UNAVAILABLE))
+            sample_target=target.sample_target, qualifying_forward_sample_count=sample_count,
+            forward_admission_count=admission_count,
+            unqualified_admission_rows_scanned=len(admissions)-admission_count,
+            admission_history_coverage=scan,
+            sample_target_reached=scan['complete'] and min(admission_count, sample_count) >= target.sample_target,
+            reason=None if min(admission_count, sample_count) else FORWARD_UNAVAILABLE))
     complete = coverage['complete'] and all(t['admission_history_coverage']['complete'] for t in targets)
     has_forward = any(t['forward_admission_count'] for t in targets)
     return dict(version=VERSION, plan_key=plan.key, namespace=store.namespace, as_of=finite(store.clock()),

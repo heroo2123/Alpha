@@ -255,6 +255,7 @@ def test_recorded_forward_group_requires_original_plan_admission_and_counts_once
         assert source is store and labels == label_ids
         chosen = source.get(capture_id)
         return dict(capture_id=chosen['id'], capture_sha256=chosen['sha256'],
+                    grouped_outcome_id='synthetic-group',
                     admission_ref=detail['admission_ref'], labels=[dict(knowable_at=rig['now'][0])],
                     model_source_ids=['model2'], financial_authority=False)
     monkeypatch.setattr(sc, 'grouped_outcome', verified_group)
@@ -276,17 +277,17 @@ def test_recorded_forward_group_requires_original_plan_admission_and_counts_once
                         kind='MEASUREMENT', details=detail)
     with pytest.raises(EvidenceError, match='PLAN_TARGET_MISMATCH'):
         sc.record_forward_admission(plan, store, capture_id=cross['id'], label_ids=label_ids)
-    store.audit('forward-test-rule-change', event_id=rig['context'].event_id,
-                kind='RULE_STATE', details={'test_only': True})
-    rule_drift = store.audit('forward-test-rule-drift', event_id=rig['context'].event_id,
-                             kind='MEASUREMENT', details=detail)
-    with pytest.raises(EvidenceError, match='ADMISSION_PLAN_LINEAGE_MISMATCH'):
-        sc.record_forward_admission(plan, store, capture_id=rule_drift['id'], label_ids=label_ids)
     rig['now'][0] = admission['body']['details']['assessment']['valid_until'] + 1
     stale = store.audit('forward-test-stale', event_id=rig['context'].event_id,
                         kind='MEASUREMENT', details=detail)
     with pytest.raises(EvidenceError, match='ADMISSION_PLAN_LINEAGE_MISMATCH'):
         sc.record_forward_admission(plan, store, capture_id=stale['id'], label_ids=label_ids)
+    store.audit('forward-test-rule-change', event_id=rig['context'].event_id,
+                kind='RULE_STATE', details={'test_only': True})
+    rule_drift = store.audit('forward-test-rule-drift', event_id=rig['context'].event_id,
+                             kind='MEASUREMENT', details=detail)
+    with pytest.raises(EvidenceError, match='ADMISSION_GUARD_CHANGED'):
+        sc.record_forward_admission(plan, store, capture_id=rule_drift['id'], label_ids=label_ids)
 
 
 def test_bounded_real_runner_is_idempotent_linked_and_not_forward(rig):

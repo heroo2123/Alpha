@@ -70,7 +70,13 @@ def grouped_outcome(store, capture_id, label_ids):
         if not page or len(page) < 200:
             break
         cursor = page[-1]['seq']
-    relevant = [r for r in all_labels if r['body'].get('payload', {}).get('target_identity', {}).get('market_id') in expected]
+    relevant = []
+    for row in all_labels:
+        payload = row['body'].get('payload')
+        _require(isinstance(payload, dict) and isinstance(payload.get('target_identity'), dict),
+                 'LABEL_SCHEMA_INVALID')
+        if payload['target_identity'].get('market_id') in expected:
+            relevant.append(row)
     _require(len(relevant) == len(expected)
              and {r['id'] for r in relevant} == set(label_ids.values()), 'MISSING_DUPLICATE_OR_CONFLICTING_LABEL')
     cutoff = finite(d['inference_cutoff'])
@@ -126,8 +132,9 @@ def grouped_outcome(store, capture_id, label_ids):
                  and rp.get('endpoint') == 'https://gamma-api.polymarket.com/markets/' + mid
                  and isinstance(market, dict) and str(market.get('id')) == mid
                  and market.get('conditionId') == target['condition_id']
-                 and raw['seq'] < label['seq'] and cutoff < rb['recorded_at'] <= lb['recorded_at']
-                 and cutoff < rb['available_at'] <= finite(lp['knowable_at']) <= lb['available_at']
+                 and capture['seq'] < raw['seq'] < label['seq']
+                 and capture['body']['recorded_at'] < rb['recorded_at'] <= lb['recorded_at']
+                 and capture['body']['recorded_at'] < rb['available_at'] <= finite(lp['knowable_at']) <= lb['available_at']
                  and lp['target_identity'] == target and lp['decision_target'] == TARGET
                  and lp['context'] == dict(station=p['station'], city=context['city_id'],
                                           local_date=p['target_date'], target=TARGET,
@@ -148,7 +155,9 @@ def grouped_outcome(store, capture_id, label_ids):
         probabilities.append(finite(ex['point']))
     _require(sum(values) == 1 and math.isclose(math.fsum(probabilities), 1., abs_tol=1e-10)
              and all(0 <= x <= 1 for x in probabilities), 'GROUPED_OUTCOME_INVALID')
+    outcome_identity = digest([event, rule.sha256, sorted(label_refs, key=lambda x: x['market_id'])])
     return dict(version=VERSION, event_id=event, capture_id=capture['id'], capture_sha256=capture['sha256'],
+                grouped_outcome_id=outcome_identity,
                 binding=binding, rule_fingerprint=rule.sha256, prediction_sha256=d['prediction_sha256'],
                 inference_cutoff=cutoff, admission_ref=d.get('admission_ref'),
                 model_source_ids=sorted(model_ids),

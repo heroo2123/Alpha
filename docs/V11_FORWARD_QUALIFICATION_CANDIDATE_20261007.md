@@ -4,20 +4,27 @@ This isolated-worktree candidate adds a nonfinancial, same-ledger path from an
 original scoped admission through a complete forecast decision vector to one
 grouped, exact-token payout outcome. `record_forward_admission` writes a
 qualification receipt only after read-only verification. `evidence_status`
-rechecks the receipt and counts each capture once for the exact plan target.
+rechecks the receipt and counts distinct original admissions and distinct grouped
+outcomes for the exact plan target. Repeated captures of one admission or payout
+group are refused, and both distinct counts must meet the sample target.
 The receipt has no order, account, settlement, calibration or promotion authority.
 Independent code review is still required before release or any readiness claim.
 
 Qualification requires all partition markets from the original rule, one YES
 decision and one label for each, exactly one payout winner, pinned feature and
-model receipts before inference, decision times before label knowability, raw
+model receipts before inference, a durable complete capture before every raw
+closed-market receipt and label knowability, raw
 closed Gamma responses matching exact condition and token IDs, and explicit
 label source hashes. The admission must have been captured in the same archive
 before those decisions and still valid at capture. Its event, scope, rule,
-release, bundle, protected model epoch/state, model leases and rule head must
-match the frozen plan and decision group. The archive's complete event label
+release, bundle, protected model epoch/state, model leases and every admission
+source, rule and station head must match the frozen plan and decision group
+through the complete capture. The capture revalidates the original admission
+after all child decisions and publishes under atomic same-ledger head guards.
+The archive's complete event label
 history is scanned; any duplicate or conflicting label for a partition market
-fails the group. Bounds fail closed.
+fails the group. Malformed labels refuse qualification without aborting status.
+Bounds fail closed.
 
 ## Retained Oct 5/6 result
 
@@ -41,3 +48,10 @@ A read-only test view chooses one label per market and uses its actual source
 receipt as knowability to exercise the rest of the real Oct 5/6 record shapes;
 that view is an adversarial probe, not an acceptance or backfill. Production
 qualification always reads the unchanged complete archive.
+
+The original protected certification and model assessment is pinned in the
+admission; capture revalidates it against the protected readers. The protected
+readers do not expose an independent historical transition journal to this
+qualifier, so this code does not independently attest every possible transient
+protected-state change between those reads. It grants no forward acceptance
+or readiness claim without the separate independent review.
