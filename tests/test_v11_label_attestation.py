@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -199,6 +199,26 @@ def test_fall_back_gap_uses_elapsed_hours():
     result = attest_resolved_day(rule_fingerprint_payload=rule, label_records=labels_m1_wins(),
                                  official_observation_records=[official_record(observations)], now=NOW)
     assert result['state'] == 'ATTESTATION_BLOCKED_INSUFFICIENT_COVERAGE'
+
+
+@pytest.mark.parametrize('day', ['2026-10-05', '2026-11-01', '2027-03-14'])
+def test_local_day_end_is_required_on_normal_and_dst_days(day):
+    local_day = date.fromisoformat(day)
+    zone = ZoneInfo(TZ_NAME)
+    start = datetime.combine(local_day, time.min, zone).timestamp()
+    end = datetime.combine(local_day + timedelta(days=1), time.min, zone).timestamp()
+    last = datetime.combine(local_day, time(hour=21), zone).timestamp()
+    readings = [obs(STATION, at, F72_C) for at in range(int(start), int(last) + 1, 3600)]
+    rule = rule_payload(target_date=day)
+    labels = labels_m1_wins(knowable_at=end - 1)
+    before = attest_resolved_day(rule_fingerprint_payload=rule, label_records=labels,
+                                 official_observation_records=[official_record(readings)], now=end - 1)
+    assert before['state'] == 'ATTESTATION_BLOCKED_DAY_NOT_ENDED'
+    assert before['target_day_end_at'] == end
+    for instant in (end, end + 1):
+        result = attest_resolved_day(rule_fingerprint_payload=rule, label_records=labels,
+                                     official_observation_records=[official_record(readings)], now=instant)
+        assert result['state'] == 'OFFICIAL_OBSERVATION_PROXY_CORROBORATION_CONSISTENT'
 
 
 def test_conflicting_replay_at_same_timestamp_is_rejected():

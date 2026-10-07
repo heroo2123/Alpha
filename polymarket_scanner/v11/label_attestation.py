@@ -183,6 +183,9 @@ def attest_resolved_day(
     zone = ZoneInfo(tz_name)
     day_start = datetime.combine(target_date, time.min, zone).timestamp()
     day_end = datetime.combine(target_date + timedelta(days=1), time.min, zone).timestamp()
+    if now < day_end:
+        return dict(base_result, state="ATTESTATION_BLOCKED_DAY_NOT_ENDED",
+                    target_day_end_at=day_end)
     times = sorted(by_time)
     max_interior_gap = max((b - a for a, b in zip(times, times[1:])), default=0.0)
     margin = COVERAGE_MARGIN_HOURS * 3600

@@ -7,8 +7,10 @@ import re
 import sqlite3
 import time
 from collections import Counter
+from datetime import date, datetime, time as day_time, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, digest, finite, identity, sha
 from polymarket_scanner.v11.label_attestation import attest_resolved_day
@@ -207,20 +209,38 @@ def _join_capture(view, capture, rule_state, rule, labels, *, day, now):
     return fp
 
 
-def _gamma_market(payload, market_id):
+def _gamma_market(payload, market_id, event_id):
     """Find one exact Gamma market in a retained event or market response."""
-    candidates = []
-    for value in (payload.get('event'), payload.get('market'), payload.get('response')):
-        if isinstance(value, dict):
-            candidates.append(value)
-            if isinstance(value.get('markets'), list):
-                candidates.extend(value['markets'])
-        elif isinstance(value, list):
-            candidates.extend(value)
-    hits = [m for m in candidates if isinstance(m, dict) and str(m.get('id')) == market_id]
+    hits = []
+    event_found = False
+
+    def visit(value, depth=0, force_event=False):
+        nonlocal event_found
+        if depth > 4:
+            raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
+        if isinstance(value, list):
+            for item in value:
+                visit(item, depth + 1, force_event)
+        elif isinstance(value, dict):
+            if force_event or 'markets' in value:
+                event_found = True
+                if (str(value.get('id')) != event_id
+                        or not isinstance(value.get('markets'), list)):
+                    raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
+                visit(value['markets'], depth + 1)
+            elif 'event' in value or 'market' in value or 'response' in value:
+                for key in ('event', 'market', 'response'):
+                    if key in value:
+                        visit(value[key], depth + 1, key == 'event')
+            elif str(value.get('id')) == market_id:
+                hits.append(value)
+
+    for key in ('event', 'market', 'response'):
+        if key in payload:
+            visit(payload[key], force_event=key == 'event')
     if len(hits) != 1:
         raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
-    return hits[0]
+    return hits[0], event_found
 
 
 def _gamma_field(value):
@@ -250,12 +270,12 @@ def _check_label_sources(view, labels, *, event_id, now, rule):
             raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
         _public_record(source, kind='RULES', provider=body['provider'], event_id=event_id, now=now)
         source_payload = body.get('payload', {})
-        event = source_payload.get('event')
-        market = _gamma_market(source_payload, mid)
+        market, event_found = _gamma_market(source_payload, mid, event_id)
         bucket = buckets[mid]
         if (source['seq'] >= label['seq'] or source['body']['available_at'] > label['body']['available_at']
                 or body.get('source_identity') not in {'event:' + event_id, 'market:' + mid, mid}
-                or (isinstance(event, dict) and str(event.get('id')) != event_id)
+                or (body['provider'] == 'GAMMA_EVENT' and not event_found)
+                or (body.get('source_identity') == 'event:' + event_id and not event_found)
                 or market.get('closed') is not True
                 or market.get('conditionId', market.get('condition_id')) != bucket['condition_id']):
             raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
@@ -274,9 +294,18 @@ def _check_label_sources(view, labels, *, event_id, now, rule):
     return source_shas
 
 
-def _check_weather(view, rows, *, station, now, gamma_shas):
+def _check_weather(view, rows, *, station, day, tz_name, now, gamma_shas):
+    try:
+        target_date = date.fromisoformat(day)
+        zone = ZoneInfo(tz_name)
+    except (ValueError, TypeError, ZoneInfoNotFoundError):
+        raise EvidenceError('ATTESTATION_TIMEZONE_UNKNOWN') from None
+    day_start = datetime.combine(target_date, day_time.min, zone).timestamp()
+    day_end = datetime.combine(target_date + timedelta(days=1), day_time.min, zone).timestamp()
     by_id = {r['id']: r for r in rows}
     normalized = []
+    relevant_raw = set()
+    processed_raw = set()
     observation_count = 0
     for row in rows:
         if view._expired():
@@ -284,15 +313,28 @@ def _check_weather(view, rows, *, station, now, gamma_shas):
         payload = row['body'].get('payload', {})
         _public_record(row, kind='OFFICIAL_OBSERVATION', provider='NOAA_AWC',
                        event_id='station:' + station, now=now)
-        if 'response' in payload and 'observations' not in payload:
+        if row['body'].get('source_identity') != station:
+            raise EvidenceError('ATTESTATION_RAW_DERIVED_MISMATCH')
+        if 'response' in payload and 'observations' in payload:
+            raise EvidenceError('ATTESTATION_RAW_RESPONSE_INVALID')
+        if 'response' in payload:
             if not isinstance(payload['response'], list):
                 raise EvidenceError('ATTESTATION_RAW_RESPONSE_INVALID')
+            for item in payload['response']:
+                if not isinstance(item, dict):
+                    raise EvidenceError('ATTESTATION_RAW_RESPONSE_INVALID')
+                try:
+                    observed_at = finite(float(item['obsTime']))
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    raise EvidenceError('ATTESTATION_RAW_RESPONSE_INVALID') from None
+                if day_start <= observed_at < day_end:
+                    relevant_raw.add(row['id'])
             continue
         if not isinstance(payload.get('observations'), list):
             raise EvidenceError('ATTESTATION_NORMALIZED_OBSERVATION_INVALID')
         raw = by_id.get(payload.get('raw_evidence_id'))
         if raw is None:
-            raw = view.get(payload.get('raw_evidence_id'))
+            raise EvidenceError('ATTESTATION_REFERENCE_MISSING')
         if raw['sha256'] != sha(payload.get('raw_evidence_sha256')):
             raise EvidenceError('ATTESTATION_REFERENCE_HASH_MISMATCH')
         raw_payload = raw['body'].get('payload', {})
@@ -309,24 +351,38 @@ def _check_weather(view, rows, *, station, now, gamma_shas):
         observation_count += len(accepted)
         if observation_count > MAX_OBSERVATIONS:
             raise EvidenceError('ATTESTATION_ARCHIVE_INCOMPLETE_BOUND')
-        if accepted:
-            max_age = max(raw['body']['received_at'] - finite(obs['observed_at']) for obs in accepted)
-            if max_age < 0:
-                raise EvidenceError('ATTESTATION_RAW_DERIVED_MISMATCH')
-            replay = parse_awc_metar(raw_payload['response'], station=station,
-                                    received_at=raw['body']['received_at'],
-                                    max_age_seconds=max(max_age, 1e-6))['observations']
-            reading = lambda obs: (obs['station'], finite(obs['observed_at']),
+        # The attestation policy covers the entire target local day as of this
+        # raw receipt. It depends on the raw record and rule, never on accepted
+        # output. The one-second margin includes a reading at local midnight.
+        max_age = max(1.0, raw['body']['received_at'] - day_start + 1.0)
+        policy_sha = digest(dict(raw_id=raw['id'], raw_sha256=raw['sha256'],
+                                 station=station, official_max_age_seconds=max_age))
+        if payload.get('normalization_sha256') != policy_sha:
+            raise EvidenceError('ATTESTATION_NORMALIZATION_POLICY_MISMATCH')
+        parsed = parse_awc_metar(raw_payload['response'], station=station,
+                                 received_at=raw['body']['received_at'],
+                                 max_age_seconds=max_age)
+        replay = parsed['observations']
+        target_items = sum(day_start <= finite(float(item['obsTime'])) < day_end
+                           for item in raw_payload['response'])
+        target_replay = sum(day_start <= obs['observed_at'] < day_end for obs in replay)
+        if target_replay != target_items:
+            raise EvidenceError('ATTESTATION_RAW_RESPONSE_INVALID')
+        try:
+            reading = lambda obs: (identity(obs['station']), finite(obs['observed_at']),
                                    finite(obs['temperature_c'], nonnegative=False))
             if Counter(map(reading, accepted)) != Counter(map(reading, replay)):
                 raise EvidenceError('ATTESTATION_RAW_DERIVED_MISMATCH')
-            if view._expired():
-                raise EvidenceError('ATTESTATION_ARCHIVE_INCOMPLETE_BOUND')
-        if 'normalization_sha256' in payload:
-            sha(payload['normalization_sha256'])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            raise EvidenceError('ATTESTATION_RAW_DERIVED_MISMATCH') from None
+        processed_raw.add(raw['id'])
+        if view._expired():
+            raise EvidenceError('ATTESTATION_ARCHIVE_INCOMPLETE_BOUND')
         if raw['sha256'] in gamma_shas:
             raise EvidenceError('ATTESTATION_SOURCE_LINEAGE_NOT_DISTINCT')
         normalized.append(row)
+    if relevant_raw - processed_raw:
+        raise EvidenceError('ATTESTATION_RAW_UNPROCESSED')
     return normalized
 
 
@@ -356,7 +412,8 @@ def attest_day(base, day, *, now):
         _join_capture(view, capture, rule_state, rule, labels, day=day, now=now)
         gamma_shas = _check_label_sources(view, labels, event_id=event_id, now=now, rule=rule)
         weather = list(view.station_rows(identity(rule['station'])))
-        normalized = _check_weather(view, weather, station=rule['station'], now=now, gamma_shas=gamma_shas)
+        normalized = _check_weather(view, weather, station=rule['station'], day=day,
+                                    tz_name=rule['timezone'], now=now, gamma_shas=gamma_shas)
         result = attest_resolved_day(rule_fingerprint_payload=rule, label_records=labels,
                                      official_observation_records=normalized, now=now)
         if view._expired():

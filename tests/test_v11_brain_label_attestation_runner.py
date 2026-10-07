@@ -30,7 +30,7 @@ def observations(peak=72):
             for hour in range(24)]
 
 
-def fixture(tmp_path, *, wrong_gamma_payout=False):
+def fixture(tmp_path, *, wrong_gamma_payout=False, gamma_form='market', gamma_event_id=EVENT):
     root = tmp_path / DAY
     root.mkdir()
     root.chmod(0o700)
@@ -65,9 +65,16 @@ def fixture(tmp_path, *, wrong_gamma_payout=False):
                   'outcomes': '["Yes","No"]',
                   'outcomePrices': '["1","0"]' if mid == 'm1' and not wrong_gamma_payout else '["0","1"]',
                   'clobTokenIds': json.dumps([bucket['yes_token'], bucket['no_token']])}
+        event_response = {'id': gamma_event_id, 'markets': [market]}
+        response = market if gamma_form == 'market' else event_response
+        if gamma_form.endswith('-list'):
+            response = [response]
+        source_payload = ({'event': response} if gamma_form.startswith('event')
+                          else {'response': response})
         gamma = store.capture('gamma-source-' + mid, event_id=EVENT, kind='RULES',
-                              provider='GAMMA_MARKET', source_identity='market:' + mid,
-                              revision='1', payload={'response': market})
+                              provider='GAMMA_MARKET' if gamma_form == 'market' else 'GAMMA_EVENT',
+                              source_identity='market:' + mid if gamma_form == 'market' else 'event:' + EVENT,
+                              revision='1', payload=source_payload)
         payload = {'context': {'station': STATION, 'city': 'atlanta', 'local_date': DAY,
                                'target': 'FINAL_CONTRACT_PAYOUT', 'rule_fingerprint': fp},
                    'target_identity': target, 'decision_target': 'FINAL_CONTRACT_PAYOUT',
@@ -91,11 +98,15 @@ def raw_weather(store, response=None, key='raw'):
 
 def normalized_weather(store, raw, key='normalized', response=None):
     rows = observations() if response is None else response
+    day_start = datetime(2026, 10, 5, tzinfo=ZoneInfo('America/New_York')).timestamp()
+    policy_sha = digest(dict(raw_id=raw['id'], raw_sha256=raw['sha256'], station=STATION,
+                             official_max_age_seconds=max(1.0, raw['body']['received_at'] - day_start + 1.0)))
     return store.capture(key, event_id='station:' + STATION, kind='OFFICIAL_OBSERVATION',
                          provider='NOAA_AWC', source_identity=STATION, revision='1',
                          payload={'observations': [{'station': STATION, 'observed_at': r['obsTime'],
                                                     'temperature_c': r['temp']} for r in rows],
                                   'raw_evidence_id': raw['id'], 'raw_evidence_sha256': raw['sha256'],
+                                  'normalization_sha256': policy_sha,
                                   'settlement_station_context': STATION})
 
 
@@ -108,6 +119,84 @@ def test_real_raw_normalized_pair(tmp_path):
     assert result['state'] == 'OFFICIAL_OBSERVATION_PROXY_CORROBORATION_CONSISTENT'
     assert all(result[k] is False for k in ('independent_label_attestation', 'settlement_authority',
                                              'financial_authority', 'automatic_promotion'))
+
+
+@pytest.mark.parametrize('retained', [list(range(3, 24)), list(range(21))])
+def test_raw_day_prefix_or_suffix_cannot_be_removed(tmp_path, retained):
+    store, _, _ = fixture(tmp_path)
+    data = observations(peak=72)
+    data[1 if 1 not in retained else 22]['temp'] = (80 - 32) * 5 / 9
+    raw = raw_weather(store, data)
+    normalized_weather(store, raw, response=[data[i] for i in retained])
+    with pytest.raises(EvidenceError, match='ATTESTATION_RAW_DERIVED_MISMATCH'):
+        attest_day(tmp_path, DAY, now=NOW)
+
+
+def test_real_normalizer_shorter_age_window_refuses(tmp_path):
+    store, _, _ = fixture(tmp_path)
+    data = observations(peak=72)
+    data[1]['temp'] = (80 - 32) * 5 / 9
+    raw = raw_weather(store, data)
+    normalize_weather_capture(store, raw['id'], record_id='short-age', station=STATION,
+                              official_max_age_seconds=NOW - data[3]['obsTime'])
+    with pytest.raises(EvidenceError, match='ATTESTATION_NORMALIZATION_POLICY_MISMATCH'):
+        attest_day(tmp_path, DAY, now=NOW)
+
+
+@pytest.mark.parametrize('derivation', ['missing', 'empty'])
+def test_contradictory_raw_without_populated_derivation_refuses(tmp_path, derivation):
+    store, _, _ = fixture(tmp_path)
+    first = raw_weather(store)
+    normalized_weather(store, first)
+    late = raw_weather(store, observations(peak=80), key='late')
+    if derivation == 'empty':
+        normalized_weather(store, late, key='late-normalized', response=[])
+    with pytest.raises(EvidenceError, match=('ATTESTATION_RAW_UNPROCESSED' if derivation == 'missing'
+                                             else 'ATTESTATION_RAW_DERIVED_MISMATCH')):
+        attest_day(tmp_path, DAY, now=NOW)
+
+
+def test_raw_receipt_cannot_hide_in_derived_shape(tmp_path):
+    store, _, _ = fixture(tmp_path)
+    first = raw_weather(store)
+    normalized_weather(store, first)
+    store.capture('ambiguous-raw', event_id='station:' + STATION, kind='OFFICIAL_OBSERVATION',
+                  provider='NOAA_AWC', source_identity=STATION, revision='1',
+                  payload={'response': observations(peak=80), 'observations': []})
+    with pytest.raises(EvidenceError, match='ATTESTATION_RAW_RESPONSE_INVALID'):
+        attest_day(tmp_path, DAY, now=NOW)
+
+
+@pytest.mark.parametrize('form', ['event', 'response', 'event-list', 'response-list'])
+def test_gamma_event_container_id_is_bound(tmp_path, form):
+    store, _, _ = fixture(tmp_path, gamma_form=form, gamma_event_id='WRONG-EVENT')
+    raw = raw_weather(store)
+    normalized_weather(store, raw)
+    with pytest.raises(EvidenceError, match='ATTESTATION_LABEL_SOURCE_INVALID'):
+        attest_day(tmp_path, DAY, now=NOW)
+
+
+@pytest.mark.parametrize('form', ['event', 'response', 'event-list', 'response-list'])
+def test_matching_gamma_event_container_passes(tmp_path, form):
+    store, _, _ = fixture(tmp_path, gamma_form=form)
+    raw = raw_weather(store)
+    normalized_weather(store, raw)
+    assert attest_day(tmp_path, DAY, now=NOW)['official_observation_corroboration'] == 'CONSISTENT'
+
+
+def test_forged_normalization_policy_digest_refuses(tmp_path):
+    store, _, _ = fixture(tmp_path)
+    raw = raw_weather(store)
+    normalized_weather(store, raw)
+    with store._connect() as db:
+        db.execute('DROP TRIGGER v11_no_update')
+        row = db.execute("SELECT body FROM v11_records WHERE record_id='normalized'").fetchone()
+        body = json.loads(row[0])
+        body['payload']['normalization_sha256'] = 'f' * 64
+        db.execute("UPDATE v11_records SET body=?,body_sha256=? WHERE record_id='normalized'",
+                   (json.dumps(body, sort_keys=True, separators=(',', ':')), digest(body)))
+    with pytest.raises(EvidenceError, match='ATTESTATION_NORMALIZATION_POLICY_MISMATCH'):
+        attest_day(tmp_path, DAY, now=NOW)
 
 
 def test_real_reference_hash_with_wrong_gamma_payout_refuses(tmp_path):
