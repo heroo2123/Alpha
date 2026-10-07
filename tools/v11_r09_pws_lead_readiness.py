@@ -181,6 +181,14 @@ def evaluate_pws_lead_readiness(
         assessment = None
         preconfirmation_revalidates = False
         reasons.append("PRECONFIRMATION_DOES_NOT_REVALIDATE:" + str(exc))
+    except (KeyError, TypeError, ValueError, AttributeError):
+        # The stored pin's own envelope (its ``assessment``/``request`` fields)
+        # is read by ``revalidate`` without first checking its shape; a
+        # retained-but-malformed row raises a raw parser error here rather
+        # than ``EvidenceError``. Treat that exactly like a refused pin.
+        assessment = None
+        preconfirmation_revalidates = False
+        reasons.append("MALFORMED_PWS_PRECONFIRMATION_EVIDENCE")
 
     pws_never_settlement_authority = False
     if assessment is not None:

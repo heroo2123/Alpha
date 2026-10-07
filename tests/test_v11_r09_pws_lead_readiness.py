@@ -9,6 +9,7 @@ as `test_v11_r08_scenario_reservation_readiness.py`). This file does not
 re-derive that chain; it proves the requirement-9 readiness probe correctly
 recognizes it.
 """
+from copy import deepcopy
 from dataclasses import asdict
 
 import pytest
@@ -110,6 +111,66 @@ def test_genuine_pws_lead_observed_and_netted_as_lead_only_is_demonstrated(joine
     assert result.financial_authority is False
     assert result.reasons == ()
     assert result.schema == SCHEMA
+
+
+@pytest.mark.parametrize('defect', [
+    'assessment_missing', 'assessment_null', 'assessment_list', 'assessment_context_missing',
+    'request_missing', 'request_null', 'request_list', 'request_extra',
+])
+def test_malformed_pws_pin_envelope_is_typed_refusal(joined, defect):
+    # A retained PWS preconfirmation row that is itself an ordinary,
+    # hash-consistent EvidenceStore.audit() append (not a patched reader)
+    # can still carry a malformed ``assessment``/``request`` envelope.
+    # PWSPreconfirmation.revalidate indexes those fields directly and would
+    # otherwise raise a raw KeyError/TypeError; the probe must translate that
+    # into the same fail-closed, zero-authority refusal as any other
+    # non-revalidating pin.
+    p = synthetic_proposal(joined)
+    c = coordinator(joined)
+    c.coordinate('batch', (p,))
+    original = c.store.get('paired-pin')
+    d = deepcopy(original['body']['details'])
+    if defect == 'assessment_missing':
+        del d['assessment']
+    elif defect == 'assessment_null':
+        d['assessment'] = None
+    elif defect == 'assessment_list':
+        d['assessment'] = []
+    elif defect == 'assessment_context_missing':
+        del d['assessment']['context']
+    elif defect == 'request_missing':
+        del d['request']
+    elif defect == 'request_null':
+        d['request'] = None
+    elif defect == 'request_list':
+        d['request'] = []
+    else:
+        d['request']['unrecognized'] = True
+    row = c.store.audit('malformed-pws-pin', event_id=original['event_id'], kind=original['kind'], details=d)
+    assert c.store.get(row['id']) == row
+    result = probe(joined, c, preconfirmation_id=row['id'])
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is False
+    assert 'MALFORMED_PWS_PRECONFIRMATION_EVIDENCE' in result.reasons
+    assert result.financial_authority is False
+
+
+def test_malformed_pws_pin_sibling_does_not_affect_genuine_pair(joined):
+    # Appending a malformed sibling row under a different record id must not
+    # disturb the still-valid 'paired-pin' pin's own positive revalidation.
+    p = synthetic_proposal(joined)
+    c = coordinator(joined)
+    outcome = c.coordinate('batch', (p,))['body']['details']
+    assert outcome['reserved_intent_ids'] == ['one']
+    original = c.store.get('paired-pin')
+    d = deepcopy(original['body']['details'])
+    del d['assessment']
+    c.store.audit('malformed-pws-sibling', event_id=original['event_id'], kind=original['kind'], details=d)
+    result = probe(joined, c)
+    assert result.outcome == OUTCOME_DEMONSTRATED
+    assert result.preconfirmation_revalidates is True
+    assert result.genuine_pws_reservation_present is True
+    assert result.financial_authority is False
 
 
 def test_result_is_deterministic_on_replay(joined):
