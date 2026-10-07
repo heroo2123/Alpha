@@ -1,0 +1,50 @@
+{
+  "schema": "ALPHA_V11_GATE3_RAW_COMPAT_36E769B_REVIEW_V1",
+  "verdict": "PASS_IN_SCOPE",
+  "candidate_commit": "36e769beede4e3e99670da7ed56a2503488273ab",
+  "candidate_tree": "ac86264681fd796a40c13ef6ccbdf1876cd50c11",
+  "candidate_parent": "fb5a43ee5a7aa40e28756ad68489ce8003959502",
+  "candidate_worktree": "/tmp/alpha-v11-raw-compat-review-36e769b",
+  "reviewer_model": "claude-opus (independent, not the author)",
+  "initial_clean": true,
+  "final_clean": null,
+  "candidate_unchanged": true,
+  "candidate_unchanged_note": "Commit and tree re-verified from object store at end. The frozen worktree was clean after the RAW test runs but was then removed by an external actor mid-review; its final state could not be inspected, so final_clean is null (unverified).",
+  "exact_diff": {
+    "files": 3,
+    "insertions": 40,
+    "deletions": 2,
+    "sha256": "c2600beaad058211c494cb7901d71fa8969b9b827aa31169e63c3cdd8ffa7e2a"
+  },
+  "tests": {
+    "raw_decoder_binding_normal": {"passed": 51, "failed": 0, "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -p no:cacheprovider -q tests/test_v11_gate3_raw_decoder_binding.py (in frozen worktree)"},
+    "raw_decoder_binding_optimized": {"passed": 51, "failed": 0, "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -O -m pytest -p no:cacheprovider -q tests/test_v11_gate3_raw_decoder_binding.py (in frozen worktree)"},
+    "r09_gate3_ledgers_full": {"passed": 52, "failed": 0, "command": "python -m pytest -p no:cacheprovider -q tests/test_v11_r09_gate3_ledgers.py (git archive export of 36e769b)"},
+    "r09_gate3_store_v1_full": {"passed": 109, "failed": 0, "command": "python -m pytest -p no:cacheprovider -q tests/test_v11_r09_gate3_store_v1.py (git archive export of 36e769b)"},
+    "r09_gate3_runtime_full": {"passed": 135, "failed": 0, "command": "python -m pytest -p no:cacheprovider -q tests/test_v11_r09_gate3_runtime.py (git archive export of 36e769b)"},
+    "r09_gate3_restart_composition_full": {"passed": 7, "failed": 0, "command": "python -m pytest -p no:cacheprovider -q tests/test_v11_r09_gate3_restart_composition.py (git archive export of 36e769b)"},
+    "parent_fb5a43e_with_candidate_tests": {"passed": 40, "failed": 11, "command": "python -m pytest -p no:cacheprovider -q tests/test_v11_gate3_raw_decoder_binding.py (git archive export of fb5a43e + candidate test file); expected failures incl. test_current_transport_closure_binds_read_bytes, all BINDING_CLOSURE"},
+    "reviewer_read_bytes_probes_normal": {"passed": 10, "failed": 0, "command": "python -m pytest -p no:cacheprovider -q /tmp/alpha-v11-raw-compat-review-36e769b.probe.py (placed in 36e769b export tests/)"},
+    "reviewer_read_bytes_probes_optimized": {"passed": 10, "failed": 0, "command": "python -O -m pytest -p no:cacheprovider -q (same probe file)"}
+  },
+  "findings": [
+    {"severity": "LOW", "summary": "Regression test is positive-path only; no committed negative test that read_bytes mismatch/non-int/missing is refused. Reviewer probes confirm refusal; coverage gap only.", "file": "tests/test_v11_gate3_raw_decoder_binding.py", "line": 140},
+    {"severity": "INFO", "summary": "Adjacent '38 passed, 123 deselected' selection expression not recorded and not reproduced; full superset files (ledgers 52 + store_v1 109) pass.", "file": "docs/V11_GATE3_RAW_CURRENT_COMPAT_HANDOFF_20261004.md", "line": 16},
+    {"severity": "INFO", "summary": "Schema change also refuses legacy 10-key closures; correct because producer emitted read_bytes (9d0e9a1) before the binding existed (7fc9223), but change is not literally 'strictly additive'.", "file": "tools/v11_gate3_raw_decoder_binding.py", "line": 174},
+    {"severity": "INFO", "summary": "Frozen review worktree was removed externally mid-review; final clean state unverified (not removed by reviewer).", "file": "/tmp/alpha-v11-raw-compat-review-36e769b", "line": null}
+  ],
+  "scope_limits": [
+    "Review covers only the 36e769b diff and its interaction with the transport-closure producer in tools/v11_r09_gate3_runtime.py.",
+    "Synthetic/offline only; no real adapter, provider, physical storage or G3-L identity evaluated.",
+    "Adjacent 38-test selection from the handoff not reproduced exactly; superset run instead.",
+    "Final state of the frozen worktree unverifiable due to external removal; post-removal checks used git archive exports.",
+    "No full regression run."
+  ],
+  "grants": {
+    "provider_request_authorized": false,
+    "execution_authority": false,
+    "g3l_credit": false,
+    "shadow_admission": false
+  },
+  "completed_utc": "2026-10-07T00:55:30Z"
+}

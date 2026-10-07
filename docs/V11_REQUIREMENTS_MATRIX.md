@@ -5135,3 +5135,7 @@ Clean RAW repair `dd529ee` and test-only calculator boundary `50b2f3f` sealed wi
 ## 2026-10-07 00:50 UTC daily-review-authority evidence capture; no requirement boundary crossed
 
 Committed three recovered, byte-verified capture files (`v11_daily_review_authority.py`, `v11_daily_review_rollforward_publisher.py`, `v11_daily_review_tick.sh`) documenting the already-running root-owned daily-review-authority/rollforward/cron-tick bytes; no behavior change and no C/J/E/A boundary crossed. `git push` was refused by this session's own tool-permission classifier (not a provider/GitHub/safety gate), leaving local main one commit ahead of remote; see checkpoint for detail. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-07 01:00 UTC RAW compatibility repair `36e769b` independently reviewed PASS_IN_SCOPE
+
+Independent Claude Opus exact-commit review of the provisional RAW `read_bytes` closure-binding repair (`36e769b`, integrated `d6a7215`) returned PASS_IN_SCOPE with one LOW test-coverage finding and no safety weakening; artifacts in `docs/V11_GATE3_RAW_COMPAT_REVIEW_36e769b.*`. Resolves the "genuine independent exact review of current integrated repair" item from the 2026-10-04 recovery assessment. No requirement boundary crossed; G3-L still needs station/model state, source access/restriction lineage, selected-window storage/clock evidence, and verified isolated deployment. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
