@@ -326,6 +326,8 @@
     "ecmwf-s3-503-untimed-20260823000000-3h-oper-fc",
     "ecmwf-s3-503-untimed-20260823000000-6h-enfo-cf",
     "ecmwf-s3-503-untimed-20260823000000-6h-enfo-pf",
+    "ecmwf-s3-connect-timeouts-20260929-pre-repair",
+    "ecmwf-s3-coordinator-retries-status-unretained-20260929",
     "ecmwf-s3-first-attempts-unretained-20260929",
     "ecmwf-s3-status-unretained-20260929-pre-repair"
    ],
@@ -441,7 +443,7 @@
   {
    "binding": "WHOLE_FILE",
    "byte_length": 7897088,
-   "note": "2026-09-29 ECMWF S3 backfill coordinator ledger (one field FAILED HTTP_503 after 3 attempts).",
+   "note": "2026-09-29 ECMWF S3 coordinator: one field FAILED HTTP_503 and 17 DONE fields with 21 unknown-status failed attempts.",
    "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill_coordinator.sqlite",
    "sha256": "f7769de312aa46fdb6c45e7856380e77120751324523c248d0ba0adf549b916f",
    "source_id": "ecmwf_coordinator_db"
@@ -1037,6 +1039,31 @@
    "body_sha256": null,
    "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
    "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-coordinator-retries-status-unretained-20260929",
+   "evidence": [
+    "ecmwf_coordinator_db",
+    "ecmwf_coordinator_code"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "COORDINATOR_FAILED_ATTEMPT_STATUS_NOT_RETAINED",
+   "occurrences": 21,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "UNRETAINED:17 coordinator DONE fields completed after retry",
+   "post_event_requests": "17 DONE fields needed 21 failed attempts in the coordinator ledger before 09:59Z; these precede the separate final backfill ledger starting after 10:14Z and are not part of its 533 failed attempts. The terminal FAILED field is separately recorded; no status is inferred for these retries.",
+   "received_at_utc": "2026-09-29T09:56:18.859689Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": null,
+   "time_basis": "AGGREGATE_COMPLETION_TIMES_TO_2026-09-29T09:58:53.381961Z"
+  },
+  {
+   "body_bytes": null,
+   "body_custody": "NOT_RETAINED",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
    "event_id": "ecmwf-s3-503-20260929T095724Z",
    "evidence": [
     "ecmwf_coordinator_db",
@@ -1080,6 +1107,31 @@
    "retry_not_before_utc": null,
    "status": null,
    "time_basis": "AGGREGATE_COMPLETION_TIMES_TO_2026-09-29T21:33:24.436521Z"
+  },
+  {
+   "body_bytes": null,
+   "body_custody": "NOT_RETAINED",
+   "body_sha256": null,
+   "carry_forward": "HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW",
+   "control_domain": "ECMWF",
+   "event_id": "ecmwf-s3-connect-timeouts-20260929-pre-repair",
+   "evidence": [
+    "ecmwf_pre_repair_db",
+    "ecmwf_backfill_code"
+   ],
+   "expiry_adjudication": null,
+   "headers_retained": {},
+   "kind": "TRANSPORT_CONNECT_TIMEOUT_NO_HTTP_STATUS_OBSERVED",
+   "occurrences": 3,
+   "origin": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+   "path": "UNRETAINED:3 pre-repair field requests ending in ConnectTimeout",
+   "post_event_requests": "Three terminal transport failures are separate from the 459 HTTP_STATUS_OR_RANGE_IGNORED rows. They are not proven HTTP denials; later repair/final-ledger overlap is unresolved and counts must not be summed as unique provider responses.",
+   "received_at_utc": "2026-09-29T12:01:38.363050Z",
+   "retained_record": null,
+   "retry_after": null,
+   "retry_not_before_utc": null,
+   "status": null,
+   "time_basis": "AGGREGATE_FIRST_OF_SPAN_TO_2026-09-29T20:04:06.575899Z"
   },
   {
    "body_bytes": null,

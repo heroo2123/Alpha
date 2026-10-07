@@ -115,7 +115,8 @@ def iso_to_utc(value: str) -> str:
 
 def read_regular(path: Path, limit: int) -> bytes:
     """Read one bounded regular file without following a final symlink."""
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+             | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0))
     try:
         fd = os.open(path, flags)
     except OSError as exc:
@@ -179,7 +180,7 @@ PINNED_SOURCES = (
      "R09 extrema agent transcript (2026-09-30): printed responses, bodies and headers."),
     ("ecmwf_coordinator_db", BRAINWORK + "/historical_ecmwf_backfill_coordinator.sqlite", "WHOLE_FILE", 7897088,
      "f7769de312aa46fdb6c45e7856380e77120751324523c248d0ba0adf549b916f",
-     "2026-09-29 ECMWF S3 backfill coordinator ledger (one field FAILED HTTP_503 after 3 attempts)."),
+     "2026-09-29 ECMWF S3 coordinator: one field FAILED HTTP_503 and 17 DONE fields with 21 unknown-status failed attempts."),
     ("ecmwf_coordinator_code", BRAINWORK + "/historical_ecmwf_backfill_coordinator_20260929.py", "WHOLE_FILE", 18316,
      "0a7bbf1b7e69c2b8f43b7d3113f89ef6fc39dfbce65aa2d0156e84efadf50a80",
      "Coordinator client: trust_env=False, follow_redirects=False, up to 3 attempts, concurrency 4."),
@@ -236,6 +237,17 @@ PINNED_SOURCES = (
      "Read-only Oct 5-7 Shadow ledger counts of real NOMADS GEFS captures."),
 )
 SOURCE_IDS = frozenset(s[0] for s in PINNED_SOURCES)
+RECOVERED_BODY_PINS = {
+    "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460": 278,
+    "1de430c06d6fe99b24fb4c0608436ddb2833706c73a66b023af7cc2816686ad2": 278,
+    "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507": 17,
+    "3e375eb1db6ff582c8f2b105c83bf08debe236b61b9a667f13da109e04b74538": 278,
+    "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28": 278,
+}
+RECOVERED_BODY_SOURCES = {
+    f"recovered_body_{sha[:12]}": (f"{RECOVERED_DIR}/{sha}.body", "WHOLE_FILE", length, sha)
+    for sha, length in RECOVERED_BODY_PINS.items()
+}
 
 ECMWF_S3 = "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com"
 ECMWF_PORTAL = "https://data.ecmwf.int"
@@ -270,12 +282,19 @@ def _source_path(path: str) -> Path:
 
 def _manifest(directory: Path) -> tuple[bytes, int]:
     rows, total = [], 0
-    for child in sorted(directory.iterdir()):
+    children = []
+    for child in directory.iterdir():
+        children.append(child)
+        if len(children) > 1000:
+            raise LineageError("MANIFEST_TOO_MANY_FILES")
+    for child in sorted(children):
         target = child / "capture.json"
         if child.is_symlink() or not child.is_dir() or not target.exists():
             continue
         raw = read_regular(target, 1024 * 1024)
         total += len(raw)
+        if total > 16 * 1024 * 1024:
+            raise LineageError("MANIFEST_TOO_LARGE")
         rows.append([f"pairs/{child.name}/capture.json", _sha(raw), len(raw)])
     return json.dumps(rows, sort_keys=True, separators=(",", ":")).encode(), total
 
@@ -297,7 +316,7 @@ def load_sources(reader: Optional[Callable[[str, str], bytes]] = None) -> dict:
         elif binding == "FILE_SET_MANIFEST":
             raw, total = _manifest(_source_path(path))
         else:
-            raw = read_regular(_source_path(path), max(length, 1) + (1 << 30 if binding == "APPEND_ONLY_PREFIX" else 0))
+            raw = read_regular(_source_path(path), max(length, 1) + (16 * 1024 * 1024 if binding == "APPEND_ONLY_PREFIX" else 0))
             total = len(raw)
         if binding == "APPEND_ONLY_PREFIX":
             if len(raw) < length:
@@ -443,6 +462,24 @@ def _ecmwf_events(loaded: Mapping, bodies: Mapping) -> list:
         {}, None, None, "NOT_RETAINED", None,
         "The same coordinator retried this field three times; the 2026-09-29 backfill continued to "
         "10:14:38-21:35:30Z with 55,488 completed messages.", ["ecmwf_coordinator_db", "ecmwf_coordinator_code"]))
+    coordinator_retries = _sqlite_rows(
+        loaded["ecmwf_coordinator_db"],
+        "select count(*), sum(attempts-1), min(updated_at), max(updated_at) "
+        "from fields where status='DONE' and attempts>1")[0]
+    if coordinator_retries != (17, 21, 1790675778.8596888, 1790675933.3819606):
+        raise LineageError("ECMWF_COORDINATOR_RETRY_FACT")
+    events.append(_event(
+        "ecmwf-s3-coordinator-retries-status-unretained-20260929", "ECMWF", ECMWF_S3,
+        "UNRETAINED:17 coordinator DONE fields completed after retry",
+        epoch_to_utc(coordinator_retries[2]),
+        f"AGGREGATE_COMPLETION_TIMES_TO_{epoch_to_utc(coordinator_retries[3])}", None,
+        "COORDINATOR_FAILED_ATTEMPT_STATUS_NOT_RETAINED", coordinator_retries[1],
+        {}, None, None, "NOT_RETAINED", None,
+        "17 DONE fields needed 21 failed attempts in the coordinator ledger before 09:59Z; "
+        "these precede the separate final backfill ledger starting after 10:14Z and are not "
+        "part of its 533 failed attempts. The terminal FAILED field is separately recorded; "
+        "no status is inferred for these retries.",
+        ["ecmwf_coordinator_db", "ecmwf_coordinator_code"]))
     ignored = _sqlite_rows(loaded["ecmwf_pre_repair_db"],
                            "select count(*), min(updated_at), max(updated_at) from messages "
                            "where status='FAILED' and error='ECMWF_HTTP_STATUS_OR_RANGE_IGNORED'")[0]
@@ -453,6 +490,21 @@ def _ecmwf_events(loaded: Mapping, bodies: Mapping) -> list:
         epoch_to_utc(ignored[1]), f"AGGREGATE_FIRST_OF_SPAN_TO_{epoch_to_utc(ignored[2])}", None,
         "NON_SUCCESS_STATUS_NOT_RETAINED_NOT_401_403_404_410", 459, {}, None, None, "NOT_RETAINED", None,
         "Targeted repair runs r1/r2 then re-requested failed fields; final ledger reached 55,488 DONE.",
+        ["ecmwf_pre_repair_db", "ecmwf_backfill_code"]))
+    timeouts = _sqlite_rows(loaded["ecmwf_pre_repair_db"],
+                            "select count(*), min(updated_at), max(updated_at) from messages "
+                            "where status='FAILED' and error='ConnectTimeout'")[0]
+    if timeouts != (3, 1790683298.3630497, 1790712246.5758994):
+        raise LineageError("ECMWF_PRE_REPAIR_TIMEOUT_FACT")
+    events.append(_event(
+        "ecmwf-s3-connect-timeouts-20260929-pre-repair", "ECMWF", ECMWF_S3,
+        "UNRETAINED:3 pre-repair field requests ending in ConnectTimeout",
+        epoch_to_utc(timeouts[1]), f"AGGREGATE_FIRST_OF_SPAN_TO_{epoch_to_utc(timeouts[2])}", None,
+        "TRANSPORT_CONNECT_TIMEOUT_NO_HTTP_STATUS_OBSERVED", timeouts[0], {}, None, None,
+        "NOT_RETAINED", None,
+        "Three terminal transport failures are separate from the 459 HTTP_STATUS_OR_RANGE_IGNORED rows. "
+        "They are not proven HTTP denials; later repair/final-ledger overlap is unresolved and counts "
+        "must not be summed as unique provider responses.",
         ["ecmwf_pre_repair_db", "ecmwf_backfill_code"]))
     retried = _sqlite_rows(loaded["ecmwf_backfill_db"],
                            "select count(*), sum(attempts-1), min(updated_at), max(updated_at) from messages where attempts>1")[0]
@@ -853,7 +905,9 @@ DOMAIN_STATUSES = frozenset({"HELD", "RESUMED_BY_REVIEW"})
 PINNED_ECMWF_EVENTS = frozenset(
     (status, iso_to_utc(at), body) for status, at, body in RETAINED_DENIAL_DIGESTS)
 REQUIRED_EVENT_IDS = frozenset({
-    "ecmwf-s3-503-20260929T095724Z", "ecmwf-s3-status-unretained-20260929-pre-repair",
+    "ecmwf-s3-503-20260929T095724Z", "ecmwf-s3-coordinator-retries-status-unretained-20260929",
+    "ecmwf-s3-status-unretained-20260929-pre-repair",
+    "ecmwf-s3-connect-timeouts-20260929-pre-repair",
     "ecmwf-s3-first-attempts-unretained-20260929",
     "ecmwf-s3-503-20260930T074643Z", "ecmwf-cloudfront-503-20260930T074644Z",
     "ecmwf-s3-503-20260930T074813Z", "ecmwf-s3-503-20260930T075439Z",
@@ -863,6 +917,38 @@ REQUIRED_EVENT_IDS = frozenset({
   | {f"noaa-nomads-302-{epoch_to_utc(t)[:19].replace('-', '').replace(':', '')}Z-{k}"
      for t, k in zip(NOMADS_302_EPOCHS, ("KATL-2026-10-05", "KAUS-2026-10-05", "KDAL-2026-10-05",
                                          "KHOU-2026-10-05", "KLAX-2026-10-05"))})
+
+
+def _historical_event_digest(event: Mapping) -> str:
+    """Pin observation fields while allowing later reviewed expiry annotations."""
+    immutable = {k: v for k, v in event.items()
+                 if k not in {"expiry_adjudication", "retry_after", "retry_not_before_utc"}}
+    return _sha(json.dumps(immutable, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=True, allow_nan=False).encode())
+
+
+HISTORICAL_EVENT_PINS = {
+    "ecmwf-s3-503-untimed-20260823000000-3h-enfo-ef": "a6d92ebbc0796bad01240c32eb5bcfbaf0e0f23d2ba68798f4b072c9195c282a",
+    "ecmwf-s3-503-untimed-20260823000000-3h-oper-fc": "9a8c3762099749f72735d83444d0cc4a4ea5ba1db366e290dda4a22ddc72fceb",
+    "ecmwf-s3-503-untimed-20260823000000-6h-enfo-cf": "ddfcdd0aba097173ab69febf5a68fb80952622b51fec5cbef6f882afa0e91837",
+    "ecmwf-s3-503-untimed-20260823000000-6h-enfo-pf": "7e13605fee530c18aa9ce32e88f4ef5142af4baef6982580fb916c941dbf1761",
+    "ecmwf-s3-coordinator-retries-status-unretained-20260929": "263e2f0a3df6996d6803c9198307d18ea001a5b3a393e294a8a562db929c5a80",
+    "ecmwf-s3-503-20260929T095724Z": "a28c2ba0e1c1b5303f21cab361edb5af63e85713d6a21cb76a0444d517a1a88c",
+    "ecmwf-s3-first-attempts-unretained-20260929": "94ad21c38e0aedba1bc440c34212bb63c77217fc63a6e5f4434c5bdc57621854",
+    "ecmwf-s3-status-unretained-20260929-pre-repair": "b8d9874fedac1df04467ad57b81cba5cc0a35bb5d7a56852e35838b1ab8c1c65",
+    "ecmwf-s3-connect-timeouts-20260929-pre-repair": "31d59e3c7cf9a86aec5b5cfa0b548242ea6b21938c09075952d70d3f9c3cd10d",
+    "ecmwf-s3-503-20260930T074643Z": "0efd38ae3c54371f89a6866f68297dfc812c893d0516ddb54409d7d1219c1907",
+    "ecmwf-cloudfront-503-20260930T074644Z": "db96beb87d5c583ffecbc53c3981249aece998368448745e042546459fece6cf",
+    "ecmwf-s3-503-20260930T074813Z": "04d1932bb92c3caa587322cbbfc477ac745f1c918a38bcc26c349987d28bc062",
+    "ecmwf-s3-503-20260930T075439Z": "da2463eb49c9c3287167f36de64fc3f480822f899b1c09fe64acd024b6628917",
+    "ecmwf-portal-429-20260930T075515Z": "7d4e5a1e11ac45d6018d7085b97fc50be4ad37e284b0da5a5080c6eaf9d0e1a4",
+    "noaa-s3-first-attempts-unretained-20260929": "ce323563ec16248e16885dad8ca865709de07e9cbdfd400c848ffbb18dce0eea",
+    "noaa-nomads-302-20261004T154451Z-KATL-2026-10-05": "edfe8bff5a0cb7afef4f98fa58a060210010c739208d21e595319facc8a82d41",
+    "noaa-nomads-302-20261004T154515Z-KAUS-2026-10-05": "3a3a0df1fb1ba1a3577c51b69163dfab7ac245aef0f01c7ca6f8b2b3212e9c95",
+    "noaa-nomads-302-20261004T154617Z-KDAL-2026-10-05": "42c40774ac99610ca8bcef112beda2cb8407e5a5da80fa2cef72d28ce25fda1f",
+    "noaa-nomads-302-20261004T154640Z-KHOU-2026-10-05": "c049518512341cac268b4f008072ee8fd8de723e86ee7ccfa15f6d4eb072c0d7",
+    "noaa-nomads-302-20261004T154703Z-KLAX-2026-10-05": "1ad84994a13135e321ad14f659c44ec1ae7d89241482ed5bca4a7c4c3a677422",
+}
 
 
 def _is_ref(value: Any) -> bool:
@@ -883,8 +969,8 @@ def _event_time(event: Mapping) -> Optional[datetime]:
     return parse_utc(event.get("received_at_utc"))
 
 
-def check_lineage(doc: Any) -> list[str]:
-    """Return every invariant violation; an empty list is consistency only."""
+def _check_lineage(doc: Any) -> list[str]:
+    """Check structure and immutable historical facts without reading external files."""
     out: list[str] = []
     if not _closed(doc, TOP_KEYS, "top", out):
         return out
@@ -898,24 +984,36 @@ def check_lineage(doc: Any) -> list[str]:
         out.append("AS_OF_UTC")
 
     source_ids: set = set()
+    source_by_id: dict = {}
     sources = doc["evidence_sources"] if isinstance(doc["evidence_sources"], list) else []
     if not sources:
         out.append("SCHEMA:evidence_sources")
     for src in sources:
         if not _closed(src, SOURCE_KEYS, "evidence_source", out):
             continue
+        if type(src["source_id"]) is not str or not src["source_id"]:
+            out.append("SOURCE_ID_INVALID")
+            continue
         if src["source_id"] in source_ids:
             out.append(f"DUPLICATE_SOURCE:{src['source_id']}")
         source_ids.add(src["source_id"])
+        source_by_id[src["source_id"]] = src
         if not (type(src["sha256"]) is str and SHA256_RE.fullmatch(src["sha256"])
                 and type(src["byte_length"]) is int and src["byte_length"] > 0
+                and type(src["path"]) is str and type(src["binding"]) is str
                 and src["binding"] in BINDINGS):
             out.append(f"SOURCE_BINDING:{src['source_id']}")
     if not SOURCE_IDS <= source_ids:
         out.append("PINNED_SOURCE_DROPPED")
+    expected_sources = {s[0]: s[1:5] for s in PINNED_SOURCES}
+    expected_sources.update(RECOVERED_BODY_SOURCES)
+    for source_id, expected in expected_sources.items():
+        src = source_by_id.get(source_id)
+        if src is None or tuple(src.get(k) for k in ("path", "binding", "byte_length", "sha256")) != expected:
+            out.append(f"PINNED_SOURCE_BINDING:{source_id}")
 
     def refs_ok(ids: Any, label: str) -> None:
-        if not isinstance(ids, list) or not ids or any(i not in source_ids for i in ids):
+        if not isinstance(ids, list) or not ids or any(type(i) is not str or i not in source_ids for i in ids):
             out.append(f"UNBOUND_EVIDENCE:{label}")
 
     domains = doc["control_domains"]
@@ -982,6 +1080,12 @@ def check_lineage(doc: Any) -> list[str]:
             out.append(f"EVENT_NOT_CARRIED_FORWARD:{e['event_id']}")
         if type(e["occurrences"]) is not int or e["occurrences"] < 1:
             out.append(f"EVENT_OCCURRENCES:{e['event_id']}")
+        if type(e["body_sha256"]) is str:
+            body_id = f"recovered_body_{e['body_sha256'][:12]}"
+            if (e["body_sha256"] not in RECOVERED_BODY_PINS
+                    or e["body_bytes"] != RECOVERED_BODY_PINS[e["body_sha256"]]
+                    or type(e["evidence"]) is not list or body_id not in e["evidence"]):
+                out.append(f"EVENT_BODY_BINDING:{e['event_id']}")
         if e["expiry_adjudication"] is not None and not _is_ref(e["expiry_adjudication"]):
             out.append(f"EVENT_EXPIRY_REF:{e['event_id']}")
         if e["retry_after"] is None and e["retry_not_before_utc"] is not None:
@@ -992,6 +1096,12 @@ def check_lineage(doc: Any) -> list[str]:
     missing = REQUIRED_EVENT_IDS - seen_ids
     for event_id in sorted(missing):
         out.append(f"MISSING_RETAINED_RESTRICTION:{event_id}")
+    for event_id, digest in HISTORICAL_EVENT_PINS.items():
+        matches = [e for e in events if e.get("event_id") == event_id]
+        if len(matches) != 1 or _historical_event_digest(matches[0]) != digest:
+            out.append(f"HISTORICAL_EVENT_CHANGED:{event_id}")
+        elif matches[0]["retry_after"] is not None or matches[0]["retry_not_before_utc"] is not None:
+            out.append(f"HISTORICAL_RETRY_FACT_CHANGED:{event_id}")
     for status, at, body in PINNED_ECMWF_EVENTS:
         match = [e for e in events if set(e) == EVENT_KEYS
                  and (e["status"], e["received_at_utc"], e["body_sha256"]) == (status, at, body)]
@@ -1025,6 +1135,7 @@ def check_lineage(doc: Any) -> list[str]:
         out.append("SCHEMA:permissions")
         perms = {}
     permission_ids: dict = {}
+    permission_records: dict = {}
     for provider, p in perms.items():
         if not _closed(p, PERMISSION_KEYS, f"permission:{provider}", out):
             continue
@@ -1038,7 +1149,20 @@ def check_lineage(doc: Any) -> list[str]:
         for r in reviewed:
             if not _closed(r, REVIEWED_PERMISSION_KEYS, f"reviewed_permission:{provider}", out):
                 continue
-            permission_ids[r["permission_id"]] = provider
+            permission_id = r["permission_id"]
+            if type(permission_id) is not str or not 1 <= len(permission_id) <= 128:
+                out.append(f"PERMISSION_ID_INVALID:{provider}")
+                continue
+            if permission_id in permission_ids:
+                out.append(f"DUPLICATE_PERMISSION_ID:{permission_id}")
+            permission_ids[permission_id] = provider
+            permission_records[permission_id] = r
+            if not (isinstance(r["origins"], list) and r["origins"]
+                    and all(type(x) is str and x in REQUIRED_DOMAIN_ORIGINS["ECMWF"] | REQUIRED_DOMAIN_ORIGINS["NOAA_GEFS"]
+                            for x in r["origins"])
+                    and isinstance(r["purposes"], list) and r["purposes"]
+                    and all(type(x) is str and x in ("INDEX", "FIELD") for x in r["purposes"])):
+                out.append(f"PERMISSION_SCOPE_INVALID:{provider}")
             if r["basis"] != "LICENCE_AND_ACCESS_TERMS_INDEPENDENT_REVIEW" \
                     or not _is_ref(r["licence_document"]) or not _is_ref(r["review_ref"]) \
                     or r["licence_document"]["sha256"] == r["review_ref"]["sha256"]:
@@ -1056,12 +1180,29 @@ def check_lineage(doc: Any) -> list[str]:
     if _closed(env, ENVELOPE_KEYS, "request_envelope", out):
         if env["methods"] != ["GET"]:
             out.append("ENVELOPE_METHODS")
+        seen_specs = set()
         for spec in env["reviewed_origin_path_specs"] if isinstance(env["reviewed_origin_path_specs"], list) else [None]:
             if not _closed(spec, SPEC_KEYS, "reviewed_spec", out):
                 continue
+            if (type(spec["permission_id"]) is not str or type(spec["provider"]) is not str
+                    or type(spec["origin"]) is not str or type(spec["purpose"]) is not str
+                    or _literal_path_spec(spec["path_regex"]) is None):
+                out.append("REVIEWED_SPEC_INVALID")
+                continue
+            identity = (spec["origin"], spec["provider"], spec["purpose"],
+                        _literal_path_spec(spec["path_regex"]))
+            if identity in seen_specs:
+                out.append("DUPLICATE_REVIEWED_SPEC")
+            seen_specs.add(identity)
             if permission_ids.get(spec["permission_id"]) != spec["provider"] \
                     or not _is_ref(spec["review_ref"]):
                 out.append("REVIEWED_SPEC_WITHOUT_PERMISSION")
+            permission = permission_records.get(spec["permission_id"])
+            if (permission is None or not isinstance(permission.get("origins"), list)
+                    or spec["origin"] not in permission["origins"]
+                    or not isinstance(permission.get("purposes"), list)
+                    or spec["purpose"] not in permission["purposes"]):
+                out.append("REVIEWED_SPEC_OUTSIDE_PERMISSION_SCOPE")
         for spec in env["candidate_origin_path_specs"] if isinstance(env["candidate_origin_path_specs"], list) else [None]:
             if _closed(spec, CANDIDATE_SPEC_KEYS, "candidate_spec", out) \
                     and spec["status"] != "UNQUALIFIED_PROPOSAL":
@@ -1108,6 +1249,14 @@ def check_lineage(doc: Any) -> list[str]:
     return out
 
 
+def check_lineage(doc: Any) -> list[str]:
+    """Return bounded, deterministic diagnostics for ordinary malformed JSON."""
+    try:
+        return _check_lineage(doc)[:128]
+    except (TypeError, ValueError, KeyError, AttributeError, OverflowError, re.error):
+        return ["MALFORMED_LINEAGE"]
+
+
 # ---------------------------------------------------------------------------
 # Request envelope: applies the lineage to one proposed request, offline.
 # ---------------------------------------------------------------------------
@@ -1131,6 +1280,8 @@ SIGNED_QUERY_KEYS = frozenset({
 })
 ATTEMPT_DEADLINE_SECONDS = 30
 RANGE_RE = re.compile(r"bytes=([0-9]{1,15})-([0-9]{1,15})\Z")
+REQUEST_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
+HEADER_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
 
 
 def _origin(url: str) -> Optional[str]:
@@ -1146,12 +1297,18 @@ def _origin(url: str) -> Optional[str]:
     return "https://" + parts.hostname
 
 
-def _path_matches(spec: str, path: str) -> bool:
-    """Reviewed specs are full-match regexes over the exact request path."""
-    try:
-        return re.fullmatch(spec, path) is not None
-    except re.error:
-        return False
+def _literal_path_spec(spec: Any) -> Optional[str]:
+    """Accept only anchored literal paths, with legacy escaped dots."""
+    if type(spec) is not str or not 1 <= len(spec) <= 2048 or not spec.startswith("/"):
+        return None
+    path = spec.replace(r"\.", ".")
+    if "\\" in path or re.fullmatch(r"/[A-Za-z0-9_./-]+", path) is None:
+        return None
+    return path
+
+
+def _path_matches(spec: Any, path: str) -> bool:
+    return _literal_path_spec(spec) == path
 
 
 def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
@@ -1184,10 +1341,10 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
         return result()
 
     provider, purpose = request["provider"], request["purpose"]
-    if provider not in PROVIDERS:
+    if type(provider) is not str or provider not in PROVIDERS:
         refuse("PROVIDER_UNKNOWN")
         provider = None
-    if purpose not in ("INDEX", "FIELD"):
+    if type(purpose) is not str or purpose not in ("INDEX", "FIELD"):
         refuse("PURPOSE_NOT_SUPPORTED")
     if request["method"] != "GET":
         refuse("METHOD_NOT_GET")
@@ -1218,6 +1375,8 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
         headers = {}
     lowered = {}
     for key, value in headers.items():
+        if HEADER_TOKEN_RE.fullmatch(key) is None or any(ord(ch) < 32 or ord(ch) > 126 for ch in value):
+            refuse("HEADER_WIRE_INVALID")
         if key.lower() in lowered:
             refuse("HEADER_DUPLICATE")
         lowered[key.lower()] = value
@@ -1229,7 +1388,9 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
         refuse("ACCEPT_ENCODING_NOT_IDENTITY")
     if origin is not None and lowered.get("host", urlsplit(url).hostname) != urlsplit(url).hostname:
         refuse("HOST_HEADER_MISMATCH")
-    if len(headers) > 32 or sum(len(k) + len(v) for k, v in headers.items()) > 4096:
+    if len(headers) > 32 or 2 + sum(len(k.encode("ascii", "replace")) + 2
+                                    + len(v.encode("ascii", "replace")) + 2
+                                    for k, v in headers.items()) > 4096:
         refuse("HEADER_BOUND")
     for key, code in (("trust_env", "AMBIENT_ENVIRONMENT_TRUSTED"), ("netrc", "NETRC_ENABLED"),
                       ("follow_redirects", "REDIRECTS_ENABLED")):
@@ -1253,7 +1414,7 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
     if type(max_bytes) is not int or max_bytes <= 0 or cap is None or max_bytes > cap:
         refuse("RESPONSE_BYTES_OVER_LIMIT")
     deadline = request["deadline_seconds"]
-    if type(deadline) not in (int, float) or deadline != deadline or not 0 < deadline <= ATTEMPT_DEADLINE_SECONDS:
+    if type(deadline) not in (int, float) or not 0 < deadline <= ATTEMPT_DEADLINE_SECONDS:
         refuse("DEADLINE_OVER_LIMIT")
     if lowered.get("range") != request["range"]:
         refuse("RANGE_HEADER_MISMATCH")
@@ -1271,17 +1432,25 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
 
     # Accounting: unknown accounting is never treated as zero.
     budget = lineage["request_envelope"]["campaign_limits"]
+    request_id = request["request_id"]
+    if type(request_id) is not str or REQUEST_ID_RE.fullmatch(request_id) is None:
+        refuse("REQUEST_ID_INVALID")
     if not isinstance(ledger, dict) or set(ledger) != {"attempts", "body_bytes", "request_ids"} \
             or type(ledger["attempts"]) is not int or type(ledger["body_bytes"]) is not int \
             or ledger["attempts"] < 0 or ledger["body_bytes"] < 0 \
-            or not isinstance(ledger["request_ids"], list):
+            or not isinstance(ledger["request_ids"], list) \
+            or len(ledger["request_ids"]) != ledger["attempts"] \
+            or len(ledger["request_ids"]) > budget["attempts"] \
+            or any(type(i) is not str or REQUEST_ID_RE.fullmatch(i) is None
+                   for i in ledger["request_ids"]) \
+            or len(set(ledger["request_ids"])) != len(ledger["request_ids"]):
         refuse("CAMPAIGN_ACCOUNTING_UNKNOWN")
     else:
         if ledger["attempts"] + 1 > budget["attempts"]:
             refuse("CAMPAIGN_ATTEMPTS_EXHAUSTED")
         if type(max_bytes) is int and ledger["body_bytes"] + max_bytes > budget["body_bytes"]:
             refuse("CAMPAIGN_BYTES_EXHAUSTED")
-        if request["request_id"] in ledger["request_ids"]:
+        if request_id in ledger["request_ids"]:
             refuse("REQUEST_ID_REPLAY")
 
     # Restriction lineage and permission.
@@ -1303,7 +1472,8 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
             not_before = parse_utc(event["retry_not_before_utc"])
             if not_before is not None and (now is None or now < not_before):
                 refuse("RETRY_AFTER_CARRIED_FORWARD")
-    if not any(s["origin"] == origin and s["provider"] == provider and s["purpose"] == purpose
+    if not any(s["permission_id"] == request["permission_id"]
+               and s["origin"] == origin and s["provider"] == provider and s["purpose"] == purpose
                and path is not None and _path_matches(s["path_regex"], path)
                for s in lineage["request_envelope"]["reviewed_origin_path_specs"]):
         refuse("ORIGIN_PATH_PURPOSE_NOT_REVIEWED")
@@ -1328,6 +1498,11 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
     planned = parse_utc(request["planned_at_utc"])
     if planned is None or now is None or planned < now:
         refuse("PLANNED_TIME_INVALID_OR_PAST")
+    if permission is not None and planned is not None and reviewed_at is not None and valid_until is not None:
+        if planned < reviewed_at or planned >= valid_until or (type(deadline) in (int, float)
+                and 0 < deadline <= ATTEMPT_DEADLINE_SECONDS
+                and planned.timestamp() + deadline >= valid_until.timestamp()):
+            refuse("PLANNED_TIME_OUTSIDE_PERMISSION")
     return result()
 
 
@@ -1338,16 +1513,24 @@ def evaluate_request(request: Any, lineage: Mapping, *, now_utc: str,
 def verify_recovered_bodies(lineage: Mapping, root: Path = ROOT) -> list[str]:
     """Check committed recovered bodies against their recorded digests."""
     out = []
-    for src in lineage["evidence_sources"]:
-        if not src["source_id"].startswith("recovered_body_"):
-            continue
+    sources = lineage.get("evidence_sources") if isinstance(lineage, dict) else None
+    source_map = {}
+    if isinstance(sources, list):
+        for src in sources:
+            if isinstance(src, dict) and type(src.get("source_id")) is str:
+                source_map[src["source_id"]] = src
+    for source_id, (path, binding, length, digest) in RECOVERED_BODY_SOURCES.items():
+        src = source_map.get(source_id)
+        if src is None or tuple(src.get(k) for k in ("path", "binding", "byte_length", "sha256")) \
+                != (path, binding, length, digest):
+            out.append(f"RECOVERED_BODY_BINDING:{source_id}")
         try:
-            raw = read_regular(root / src["path"], 4096)
+            raw = read_regular(root / path, 4096)
         except LineageError:
-            out.append(f"RECOVERED_BODY_MISSING:{src['path']}")
+            out.append(f"RECOVERED_BODY_MISSING:{path}")
             continue
-        if len(raw) != src["byte_length"] or _sha(raw) != src["sha256"]:
-            out.append(f"RECOVERED_BODY_CHANGED:{src['path']}")
+        if len(raw) != length or _sha(raw) != digest:
+            out.append(f"RECOVERED_BODY_CHANGED:{path}")
     return out
 
 

@@ -10,9 +10,9 @@ NOT_READY_TO_FUND**.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `docs/V11_GATE3_PROVIDER_RIGHTS_LINEAGE_20261007.json` | 68,591 | `6035af4eb5f401f83a23230a887ba8f02dfd8d47d5486951341ecdf13af75c76` |
+| `docs/V11_GATE3_PROVIDER_RIGHTS_LINEAGE_20261007.json` | 71,022 | `483b9cb1222c5d82e104c459e377141b326b65acf693ee2e3a0bb86a1010db99` |
 | `tools/v11_gate3_provider_rights_lineage.py` | builder, closed-schema checker, request-envelope evaluator | — |
-| `tests/test_v11_gate3_provider_rights_lineage.py` | 138 offline adversarial tests | — |
+| `tests/test_v11_gate3_provider_rights_lineage.py` | 160 offline adversarial tests | — |
 | `docs/review-evidence/provider-rights-lineage-20261007/*.body` | 5 recovered denial bodies | file name = SHA-256 |
 
 Rebuild (needs the retained private roots on this host) and check (repo only):
@@ -28,6 +28,12 @@ are now gone, bound only by their recorded digests. Any changed byte refuses the
 build. SQLite ledgers are
 hashed first, then queried from those same bytes in memory. Every cited
 phrase is checked against the pinned bytes before it is used.
+The checker also fixes each source identity tuple, all five recovered-body
+bindings, and the observed fields of the 20 carried events. Later reviewed
+expiry annotations remain separate. A reviewed path spec must denote a literal
+ASCII path (`\.` is accepted for an escaped dot); regex operators are refused.
+These checks establish artifact consistency, not the authenticity of future
+permission or resumption documents.
 
 ## Permission model
 
@@ -53,7 +59,7 @@ executable package, transport review and owner exception.
 
 ## New retained facts (each bound to pinned bytes)
 
-### ECMWF: 12 restriction events, not 3
+### ECMWF: 14 carried restriction/transport events, not 3
 
 The P1 `restriction-history.json` holds three records. Retained evidence shows a
 larger history across **three** origins: the S3 bucket, the `data.ecmwf.int`
@@ -62,8 +68,18 @@ portal and the CloudFront distribution `d2zvc0wgha4k2l.cloudfront.net`.
 **2026-09-29 (S3 backfill, before the recorded holds)**
 
 * One field `FAILED HTTP_503`, after **three attempts**, at 09:57:24Z.
+* The separate coordinator ledger has **17 DONE fields requiring retry**, with
+  **21 failed attempts of unretained status**. Completion times span
+  09:56:18.859689–09:58:53.381961Z. These attempts precede the final backfill
+  ledger starting after 10:14Z and are not part of its 533 failed attempts.
+  The terminal `FAILED HTTP_503` field is recorded separately; its status is not
+  assigned to the 21 unknown attempts.
 * 459 `ECMWF_HTTP_STATUS_OR_RANGE_IGNORED` failures between 12:07Z and 21:25Z.
   Their status codes were not retained.
+* Three separate pre-repair `ConnectTimeout` terminal failures span
+  12:01:38–20:04:06Z. They are transport failures, not proven HTTP denials.
+  Their possible overlap with later repairs and the final ledger is unresolved;
+  they are not added to a unique-response total.
 * 385 messages completed only after a retry: 533 failed attempts in total,
   statuses not retained. These may overlap the 459 above.
 * The backfill moved about 35.6 GB at concurrency 4.
@@ -168,7 +184,7 @@ identity can move without new external, forward or implementation evidence.
 
 ## Verification
 
-* New suite: **138 passed** under normal Python and under `python -O`. Specific
+* New suite: **160 passed** under normal Python and `python -O`. Specific
   codes use explicit asserts; `pytest.raises(match=)` is not relied on.
 * Rebuild from retained sources is byte-identical to the committed artifact.
 * A guard fixture denies any socket connect or DNS, and an AST test bans
@@ -184,11 +200,11 @@ identity can move without new external, forward or implementation evidence.
   * Retry-After not carried;
   * unknown accounting accepted;
   * domain narrowing.
-* Adjacent suites: preflight checker, G3-L prep, identity audit and launch V4 gave
+* Earlier adjacent suites: preflight checker, G3-L prep, identity audit and launch V4 gave
   575 passed and 1 failed. The failure is
   `test_retained_evidence_counts_and_current_runtime_drift`. It predates this lane
   (collector/ledgers/runtime baseline drift, also reported by today's
-  identity-reduction lane). This lane changes no tracked file.
+  identity-reduction lane). The repair does not touch those suites.
 * Custody note: the read-only inventory opens left zero-byte `-wal`/`-shm`
   sidecars, with 2026-10-07 11:30–11:35Z mtimes, beside the retained BrainWork and
   S3 SQLite files. The main database bytes still match their pins.
@@ -197,9 +213,10 @@ identity can move without new external, forward or implementation evidence.
 
 Review this exact commit and artifact hash. Verify these points:
 
-* the 27 source pins and quote checks;
+* the 27 original source pins, five body pins, and quote checks;
 * the five recovered bodies against their digests;
-* the 12 ECMWF and 6 NOAA events;
+* the 14 ECMWF and 6 NOAA carried events, including the coordinator's 21
+  unknown-status retries and three separate pre-repair transport timeouts;
 * the claim that no retained fact supports permission, resumption or NOAA scope
   independence;
 * every identity disposition;

@@ -11,6 +11,8 @@ import ast
 import copy
 import hashlib
 import json
+import os
+import signal
 import socket
 from pathlib import Path
 
@@ -280,7 +282,10 @@ def test_restriction_after_permission_review_supersedes_it():
 def test_untimed_restriction_supersedes_permission():
     doc = synthetic_resumed()
     event = next(e for e in doc["restriction_events"] if e["control_domain"] == "NOAA_GEFS")
-    event.update(received_at_utc=None, time_basis="UNRETAINED_SYNTHETIC")
+    event = copy.deepcopy(event)
+    event.update(event_id="synthetic-untimed", received_at_utc=None, time_basis="UNRETAINED_SYNTHETIC")
+    doc["restriction_events"].append(event)
+    doc["control_domains"]["NOAA_GEFS"]["hold_basis"].append("synthetic-untimed")
     assert check_lineage(doc) == []
     refused_with(run(good_request(), doc=doc), "PERMISSION_SUPERSEDED_BY_RESTRICTION")
 
@@ -366,6 +371,8 @@ def test_invented_retry_after_is_rejected():
     doc = committed()
     doc["restriction_events"][0]["retry_not_before_utc"] = "2026-09-30T08:00:00Z"
     assert any(f.startswith("INVENTED_RETRY_AFTER") for f in check_lineage(doc))
+    doc["restriction_events"][0]["retry_after"] = "86400"
+    assert any(f.startswith("HISTORICAL_RETRY_FACT_CHANGED") for f in check_lineage(doc))
 
 
 @pytest.mark.parametrize("status", [429, 503, 302, None])
@@ -388,8 +395,11 @@ def test_new_unadjudicated_429_503_event_reopens_hold(status):
 
 def test_retry_after_is_carried_forward_even_after_resumption():
     doc = synthetic_resumed()
-    event = next(e for e in doc["restriction_events"] if e["control_domain"] == "NOAA_GEFS")
-    event.update(retry_after="86400", retry_not_before_utc="2026-10-08T12:00:00Z")
+    event = copy.deepcopy(next(e for e in doc["restriction_events"] if e["control_domain"] == "NOAA_GEFS"))
+    event.update(event_id="synthetic-retry-after", retry_after="86400",
+                 retry_not_before_utc="2026-10-08T12:00:00Z")
+    doc["restriction_events"].append(event)
+    doc["control_domains"]["NOAA_GEFS"]["hold_basis"].append("synthetic-retry-after")
     assert check_lineage(doc) == []
     refused_with(run(good_request(), doc=doc), "RETRY_AFTER_CARRIED_FORWARD")
     assert run(good_request(planned_at_utc="2026-10-08T12:30:00Z"), doc=doc,
@@ -515,8 +525,8 @@ def test_header_bounds_refuse():
     (None, "CAMPAIGN_ACCOUNTING_UNKNOWN"),
     ({"attempts": 0, "body_bytes": 0}, "CAMPAIGN_ACCOUNTING_UNKNOWN"),
     ({"attempts": -1, "body_bytes": 0, "request_ids": []}, "CAMPAIGN_ACCOUNTING_UNKNOWN"),
-    ({"attempts": 8, "body_bytes": 0, "request_ids": []}, "CAMPAIGN_ATTEMPTS_EXHAUSTED"),
-    ({"attempts": 1, "body_bytes": 33_554_432 - 3_145_727, "request_ids": []}, "CAMPAIGN_BYTES_EXHAUSTED"),
+    ({"attempts": 8, "body_bytes": 0, "request_ids": [f"prior-{i}" for i in range(8)]}, "CAMPAIGN_ATTEMPTS_EXHAUSTED"),
+    ({"attempts": 1, "body_bytes": 33_554_432 - 3_145_727, "request_ids": ["prior-0"]}, "CAMPAIGN_BYTES_EXHAUSTED"),
     ({"attempts": 1, "body_bytes": 0, "request_ids": ["synthetic-p1-index"]}, "REQUEST_ID_REPLAY"),
 ])
 def test_campaign_accounting_refuses(ledger, code):
@@ -576,7 +586,7 @@ def test_p1_restriction_history_is_incomplete_relative_to_lineage():
     doc = committed()
     noaa = [e for e in doc["restriction_events"] if e["control_domain"] == "NOAA_GEFS"]
     ecmwf = [e for e in doc["restriction_events"] if e["control_domain"] == "ECMWF"]
-    assert len(noaa) == 6 and len(ecmwf) == 12
+    assert len(noaa) == 6 and len(ecmwf) == 14
     assert {e["origin"] for e in ecmwf} == {lineage_mod.ECMWF_S3, ECMWF_PORTAL, ECMWF_CDN}
 
 
@@ -604,3 +614,128 @@ def test_cli_check_passes_offline(capsys):
     assert lineage_mod.main(["check"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["problems"] == [] and out["qualification_credit"] == 0 and out["g3l"] == "NO_GO"
+
+
+def test_coordinator_unknown_retry_population_is_pinned():
+    doc = committed()
+    event = next(e for e in doc["restriction_events"] if e["event_id"] ==
+                 "ecmwf-s3-coordinator-retries-status-unretained-20260929")
+    assert event["status"] is None and event["occurrences"] == 21
+    assert event["received_at_utc"] == "2026-09-29T09:56:18.859689Z"
+    assert "2026-09-29T09:58:53.381961Z" in event["time_basis"]
+    assert "ecmwf_coordinator_db" in event["evidence"]
+    doc["restriction_events"].remove(event)
+    doc["control_domains"]["ECMWF"]["hold_basis"].remove(event["event_id"])
+    assert any(p.startswith("MISSING_RETAINED_RESTRICTION:") for p in check_lineage(doc))
+
+
+def test_immutable_sources_bodies_and_event_facts_refuse_forgery(tmp_path):
+    doc = committed()
+    doc["evidence_sources"][0].update(path="/tmp/nonexistent", byte_length=1, sha256="0" * 64)
+    assert any(p.startswith("PINNED_SOURCE_BINDING:") for p in check_lineage(doc))
+    doc = committed()
+    doc["evidence_sources"] = [s for s in doc["evidence_sources"]
+                               if not s["source_id"].startswith("recovered_body_")]
+    for event in doc["restriction_events"]:
+        event["evidence"] = [s for s in event["evidence"] if not s.startswith("recovered_body_")]
+    assert any(p.startswith("PINNED_SOURCE_BINDING:recovered_body_") for p in check_lineage(doc))
+    assert any(p.startswith("RECOVERED_BODY_BINDING:") for p in verify_recovered_bodies(doc, tmp_path))
+    doc = committed()
+    event = next(e for e in doc["restriction_events"] if e["occurrences"] == 459)
+    event["occurrences"] = 1
+    assert f"HISTORICAL_EVENT_CHANGED:{event['event_id']}" in check_lineage(doc)
+
+
+def test_permission_spec_identity_and_duplicate_refuse():
+    doc = synthetic_resumed()
+    second = copy.deepcopy(doc["permissions"]["GEFS"]["reviewed_permissions"][0])
+    second["permission_id"] = "synthetic-second"
+    doc["permissions"]["GEFS"]["reviewed_permissions"].append(second)
+    refused_with(run(good_request(permission_id="synthetic-second"), doc=doc),
+                 "ORIGIN_PATH_PURPOSE_NOT_REVIEWED")
+    second["permission_id"] = "synthetic-gefs-permission"
+    assert "DUPLICATE_PERMISSION_ID:synthetic-gefs-permission" in check_lineage(doc)
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+    second["permission_id"] = "synthetic-second"
+    doc["request_envelope"]["reviewed_origin_path_specs"].append(
+        dict(doc["request_envelope"]["reviewed_origin_path_specs"][0], permission_id="synthetic-second"))
+    assert "DUPLICATE_REVIEWED_SPEC" in check_lineage(doc)
+    doc = synthetic_resumed()
+    doc["request_envelope"]["reviewed_origin_path_specs"].append(
+        copy.deepcopy(doc["request_envelope"]["reviewed_origin_path_specs"][0]))
+    assert "DUPLICATE_REVIEWED_SPEC" in check_lineage(doc)
+    doc = synthetic_resumed()
+    doc["request_envelope"]["reviewed_origin_path_specs"][0]["origin"] = NOMADS
+    assert "REVIEWED_SPEC_OUTSIDE_PERMISSION_SCOPE" in check_lineage(doc)
+
+
+def test_planned_completion_must_fit_permission_window():
+    refused_with(run(good_request(planned_at_utc="2027-01-01T00:00:00Z")),
+                 "PLANNED_TIME_OUTSIDE_PERMISSION")
+
+
+def test_oversized_numeric_deadline_refuses_cleanly():
+    refused_with(run(good_request(deadline_seconds=10 ** 1000)), "DEADLINE_OVER_LIMIT")
+    refused_with(run(good_request(planned_at_utc="2026-10-08T23:59:45Z")),
+                 "PLANNED_TIME_OUTSIDE_PERMISSION")
+    refused_with(run(good_request(planned_at_utc="2026-10-08T23:59:30Z")),
+                 "PLANNED_TIME_OUTSIDE_PERMISSION")
+
+
+@pytest.mark.parametrize("value", ["safe\r\nAuthorization: forged", "bad\x00value", "bad\x7fvalue", "caf\u00e9"])
+def test_header_value_wire_bytes_refuse(value):
+    headers = dict(good_request()["headers"], **{"User-Agent": value})
+    refused_with(run(good_request(headers=headers)), "HEADER_WIRE_INVALID")
+
+
+def test_header_name_wire_bytes_refuse():
+    headers = dict(good_request()["headers"], **{"User Agent": "safe"})
+    refused_with(run(good_request(headers=headers)), "HEADER_WIRE_INVALID")
+
+
+def test_fifo_and_special_file_refuse_before_read(tmp_path):
+    fifo = tmp_path / "input.fifo"
+    os.mkfifo(fifo)
+    old = signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError("blocked open")))
+    try:
+        signal.alarm(2)
+        with pytest.raises(LineageError, match="SOURCE_NOT_REGULAR"):
+            lineage_mod.read_regular(fifo, 100)
+        signal.alarm(0)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+    with pytest.raises(LineageError, match="SOURCE_NOT_REGULAR"):
+        lineage_mod.read_regular(Path("/dev/null"), 100)
+
+
+def test_nested_regex_refuses_without_matching():
+    doc = synthetic_resumed()
+    doc["request_envelope"]["reviewed_origin_path_specs"][0]["path_regex"] = "/(a+)+$"
+    assert "REVIEWED_SPEC_INVALID" in check_lineage(doc)
+    refused_with(run(good_request(url=NOAA_S3 + "/" + "a" * 32 + "!"), doc=doc), "LINEAGE_INVALID")
+
+
+@pytest.mark.parametrize("ledger", [
+    {"attempts": 0, "body_bytes": 0, "request_ids": ["previous"] * 9},
+    {"attempts": 2, "body_bytes": 0, "request_ids": ["previous", "previous"]},
+    {"attempts": 1, "body_bytes": 0, "request_ids": [None]},
+])
+def test_contradictory_ledger_refuses(ledger):
+    refused_with(run(good_request(), ledger=ledger), "CAMPAIGN_ACCOUNTING_UNKNOWN")
+
+
+@pytest.mark.parametrize("request_id", [None, "", "bad\nidentity", "x" * 129])
+def test_invalid_request_id_refuses(request_id):
+    refused_with(run(good_request(request_id=request_id)), "REQUEST_ID_INVALID")
+
+
+def test_malformed_json_nested_values_refuse_deterministically():
+    doc = committed()
+    doc["evidence_sources"][0]["source_id"] = []
+    assert check_lineage(doc) == check_lineage(doc)
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
+    doc = synthetic_resumed()
+    doc["request_envelope"]["reviewed_origin_path_specs"][0]["path_regex"] = None
+    assert "REVIEWED_SPEC_INVALID" in check_lineage(doc)
+    refused_with(run(good_request(), doc=doc), "LINEAGE_INVALID")
