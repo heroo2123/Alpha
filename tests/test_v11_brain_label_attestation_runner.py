@@ -30,7 +30,8 @@ def observations(peak=72):
             for hour in range(24)]
 
 
-def fixture(tmp_path, *, wrong_gamma_payout=False, gamma_form='market', gamma_event_id=EVENT):
+def fixture(tmp_path, *, wrong_gamma_payout=False, gamma_form='market', gamma_event_id=EVENT,
+            gamma_payload=None):
     root = tmp_path / DAY
     root.mkdir()
     root.chmod(0o700)
@@ -71,6 +72,8 @@ def fixture(tmp_path, *, wrong_gamma_payout=False, gamma_form='market', gamma_ev
             response = [response]
         source_payload = ({'event': response} if gamma_form.startswith('event')
                           else {'response': response})
+        if gamma_payload is not None:
+            source_payload = gamma_payload(copy.deepcopy(market))
         gamma = store.capture('gamma-source-' + mid, event_id=EVENT, kind='RULES',
                               provider='GAMMA_MARKET' if gamma_form == 'market' else 'GAMMA_EVENT',
                               source_identity='market:' + mid if gamma_form == 'market' else 'event:' + EVENT,
@@ -182,6 +185,55 @@ def test_matching_gamma_event_container_passes(tmp_path, form):
     raw = raw_weather(store)
     normalized_weather(store, raw)
     assert attest_day(tmp_path, DAY, now=NOW)['official_observation_corroboration'] == 'CONSISTENT'
+
+
+@pytest.mark.parametrize('shape', ['nested-event', 'nested-event-list', 'nested-response',
+                                   'top-sibling', 'unbound-market', 'unbound-market-list',
+                                   'market-events'])
+def test_gamma_mixed_or_conflicting_event_cannot_publish(tmp_path, shape):
+    from tools.v11_brain_label_attestation import run
+
+    def payload(market):
+        good = {'id': EVENT, 'markets': [market]}
+        wrong = {'id': 'WRONG-EVENT', 'markets': [copy.deepcopy(market)]}
+        return {
+            'nested-event': {'response': {**good, 'event': wrong}},
+            'nested-event-list': {'response': {**good, 'event': [wrong]}},
+            'nested-response': {'response': {**good, 'response': wrong}},
+            'top-sibling': {'response': good, 'event': wrong},
+            'unbound-market': {'event': {'id': EVENT, 'markets': []}, 'market': market},
+            'unbound-market-list': {'response': [{'id': EVENT, 'markets': []}, market]},
+            'market-events': {'response': {**market, 'events': [{'id': 'WRONG-EVENT'}]}},
+        }[shape]
+
+    store, _, _ = fixture(tmp_path, gamma_form='market' if shape == 'market-events' else 'response',
+                          gamma_payload=payload)
+    raw = raw_weather(store)
+    normalized_weather(store, raw)
+    with pytest.raises(EvidenceError, match='ATTESTATION_LABEL_SOURCE_INVALID'):
+        attest_day(tmp_path, DAY, now=NOW)
+    with pytest.raises(EvidenceError, match='ATTESTATION_LABEL_SOURCE_INVALID'):
+        run(tmp_path, now=NOW)
+    assert not (tmp_path / 'label-attestation-status.json').exists()
+
+
+@pytest.mark.parametrize('shape', ['nested-event', 'nested-response-list', 'market-events'])
+def test_gamma_honest_wrapper_controls(tmp_path, shape):
+    def payload(market):
+        good = {'id': EVENT, 'markets': [market]}
+        return {
+            'nested-event': {'response': {'event': good}},
+            'nested-response-list': {'response': {'response': [good]}},
+            'market-events': {'response': {**market, 'events': [{'id': EVENT}]}},
+        }[shape]
+
+    store, _, _ = fixture(tmp_path, gamma_form='market' if shape == 'market-events' else 'response',
+                          gamma_payload=payload)
+    raw = raw_weather(store)
+    normalized_weather(store, raw)
+    result = attest_day(tmp_path, DAY, now=NOW)
+    assert result['state'] == 'OFFICIAL_OBSERVATION_PROXY_CORROBORATION_CONSISTENT'
+    assert result['independent_label_attestation'] is False
 
 
 def test_forged_normalization_policy_digest_refuses(tmp_path):

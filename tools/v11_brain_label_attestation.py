@@ -214,33 +214,47 @@ def _gamma_market(payload, market_id, event_id):
     hits = []
     event_found = False
 
-    def visit(value, depth=0, force_event=False):
+    def visit(value, depth=0, force_event=False, bound_event=False):
         nonlocal event_found
         if depth > 4:
             raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
         if isinstance(value, list):
             for item in value:
-                visit(item, depth + 1, force_event)
+                visit(item, depth + 1, force_event, bound_event)
         elif isinstance(value, dict):
+            wrappers = ('event', 'market', 'response')
             if force_event or 'markets' in value:
+                # A retained event cannot also be a wrapper. Otherwise a
+                # nested event can contradict its ID while its markets win.
+                if any(key in value for key in wrappers):
+                    raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
                 event_found = True
                 if (str(value.get('id')) != event_id
                         or not isinstance(value.get('markets'), list)):
                     raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
-                visit(value['markets'], depth + 1)
-            elif 'event' in value or 'market' in value or 'response' in value:
-                for key in ('event', 'market', 'response'):
+                visit(value['markets'], depth + 1, bound_event=True)
+            elif any(key in value for key in wrappers):
+                if 'id' in value or bound_event:
+                    raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
+                for key in wrappers:
                     if key in value:
-                        visit(value[key], depth + 1, key == 'event')
-            elif str(value.get('id')) == market_id:
-                hits.append(value)
+                        visit(value[key], depth + 1, key == 'event', bound_event)
+            else:
+                if 'events' in value:
+                    events = value['events']
+                    if (not isinstance(events, list) or not events
+                            or any(not isinstance(event, dict)
+                                   or str(event.get('id')) != event_id for event in events)):
+                        raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
+                if str(value.get('id')) == market_id:
+                    hits.append((value, bound_event))
 
     for key in ('event', 'market', 'response'):
         if key in payload:
             visit(payload[key], force_event=key == 'event')
-    if len(hits) != 1:
+    if len(hits) != 1 or (event_found and not hits[0][1]):
         raise EvidenceError('ATTESTATION_LABEL_SOURCE_INVALID')
-    return hits[0], event_found
+    return hits[0][0], event_found
 
 
 def _gamma_field(value):
