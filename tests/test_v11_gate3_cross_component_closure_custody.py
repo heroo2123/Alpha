@@ -30,13 +30,17 @@ single scripted attempt, this test asserts, together, in one place:
   (b) RAW custody: ``store.seal_with_provenance`` is never called and
       ``store.receipts`` stays empty -- the undelivered-closure bytes are
       never released into the store as a sealed/complete RAW object;
-  (c) durable refusal across a real restart: after closing and reopening
-      every durable primitive (shared/session/budget/store) from disk,
-      re-attempting the *same* request on a fresh ``GateRuntime`` never
-      reaches a SUCCESS/ELIGIBLE outcome -- it is refused outright
-      (``RUNTIME_FROZEN_REQUEST_MISMATCH``) before any further budget
-      reservation or store mutation, and the store/budget state from (a)/
-      (b) is unchanged by the attempt.
+  (c) durable restart-hold across a real restart: after closing and
+      reopening every durable primitive (shared/session/budget/store) from
+      disk, attempting the *next*, correctly-ordered request in the frozen
+      plan on a fresh ``GateRuntime`` never reaches a SUCCESS/ELIGIBLE
+      outcome either -- it is refused outright (``SESSION_LEDGER_
+      ATTEMPT_OPEN_HELD``) before any further budget reservation or store
+      mutation, because the first attempt's session state survived the
+      reopen as durably non-terminal (``DISPATCHED``). This is the actual
+      ambiguous-closure restart-hold mechanism; passing the *same* stuck
+      request back would instead only exercise the unrelated plan-ordering/
+      request-id-reuse checks, which are already covered elsewhere.
 
 No network, no subprocess, no real clock, no real transport anywhere in
 this module. This is still a fully synthetic/offline model: it proves the
@@ -264,22 +268,31 @@ def test_ambiguous_closure_holds_accounting_and_custody_durably_across_reopen(
         assert budget.in_flight == 'req-1'
         assert store.receipts == {}
 
-        # A fresh runtime over the reopened journals, re-attempting the
-        # exact same (now-stuck) request.
+        # A fresh runtime over the reopened journals. Deliberately attempt
+        # the *next*, correctly-ordered request (req-2, not the stuck req-1)
+        # so the frozen-plan ordering check (``_check_plan_request``) is
+        # satisfied and the attempt reaches ``session.attempt_intent`` --
+        # that is the only way to actually exercise the restart-hold this
+        # test claims to prove, rather than the unrelated plan-ordering/
+        # request-id-reuse checks a repeat of req-1 would hit instead.
         working_stream_exchange = SyntheticExchange({})
         transport = SyntheticTransport(working_stream_exchange)
         runtime, sink = _build_runtime(shared, session, budget, store, root,
             requests=(first_request, second_request), transport=transport)
         try:
-            # (c) durable refusal across the reopen: the retry never reaches
-            # SUCCESS/ELIGIBLE -- it is refused before any further budget
+            # (c) durable restart-hold across the reopen: even a different,
+            # plan-valid request never reaches SUCCESS/ELIGIBLE -- the
+            # session's own ledger refuses it before any further budget
             # reservation or transport dispatch (``working_stream_exchange``
-            # would raise on ``.take()`` if dispatch were ever reached).
-            with pytest.raises(LaunchContractError, match='RUNTIME_FROZEN_REQUEST_MISMATCH'):
-                runtime.run_attempt(first_request)
+            # would raise on ``.take()`` if dispatch were ever reached),
+            # because req-1's attempt survived the reopen as non-terminal.
+            with pytest.raises(LaunchContractError, match='SESSION_LEDGER_ATTEMPT_OPEN_HELD'):
+                runtime.run_attempt(second_request)
         finally:
             sink.close()
 
+        assert session.attempt['request_id'] == 'req-1'
+        assert session.attempt['state'] == 'DISPATCHED'
         assert budget.received == budget_received_before_reopen
         assert budget.in_flight == 'req-1'
         assert store.receipts == {}
