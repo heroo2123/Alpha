@@ -325,6 +325,68 @@ def test_local_graft_cannot_forge_source_ancestry(tmp_path):
     assert not binding._raw_ancestor(clone, binding.SOURCE_COMMIT, unrelated)
 
 
+def test_forged_loose_commit_object_refuses_hash_mismatch(tmp_path):
+    """F1: `_commit()` must refuse `git cat-file commit <oid>` bytes that do
+    not actually hash to the requested oid. Without that check, local
+    tampering with the loose object store (ordinary filesystem write access
+    to `.git/objects/<xx>/<rest>` -- the same threat model as the
+    git-replace/git-graft forgeries above) could rewrite an intermediate
+    commit's claimed `parent` line while keeping its original oid, forging
+    ancestry that `_raw_ancestor`'s parent-hash-chain walk (via `_commit`)
+    would otherwise wrongly admit.
+
+    Build a scratch repo so the attacked commit is guaranteed loose (freshly
+    created objects are never packed), then overwrite that commit's own
+    loose object on disk so it falsely claims an unrelated root as its
+    parent instead of its real one, while its oid stays unchanged.
+    """
+    repo = tmp_path / "forge"
+    env = {**os.environ, "GIT_AUTHOR_NAME": "Binding Test", "GIT_AUTHOR_EMAIL": "binding@example.invalid",
+           "GIT_COMMITTER_NAME": "Binding Test", "GIT_COMMITTER_EMAIL": "binding@example.invalid"}
+
+    def git(*args, inp=None):
+        return subprocess.run(["git", *args], cwd=repo, env=env, input=inp, check=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().strip()
+
+    repo.mkdir()
+    subprocess.run(["git", "init", "--quiet", str(repo)], check=True,
+                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    empty_tree = git("hash-object", "-t", "tree", os.devnull)
+    real_parent = git("commit-tree", empty_tree, inp=b"real parent\n")
+    head = git("commit-tree", empty_tree, "-p", real_parent, inp=b"head\n")  # honest parent
+    unrelated = git("commit-tree", empty_tree, inp=b"unrelated\n")
+
+    raw = subprocess.run(["git", "cat-file", "commit", head], cwd=repo, env=env, check=True,
+                         stdout=subprocess.PIPE).stdout
+    forged = raw.replace(real_parent.encode(), unrelated.encode())
+    if forged == raw or len(forged) != len(raw):
+        pytest.fail("forgery setup invalid: parent substitution did not change raw commit bytes")
+
+    loose = repo / ".git/objects" / head[:2] / head[2:]
+    loose.chmod(0o644)  # loose objects are written read-only by git
+    loose.write_bytes(zlib.compress(b"commit %d\0" % len(forged) + forged))
+
+    # Sanity: confirm the loose-object tamper actually took hold -- a plain
+    # `git cat-file` now returns the mutated bytes under the *original* oid,
+    # i.e. this is a real exploitable gap in the object store, not a
+    # hypothetical one.
+    tampered = subprocess.run(["git", "--no-replace-objects", "cat-file", "commit", head],
+                              cwd=repo, env={**env, "GIT_NO_REPLACE_OBJECTS": "1",
+                                             "GIT_GRAFT_FILE": os.devnull},
+                              check=True, stdout=subprocess.PIPE).stdout
+    if tampered != forged:
+        pytest.fail("loose-object forgery setup invalid: cat-file did not return tampered bytes")
+
+    # pytest.raises(match=...) alone loses its regex assertion under -O.
+    try:
+        binding._commit(repo, head)
+    except ValueError as exc:
+        if f"Git commit content mismatch: {head}" not in str(exc):
+            pytest.fail(f"unexpected refusal reason: {exc}")
+    else:
+        pytest.fail("forged loose commit object was wrongly accepted")
+
+
 def _forge_commit_graph_parent_edge(repo, real_parentless_commit, fake_parent_oid):
     """Rewrite a freshly-written commit-graph so `real_parentless_commit`
     (which has zero real parents) falsely claims `fake_parent_oid` as its
