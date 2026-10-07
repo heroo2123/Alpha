@@ -111,8 +111,13 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
                 result[key] = value
             return result
 
-        d = json.loads(raw_bytes, object_pairs_hook=unique_object)
-        if not isinstance(d, dict) or not raw_bytes or len(raw_bytes) > 2_000_000:
+        if not raw_bytes or len(raw_bytes) > 2_000_000:
+            raise ValueError
+        # The contract is a UTF-8 JSON document; reject UTF-16/UTF-32 and BOM-prefixed
+        # bytes that json.loads(bytes) would otherwise silently accept via sniffing.
+        text = raw_bytes.decode("utf-8", errors="strict")
+        d = json.loads(text, object_pairs_hook=unique_object)
+        if not isinstance(d, dict):
             raise ValueError
         target = date.fromisoformat(p["target_date"])
         zone = ZoneInfo(p["timezone"])
@@ -120,6 +125,7 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
     except (ValueError, TypeError, KeyError, ZoneInfoNotFoundError, UnicodeError):
         return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
     if (p.get("source_family") != "NWS_WRH_TIMESERIES"
+            or not isinstance(p.get("station"), str) or not p.get("station")
             or p.get("observation_population") not in ("WRH_ALL_TIMES", "WRH_HOURLY_DATA")
             or p.get("statistic") not in ("DAILY_HIGHEST_TEMP", "DAILY_LOWEST_TEMP")
             or p.get("unit") not in ("F", "C")
@@ -187,6 +193,14 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
     if (any(not isinstance(x, str) or not x for x in ids)
             or len(set(ids)) != len(ids)):
         return _result("REVISION_CONFLICT", rule_sha)
+    # Two corrections naming the same replaces_id form a branch, not a chain; the
+    # winner would otherwise depend on list order rather than publication time.
+    try:
+        sibling_corrections = len({c.get("replaces_id") for c in corrections}) != len(corrections)
+    except TypeError:
+        sibling_corrections = True
+    if sibling_corrections:
+        return _result("REVISION_CONFLICT", rule_sha)
     if (manifest.get("complete") is not True or manifest.get("observation_ids") != [r["id"] for r in rows]
             or manifest.get("correction_ids") != [r["id"] for r in corrections]
             or type(manifest.get("source_row_count")) is not int
@@ -206,6 +220,10 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
         return _result("INCOMPLETE_POPULATION", rule_sha)
     if not rows and manifest.get("no_data") is not True:
         return _result("INCOMPLETE_POPULATION", rule_sha)
+    # "No data" is only provable on the fallback: a primary claiming availability
+    # yet reporting zero rows is self-contradictory and must not skip the fallback.
+    if not rows and not fallback:
+        return _result("FALLBACK_UNPROVED", rule_sha)
     if not rows and corrections:
         return _result("REVISION_CONFLICT", rule_sha)
     if rows and manifest.get("no_data") is not False:

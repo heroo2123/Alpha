@@ -200,6 +200,49 @@ def test_correction_before_and_after_trigger_conflicts():
     assert_code(check(r, d), "REVISION_CONFLICT")
 
 
+def test_sibling_corrections_same_original_conflict_regardless_of_list_order():
+    r, d = fixture()
+    old = d["observations"][12]
+    trigger = d["finality"]["trigger_at"]
+    corr_a = {**old, "id": "cA", "replaces_id": old["id"],
+              "published_at": trigger - 100, "received_at": trigger - 90, "value": 78}
+    corr_b = {**old, "id": "cB", "replaces_id": old["id"],
+              "published_at": trigger - 200, "received_at": trigger - 190, "value": 60}
+    for order in ([corr_a, corr_b], [corr_b, corr_a]):
+        d["corrections"] = order
+        d["manifest"]["correction_ids"] = [c["id"] for c in order]
+        assert_code(check(r, d), "REVISION_CONFLICT")
+
+
+def test_primary_available_with_zero_rows_requires_fallback_not_lowest_bracket():
+    r, d = fixture()
+    d["observations"] = []
+    d["manifest"].update(observation_ids=[], source_row_count=0,
+                         first_observation_id=None, last_observation_id=None, no_data=True)
+    assert_code(check(r, d), "FALLBACK_UNPROVED")
+
+
+def test_rule_payload_missing_station_fails_closed_not_crash():
+    r, d = fixture()
+    p = r.payload
+    del p["station"]
+    bad = RuleFingerprint(canonical(p), digest(p), r.source_event_sha256)
+    assert_code(check(bad, d), "SOURCE_SEMANTICS_MISMATCH")
+
+
+def test_non_utf8_or_bom_prefixed_bytes_rejected_even_if_hash_matches():
+    r, d = fixture()
+
+    def derive(raw):
+        return derive_offline_settlement_source(
+            rule=r, raw_bytes=raw, raw_sha256=hashlib.sha256(raw).hexdigest(),
+            expected_source_version="synthetic-v1", gamma_raw_sha256s=(),
+            as_of=d["snapshot"]["received_at"])
+
+    assert_code(derive(json.dumps(d, sort_keys=True).encode("utf-16")), "SOURCE_SEMANTICS_MISMATCH")
+    assert_code(derive(b"\xef\xbb\xbf" + json.dumps(d, sort_keys=True).encode()), "SOURCE_SEMANTICS_MISMATCH")
+
+
 def test_hash_and_gamma_lineage_and_partition_fail_closed():
     r, d = fixture()
     raw = json.dumps(d, sort_keys=True).encode()
