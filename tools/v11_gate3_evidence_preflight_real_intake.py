@@ -37,7 +37,7 @@ module itself has no such restriction and was already independently
 reviewed against this exact real package.
 
 Safety boundary, repeated from the controlling protocol/handoff documents:
-  * No network, no subprocess, no decode. Only ``pathlib.Path.read_bytes``
+  * No network, no subprocess, no decode. Only bounded, regular-file reads
     on paths the public binding JSON itself already discloses, plus this
     host's own free-disk/free-memory counters and wall clock.
   * Every retained byte string is read once, verified against its own bound
@@ -60,7 +60,9 @@ Safety boundary, repeated from the controlling protocol/handoff documents:
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
+import stat
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,6 +75,7 @@ from tools.v11_gate3_evidence_preflight_checker import (
 
 SCHEMA = "ALPHA_V11_EVIDENCE_PREFLIGHT_REAL_INTAKE_V1"
 MAX_INTAKE_BYTES = 1_048_576
+READ_CHUNK_BYTES = 65_536
 
 # Explicit "no qualified calibration method exists for this host" sentinel --
 # never a best-effort estimate of real uncertainty/calibration age. Both
@@ -92,6 +95,47 @@ class RetainedRef:
     path: str
     sha256: str
     byte_length: int
+
+
+def _read_bounded_regular_file(path: Path, *, label: str,
+                               max_bytes: int = MAX_INTAKE_BYTES) -> bytes:
+    """Refuse links/special files and oversized regular files before reading.
+
+    The nonblocking, no-follow open and descriptor check also cover a final
+    path replacement between lstat and open. A growing file can consume at
+    most ``max_bytes + 1`` bytes before refusal; no read requests EOF size.
+    """
+    try:
+        before = path.lstat()
+        if not stat.S_ISREG(before.st_mode):
+            raise EvidenceIntakeError(f"{label} is not a regular file")
+        flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+        fd = os.open(path, flags)
+        try:
+            opened = os.fstat(fd)
+            if not stat.S_ISREG(opened.st_mode):
+                raise EvidenceIntakeError(f"{label} is not a regular file")
+            if opened.st_size > max_bytes:
+                raise EvidenceIntakeError(
+                    f"{label} bytes exceed the {max_bytes}-byte intake cap")
+            chunks = []
+            total = 0
+            while True:
+                chunk = os.read(fd, min(READ_CHUNK_BYTES, max_bytes + 1 - total))
+                if not chunk:
+                    return b"".join(chunks)
+                total += len(chunk)
+                if total > max_bytes:
+                    raise EvidenceIntakeError(
+                        f"{label} bytes exceed the {max_bytes}-byte intake cap")
+                chunks.append(chunk)
+        finally:
+            os.close(fd)
+    except FileNotFoundError:
+        # Preserve the existing missing-binding contract for offline callers.
+        raise
+    except OSError as exc:
+        raise EvidenceIntakeError(f"{label} could not be read as a regular file") from exc
 
 
 def parse_binding(binding_raw: bytes) -> dict:
@@ -138,9 +182,11 @@ def read_private_evidence(binding: dict) -> tuple[bytes, bytes]:
     package_ref = _retained_ref(binding, "private_package")
     restrictions_ref = _retained_ref(binding, "private_restrictions")
     package_raw = verify_retained_bytes(
-        Path(package_ref.path).read_bytes(), package_ref, label="private_package")
+        _read_bounded_regular_file(Path(package_ref.path), label="private_package"),
+        package_ref, label="private_package")
     restrictions_raw = verify_retained_bytes(
-        Path(restrictions_ref.path).read_bytes(), restrictions_ref, label="private_restrictions")
+        _read_bounded_regular_file(Path(restrictions_ref.path), label="private_restrictions"),
+        restrictions_ref, label="private_restrictions")
     return package_raw, restrictions_raw
 
 
@@ -153,7 +199,8 @@ def read_protocol_bytes(binding: dict, *, repo_docs_dir: Path) -> bytes:
     protocol_ref = _retained_ref(binding, "protocol")
     protocol_path = repo_docs_dir / Path(protocol_ref.path).name
     return verify_retained_bytes(
-        protocol_path.read_bytes(), protocol_ref, label="protocol")
+        _read_bounded_regular_file(protocol_path, label="protocol"),
+        protocol_ref, label="protocol")
 
 
 def current_resource_observation() -> ResourceObservation:
@@ -235,7 +282,8 @@ def run_real_evidence_intake(*, repo_docs_dir: Path, binding_path: Path) -> dict
     verify the real retained private/protocol bytes, take honest current
     clock/resource measurements, and report the actual current checker
     outcome. Never writes, deletes or dispatches."""
-    binding_raw = verify_binding_self_consistent(binding_path.read_bytes())
+    binding_raw = verify_binding_self_consistent(
+        _read_bounded_regular_file(binding_path, label="binding"))
     binding = parse_binding(binding_raw)
     package_raw, restrictions_raw = read_private_evidence(binding)
     protocol_raw = read_protocol_bytes(binding, repo_docs_dir=repo_docs_dir)

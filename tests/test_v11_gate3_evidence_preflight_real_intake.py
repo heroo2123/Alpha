@@ -5,8 +5,9 @@ Every fixture here is synthetic/offline, reusing the already-reviewed
 freshly fabricated synthetic bytes written to ``tmp_path``. No private
 package, private evidence or real provider file is opened by this suite.
 
-No socket, subprocess, credential lookup or write-to-tracked-evidence
-happens anywhere in this module or the one under test.
+No socket, credential lookup or write-to-tracked-evidence happens anywhere
+in this module or the one under test. FIFO checks use disposable child
+processes with a timeout so a regression cannot hang the suite.
 """
 
 from __future__ import annotations
@@ -14,6 +15,9 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -37,6 +41,124 @@ from tests.v11_gate3_preflight_synthetic_cases import (
 
 def _ref_for(raw: bytes, path: str) -> dict:
     return {"path": path, "sha256": hashlib.sha256(raw).hexdigest(), "byte_length": len(raw)}
+
+
+def _read_at_loader(kind, path, tmp_path):
+    ref = _ref_for(b"small", str(path))
+    if kind == "binding":
+        return run_real_evidence_intake(repo_docs_dir=tmp_path, binding_path=path)
+    if kind == "package":
+        return read_private_evidence({"private_package": ref, "private_restrictions": ref})
+    if kind == "restrictions":
+        package = tmp_path / "small-package.json"
+        package.write_bytes(b"small")
+        return read_private_evidence({
+            "private_package": _ref_for(b"small", str(package)),
+            "private_restrictions": ref,
+        })
+    return read_protocol_bytes({"protocol": ref}, repo_docs_dir=tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["binding", "package", "restrictions", "protocol"])
+class TestBoundedRegularFileLoaders:
+    def test_oversized_regular_file_refuses_before_any_read(self, tmp_path, monkeypatch, kind):
+        import tools.v11_gate3_evidence_preflight_real_intake as mod
+
+        path = tmp_path / ("PROTOCOL.md" if kind == "protocol" else "input.json")
+        with path.open("wb") as handle:
+            handle.truncate(MAX_INTAKE_BYTES + 1)
+        reads = []
+        original_read = mod.os.read
+
+        def spy(fd, size):
+            reads.append((os.fstat(fd).st_size, size))
+            return original_read(fd, size)
+
+        monkeypatch.setattr(mod.os, "read", spy)
+        with pytest.raises(EvidenceIntakeError, match="intake cap"):
+            _read_at_loader(kind, path, tmp_path)
+        assert all(file_size <= MAX_INTAKE_BYTES for file_size, _ in reads)
+
+    def test_fifo_refuses_without_blocking(self, tmp_path, kind):
+        path = tmp_path / ("PROTOCOL.md" if kind == "protocol" else "input.json")
+        os.mkfifo(path)
+        code = (
+            "from pathlib import Path\n"
+            "from tests.test_v11_gate3_evidence_preflight_real_intake import _read_at_loader\n"
+            "from tools.v11_gate3_evidence_preflight_real_intake import EvidenceIntakeError\n"
+            "import sys\n"
+            "path = Path(sys.argv[2])\n"
+            "try:\n"
+            "    _read_at_loader(sys.argv[1], path, path.parent)\n"
+            "except EvidenceIntakeError:\n"
+            "    sys.exit(0)\n"
+            "sys.exit(1)\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", code, kind, str(path)],
+            capture_output=True, timeout=2,
+        )
+        assert result.returncode == 0, result.stderr.decode(errors="replace")
+
+    def test_symlink_refuses(self, tmp_path, kind):
+        target = tmp_path / "target.json"
+        target.write_bytes(b"small")
+        path = tmp_path / ("PROTOCOL.md" if kind == "protocol" else "input.json")
+        path.symlink_to(target)
+        with pytest.raises(EvidenceIntakeError, match="not a regular file"):
+            _read_at_loader(kind, path, tmp_path)
+
+    def test_small_regular_file_reads_in_bounded_calls(self, tmp_path, monkeypatch, kind):
+        import tools.v11_gate3_evidence_preflight_real_intake as mod
+
+        path = tmp_path / ("PROTOCOL.md" if kind == "protocol" else "input.json")
+        raw = b"{" + b" " * 69_998 + b"}" if kind == "binding" else b"a" * 70_000
+        path.write_bytes(raw)
+        reads = []
+        original_read = mod.os.read
+
+        def spy(fd, size):
+            reads.append(size)
+            return original_read(fd, size)
+
+        monkeypatch.setattr(mod.os, "read", spy)
+        if kind == "binding":
+            with pytest.raises(EvidenceIntakeError, match="binding missing"):
+                _read_at_loader(kind, path, tmp_path)
+        elif kind == "package":
+            ref = _ref_for(raw, str(path))
+            assert read_private_evidence({"private_package": ref,
+                                          "private_restrictions": ref}) == (raw, raw)
+        elif kind == "restrictions":
+            package = tmp_path / "small-package.json"
+            package.write_bytes(b"small")
+            package_ref = _ref_for(b"small", str(package))
+            assert read_private_evidence({"private_package": package_ref,
+                                          "private_restrictions": _ref_for(raw, str(path))}) == (b"small", raw)
+        else:
+            assert read_protocol_bytes({"protocol": _ref_for(raw, str(path))},
+                                       repo_docs_dir=tmp_path) == raw
+        assert reads
+        assert all(0 < size <= 65_536 for size in reads)
+
+
+def test_file_growth_after_stat_still_hits_cap(tmp_path, monkeypatch):
+    import tools.v11_gate3_evidence_preflight_real_intake as mod
+
+    path = tmp_path / "growing.json"
+    path.write_bytes(b"small")
+    requests = []
+
+    def growing_read(fd, size):
+        requests.append(size)
+        return b"x" * size
+
+    monkeypatch.setattr(mod.os, "read", growing_read)
+    with pytest.raises(EvidenceIntakeError, match="intake cap"):
+        mod._read_bounded_regular_file(path, label="growing")
+    assert requests
+    assert max(requests) <= 65_536
+    assert sum(requests) == MAX_INTAKE_BYTES + 1
 
 
 # =============================================================================
