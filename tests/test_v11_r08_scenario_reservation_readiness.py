@@ -16,7 +16,9 @@ from dataclasses import replace
 import pytest
 
 from polymarket_scanner.v11.evidence import EvidenceError
-from polymarket_scanner.v11.paper_coordinator import PaperAccountPolicy, PaperCoordinator, Proposal
+from polymarket_scanner.v11.paper_coordinator import (
+    ACCOUNT_KEY, PaperAccountPolicy, PaperCoordinator, Proposal, VERSION as COORDINATOR_VERSION,
+)
 from polymarket_scanner.v11.scenario_risk import Attribution
 from test_v11_certification_rules import setup
 from test_v11_model_artifacts import bundle
@@ -29,6 +31,7 @@ from tools.v11_r08_scenario_reservation_readiness import (
     SCHEMA,
     ScenarioReservationReadiness,
     evaluate_scenario_reservation_readiness,
+    genuine_reserved_intents,
 )
 
 
@@ -105,6 +108,64 @@ def test_real_gates_were_not_bypassed_to_reach_demonstrated(factory):
     assert result['reserved_intent_ids'] == []
     probe = evaluate_scenario_reservation_readiness(c)
     assert probe.outcome == OUTCOME_NO_RESERVATION
+
+
+def _forge_head(rig, c, state, record_id):
+    # Bypasses coordinate() entirely: a direct, otherwise-ordinary audit()
+    # call under the account key, exactly how an attacker (or a corrupted
+    # caller) with store access -- but no coordinator admission path -- would
+    # try to make a fabricated/mutated account state look like the real head.
+    head = c._head()
+    rig['store'].audit(record_id, event_id=ACCOUNT_KEY, kind='COORDINATOR_EVENT',
+                       details=dict(version=COORDINATOR_VERSION, policy_sha256=c.policy_sha,
+                                    request={}, state=state),
+                       expected_previous_seq=head['seq'] if head else 0)
+
+
+def test_r08_fabricated_snapshot_is_not_genuine(factory):
+    # No coordinate() call ever happened: a minimal RESERVED intent is
+    # appended directly to an otherwise-empty, correctly-versioned/hashed
+    # account record. It carries none of coordinate()'s admission/event/
+    # valuation/authority lineage and must not be classified genuine.
+    rig = factory()
+    c = coordinator(rig)
+    state = c._state(c._head())
+    state['intents']['forged'] = dict(
+        proposal_id='forged', event_id=rig['context'].event_id, token_id='token',
+        direction='BUY', units='2', filled_units='0', unit_collateral_bound='.5',
+        attribution=[dict(strategy=rig['scope'].strategy, weight='1')],
+        status='RESERVED', cancel_requested=False,
+    )
+    _forge_head(rig, c, state, 'forged-head')
+    result = evaluate_scenario_reservation_readiness(c)
+    assert result.outcome == OUTCOME_NO_RESERVATION
+    assert 'RESERVED_INTENT_PROVENANCE_UNVERIFIED' in result.reasons
+    assert genuine_reserved_intents(c) == ()
+
+
+@pytest.mark.parametrize('field,value', [
+    ('financial_authority', True),
+    ('admission_ids', []),
+    ('event_state_id', 'missing'),
+    ('valuation_id', 'missing'),
+])
+def test_r08_mutated_intent_is_not_genuine(factory, field, value):
+    # Start from a reservation coordinate() genuinely admitted, then forge a
+    # replacement head whose only change is one lineage/authority field on
+    # the contributing intent. Each mutation independently must still refuse
+    # genuine classification -- the authority check must cover every intent,
+    # not just the account/risk-level flags.
+    rig = factory()
+    c = coordinator(rig)
+    p = genuine_proposal(rig)
+    outcome = c.coordinate('batch', (p,))['body']['details']
+    assert outcome['reserved_intent_ids'] == [p.proposal_id]
+    state = c._state(c._head())
+    state['intents'][p.proposal_id][field] = value
+    _forge_head(rig, c, state, 'forged-mutation-' + field)
+    result = evaluate_scenario_reservation_readiness(c)
+    assert result.outcome == OUTCOME_NO_RESERVATION
+    assert genuine_reserved_intents(c) == ()
 
 
 @pytest.mark.parametrize('kwargs,message', [

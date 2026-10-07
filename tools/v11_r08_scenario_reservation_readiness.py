@@ -51,8 +51,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from polymarket_scanner.v11.evidence import EvidenceError
+from polymarket_scanner.v11.event_risk import VERSION as EVENT_RISK_VERSION
 from polymarket_scanner.v11.paper_coordinator import PaperCoordinator, UNRESOLVED
 from polymarket_scanner.v11.scenario_risk import number
+from polymarket_scanner.v11.strategy_admission import VERSION as STRATEGY_ADMISSION_VERSION
+from polymarket_scanner.v11.valuation import VERSION as EV_VERSION
 
 SCHEMA = "R08_SCENARIO_RESERVATION_READINESS_V1"
 
@@ -104,6 +107,79 @@ class ScenarioReservationReadiness:
         }
 
 
+def _candidate_intents(state: dict) -> list:
+    return [
+        intent for intent in state["intents"].values()
+        if intent["status"] in UNRESOLVED and number(intent["units"]) > number(intent["filled_units"])
+    ]
+
+
+def _verify_intent_provenance(coordinator: PaperCoordinator, state: dict, intent: dict) -> bool:
+    """Fail-closed historical check that ``intent`` has genuine originating lineage.
+
+    Reuses the exact-equality comparisons ``PaperCoordinator._prepare()`` itself
+    already enforces at admission time (per-intent authority, admission scope,
+    event-state context, valuation binding) instead of re-deriving risk/EV
+    arithmetic. Deliberately does not require current freshness: a historical
+    admission/event-state/valuation that has since expired is still real
+    evidence that ``coordinate()`` once accepted it -- only its *existence and
+    internal consistency* are checked here, never re-admitted. Any missing,
+    malformed, or inconsistent reference means the intent cannot be trusted
+    and must not count toward genuine reservation evidence.
+    """
+    if intent.get("financial_authority") is not False:
+        return False
+    admission_ids = intent.get("admission_ids")
+    if (type(admission_ids) not in (list, tuple) or not 1 <= len(admission_ids) <= 4
+            or len(set(admission_ids)) != len(admission_ids)):
+        return False
+    binding = intent.get("binding")
+    if type(binding) is not dict:
+        return False
+    strategies = {a.get("strategy") for a in intent.get("attribution", [])}
+    try:
+        for admission_id in admission_ids:
+            row = coordinator.store.get(admission_id)
+            details = row["body"].get("details", {})
+            if row["kind"] != "REGISTRY" or details.get("version") != STRATEGY_ADMISSION_VERSION:
+                return False
+            request = details.get("request", {})
+            if request.get("binding") != binding or request.get("scope", {}).get("strategy") not in strategies:
+                return False
+        event_row = coordinator.store.get(intent.get("event_state_id"))
+        event_details = event_row["body"].get("details", {})
+        if event_row["kind"] != "COORDINATOR_EVENT" or event_details.get("version") != EVENT_RISK_VERSION:
+            return False
+        if event_details.get("request", {}).get("context") != state["contexts"].get(intent.get("event_id")):
+            return False
+        value_row = coordinator.store.get(intent.get("valuation_id"))
+        value_details = value_row["body"].get("details", {})
+        if (value_row["kind"] != "MEASUREMENT" or value_details.get("version") != EV_VERSION
+                or value_details.get("binding") != binding or value_row["event_id"] != intent.get("event_id")):
+            return False
+    except EvidenceError:
+        return False
+    return True
+
+
+def genuine_reserved_intents(coordinator: PaperCoordinator) -> tuple:
+    """The subset of ``coordinator``'s currently-reserved intents with verified
+    originating provenance (public reuse point for other readiness probes).
+
+    Grants no execution, order, or funding authority: it only narrows the raw
+    unresolved/reserved intents in persisted state down to those whose
+    admission/event-state/valuation lineage and per-intent authority flag
+    independently verify against this same evidence store, fail-closed.
+    """
+    if type(coordinator) is not PaperCoordinator:
+        raise EvidenceError("R08_TYPED_COORDINATOR_REQUIRED")
+    state = coordinator._state(coordinator._head())
+    return tuple(
+        intent for intent in _candidate_intents(state)
+        if _verify_intent_provenance(coordinator, state, intent)
+    )
+
+
 def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator) -> ScenarioReservationReadiness:
     """Classify the *current* persisted state of ``coordinator``'s account.
 
@@ -114,6 +190,10 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator) -> Sc
     ``_head``/``_state``/``_risk`` -- the identical path ``.snapshot()`` uses
     -- rather than re-parsing the raw audit record, so this probe can never
     disagree with the reviewed coordinator about what its own evidence means.
+    Only intents whose own originating lineage independently verifies (see
+    ``_verify_intent_provenance``) count as a genuine reservation; an
+    account-state record whose shape was never produced by a real
+    ``coordinate()`` call is rejected rather than trusted.
     """
     if type(coordinator) is not PaperCoordinator:
         raise EvidenceError("R08_TYPED_COORDINATOR_REQUIRED")
@@ -121,17 +201,15 @@ def evaluate_scenario_reservation_readiness(coordinator: PaperCoordinator) -> Sc
     state = coordinator._state(row)
     risk = coordinator._risk(state)
     reasons: list = []
-    active = [
-        intent for intent in state["intents"].values()
-        if intent["status"] in UNRESOLVED and number(intent["units"]) > number(intent["filled_units"])
-    ]
+    candidates = _candidate_intents(state)
+    active = [intent for intent in candidates if _verify_intent_provenance(coordinator, state, intent)]
     financial_authority_clean = (
         risk.get("financial_authority") is False and state.get("financial_authority") is False
     )
     if not financial_authority_clean:
         reasons.append("FINANCIAL_AUTHORITY_FLAG_UNEXPECTED")
     if not active:
-        reasons.append("NO_UNRESOLVED_RESERVED_INTENT")
+        reasons.append("RESERVED_INTENT_PROVENANCE_UNVERIFIED" if candidates else "NO_UNRESOLVED_RESERVED_INTENT")
     if not risk["accepted"]:
         reasons.append("ACCOUNT_SCENARIO_RISK_NOT_ACCEPTED")
     elif Decimal(risk["reserved_cash"]) <= 0:

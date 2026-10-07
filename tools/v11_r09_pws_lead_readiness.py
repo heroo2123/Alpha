@@ -62,12 +62,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from polymarket_scanner.v11.evidence import EvidenceError
-from polymarket_scanner.v11.paper_coordinator import PaperCoordinator, UNRESOLVED
+from polymarket_scanner.v11.paper_coordinator import PaperCoordinator
 from polymarket_scanner.v11.pws_admission import PWSPreconfirmation, STRATEGY as PWS_STRATEGY
-from polymarket_scanner.v11.scenario_risk import number
 from tools.v11_r08_scenario_reservation_readiness import (
     OUTCOME_DEMONSTRATED as RESERVATION_DEMONSTRATED,
     evaluate_scenario_reservation_readiness,
+    genuine_reserved_intents,
 )
 
 SCHEMA = "R09_PWS_LEAD_READINESS_V1"
@@ -127,13 +127,25 @@ class PWSLeadReadiness:
         }
 
 
-def _pws_attributed_active_intents(coordinator: PaperCoordinator) -> list:
-    state = coordinator._state(coordinator._head())
-    return [
-        intent for intent in state["intents"].values()
-        if intent["status"] in UNRESOLVED and number(intent["units"]) > number(intent["filled_units"])
-        and any(a["strategy"] == PWS_STRATEGY for a in intent["attribution"])
-    ]
+def _qualifying_pws_intent(coordinator: PaperCoordinator, *, preconfirmation_id: str, context, rule,
+                           binding: dict, payout_admission_ids: tuple):
+    """The one genuinely-reserved intent this exact revalidated pair backs.
+
+    Only a provenance-verified reservation (``genuine_reserved_intents``, R08)
+    that itself names ``preconfirmation_id`` and shares the caller's exact
+    event/context/binding/admissions qualifies. An unused but currently-valid
+    pair, or a reservation bound to a *different* preconfirmation, must never
+    be substituted in -- fresh unused evidence cannot rescue a different,
+    expired reservation's pair.
+    """
+    for intent in genuine_reserved_intents(coordinator):
+        if (any(a["strategy"] == PWS_STRATEGY for a in intent["attribution"])
+                and intent.get("preconfirmation_id") == preconfirmation_id
+                and intent.get("event_id") == context.event_id
+                and intent.get("binding") == binding
+                and tuple(intent.get("admission_ids") or ()) == tuple(payout_admission_ids)):
+            return intent
+    return None
 
 
 def evaluate_pws_lead_readiness(
@@ -184,13 +196,14 @@ def evaluate_pws_lead_readiness(
             reasons.append("UNEXPECTED_UNPAIRED_REFUSAL_REASON:" + str(exc))
 
     reservation = evaluate_scenario_reservation_readiness(coordinator)
-    pws_intents = _pws_attributed_active_intents(coordinator)
-    genuine_pws_reservation_present = reservation.outcome == RESERVATION_DEMONSTRATED and bool(pws_intents)
+    qualifying_intent = _qualifying_pws_intent(coordinator, preconfirmation_id=preconfirmation_id, context=context,
+                                                rule=rule, binding=binding, payout_admission_ids=payout_admission_ids)
+    genuine_pws_reservation_present = reservation.outcome == RESERVATION_DEMONSTRATED and qualifying_intent is not None
     if not genuine_pws_reservation_present:
         if reservation.outcome != RESERVATION_DEMONSTRATED:
             reasons.extend("RESERVATION:" + reason for reason in reservation.reasons)
-        if not pws_intents:
-            reasons.append("NO_PWS_ATTRIBUTED_RESERVED_INTENT")
+        if qualifying_intent is None:
+            reasons.append("NO_PWS_ATTRIBUTED_RESERVED_INTENT_FOR_THIS_PRECONFIRMATION")
 
     outcome = OUTCOME_NOT_DEMONSTRATED if reasons else OUTCOME_DEMONSTRATED
     return PWSLeadReadiness(

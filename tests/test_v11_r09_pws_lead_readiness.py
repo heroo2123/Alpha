@@ -14,6 +14,8 @@ from dataclasses import asdict
 import pytest
 
 from polymarket_scanner.v11.evidence import EvidenceError
+from polymarket_scanner.v11.pws_admission import PWSPreconfirmation
+from polymarket_scanner.v11.pws_lead import LeadPolicy, PWSObservationLead
 from test_v11_certification_rules import setup
 from test_v11_model_artifacts import bundle
 from test_v11_pws_admission import coordinator, joined, synthetic_proposal
@@ -50,7 +52,7 @@ def test_no_pair_and_no_reservation_reports_not_demonstrated(joined):
     assert result.pws_never_settlement_authority is True
     assert result.unpaired_pws_proposal_refused is True
     assert result.genuine_pws_reservation_present is False
-    assert 'NO_PWS_ATTRIBUTED_RESERVED_INTENT' in result.reasons
+    assert 'NO_PWS_ATTRIBUTED_RESERVED_INTENT_FOR_THIS_PRECONFIRMATION' in result.reasons
     assert result.financial_authority is False
 
 
@@ -69,6 +71,29 @@ def test_expired_sensor_policy_is_not_laundered_into_demonstrated(joined):
     assert result.outcome == OUTCOME_NOT_DEMONSTRATED
     assert result.preconfirmation_revalidates is False
     assert any('SOURCE_POLICY_EXPIRED' in r for r in result.reasons)
+
+
+def test_r09_valid_unused_pair_cannot_rescue_expired_reservation_pair(joined):
+    # The sole reservation ('one') is pinned against 'paired-pin'. A second,
+    # genuinely-revalidating pair ('unused-pair', built under a looser
+    # max_pws_age_seconds policy) exists but backs no reservation at all.
+    # Probing with the unused pair must not launder it into evidence for a
+    # reservation it was never actually bound to.
+    p = synthetic_proposal(joined)
+    c = coordinator(joined)
+    outcome = c.coordinate('batch', (p,))['body']['details']
+    assert outcome['reserved_intent_ids'] == ['one']
+    joined['now'][0] += 28  # test_v11_pws_admission.py: stricter PWS sensor-policy expiry fires here
+    store = joined['store']
+    looser = LeadPolicy('looser-policy', 120., 60., 60., 120., 120.)
+    PWSObservationLead(store).observe('unused-lead', **dict(joined['lead_kw'], policy=looser))
+    PWSPreconfirmation(store).pin('unused-pair', lead_id='unused-lead',
+                                  observation_admission_id='observation-pin', payout_admission_id='payout-pin')
+    result = probe(joined, c, preconfirmation_id='unused-pair')
+    assert result.outcome == OUTCOME_NOT_DEMONSTRATED
+    assert result.preconfirmation_revalidates is True
+    assert result.genuine_pws_reservation_present is False
+    assert 'NO_PWS_ATTRIBUTED_RESERVED_INTENT_FOR_THIS_PRECONFIRMATION' in result.reasons
 
 
 def test_genuine_pws_lead_observed_and_netted_as_lead_only_is_demonstrated(joined):
