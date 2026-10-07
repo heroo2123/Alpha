@@ -1,3 +1,7 @@
+## 2026-10-07 15:40 UTC integration boundary
+
+Reviewed current-executable binding re-pin is integrated on main at `1ee5f0d` and post-merge 29/29 focused tests pass. This closes the four-file verifier drift regression only. No C/J/E/A score boundary, G3-L identity, PAPER requirement 8/9 or READY_TO_FUND boundary crossed. Gate-3 **91/200 (formal 1/50)**, **77 unqualified identities**, G3-L **NO-GO**, PAPER **9/11**, READY_TO_FUND=false. Reviewed-reference successor `eba0d13` is under independent exact re-review; pre-funding rehearsal `0aa6e3e` remains CHANGES_REQUIRED with a sole repair writer.
+
 ## 2026-10-07 14:40 UTC live review state
 
 Current-executable re-pin author is active for four documented drift paths; the verifier remains fail-closed and G3-L remains NO-GO/zero credit pending candidate, independent exact review and post-merge verification. Clean PAPER R08/R09 successor `0df7612` is under frozen independent review; requirements 8/9 remain PARTIAL and strict PAPER remains 9/11. No score or funding-readiness boundary crossed.

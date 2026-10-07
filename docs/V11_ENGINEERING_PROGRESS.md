@@ -1,3 +1,7 @@
+## 2026-10-07 15:40 UTC verified integration and recycled lanes
+
+Integrated reviewed Gate-3 re-pin via prepared merge `1ee5f0d`; main focused tests passed 29/29. Launched separate independent Opus exact review for reviewed-reference `eba0d13` and sole Sol repair for adverse offline pre-funding rehearsal `0aa6e3e`, each with persistent terminal markers. No qualification or financial authority changed.
+
 ## 2026-10-07 14:44 UTC full safe capacity assigned
 
 Filled eight distinct Alpha lanes: one G3-L re-pin writer, one PAPER exact reviewer, and six bounded read-only WEATHER/forward/Brain/Inventory/PAPER/operational prerequisite maps. All use isolated worktrees and retained terminal markers; no two writers share a worktree. Integrations and gate credit await exact candidate/review/evidence.
