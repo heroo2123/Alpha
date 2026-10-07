@@ -7942,3 +7942,6 @@ The Claude rolling-limit exits at 12:02 UTC left preserved dirty work in the mic
 ## 2026-10-07 12:29 UTC finished lane recycled into exact review
 
 Intook clean PAPER plan `a0fe995` from the sealed exit-0 worker; author reports 87 offline tests, no deployment, and explicit unresolved requirement 8/9 gates. Started frozen different-model Astra exact review under `/tmp/alpha-paper-live-plan-review-a0fe995`. The frozen provider-rights `abb2d0e` Opus review had failed only on Claude session quota with no verdict; resumed its independent review using Codex Astra under `/tmp/alpha-provider-rights-review-abb2d0e`. Both runners and terminal paths are retained in the checkpoint. Eight independent lanes were live at dispatch; no integration, host change, provider request, Gate-3/PAPER credit or READY_TO_FUND change follows.
+## 2026-10-07 12:31 UTC historical package lane recycled
+
+Intook sealed clean historical G3-P terminal package `ba8b3aa` with author-reported four focused tests passing in both Python modes. Launched a frozen different-model Astra exact review under `/tmp/alpha-g3l-original-terminal-review-ba8b3aa` in the freed slot. No integration, private-root installation, G3-L row qualification, Gate-3 credit, provider request or funding-readiness change follows.

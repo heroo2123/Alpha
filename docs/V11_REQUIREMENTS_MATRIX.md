@@ -5175,3 +5175,6 @@ The Claude rolling-limit exits at 12:02 UTC left preserved dirty work in the mic
 ## 2026-10-07 12:29 UTC pending evidence-only reviews
 
 The clean offline KATL economic/PWS plan candidate `a0fe995` and provider-rights lineage candidate `abb2d0e` are under separate exact-byte Astra reviews. Neither candidate is integrated or deployed; the provider-lineage review cannot grant contact rights. PAPER requirements 8/9 remain PARTIAL because current settlement-time and execution-health evidence and a genuine PWS sleeve are absent. Gate-3 remains 91/200 (formal 1/50) with 77 missing G3-L identities; PAPER strict remains 9/11; READY_TO_FUND=false.
+## 2026-10-07 12:31 UTC historical terminal package remains unqualified
+
+Clean offline candidate `ba8b3aa` for the recovered original G3-P terminal is under independent exact review. Even if its historical byte identity passes, the G3-L protocol row remains unqualified until separate exact-entry review and canonical private-root custody requirements pass. No score changes: Gate-3 91/200 (formal 1/50), 77 missing identities, PAPER 9/11, READY_TO_FUND=false.
