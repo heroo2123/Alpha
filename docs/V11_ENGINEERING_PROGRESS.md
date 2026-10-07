@@ -7923,3 +7923,7 @@ Intaken sealed Shadow forward qualification `1a6d903`, Gate-3 seal repair `5ceae
 ## 2026-10-07 12:02 UTC Recovery dispatch
 
 Gate-3 executable-binding `897d064` exact review returned CHANGES_REQUIRED for incomplete import closure; a sole Sonnet repair worker is live. Offline provider-rights lineage `abb2d0e` rebuilt to the committed SHA-256 with checker problems=[] and zero qualification credit; independent Opus exact review is live. No Gate-3/PAPER/READY_TO_FUND boundary crossed. See `docs/V11_WORK_CHECKPOINT.md` for worktree and retained-terminal paths.
+
+## 2026-10-07 12:05 UTC Provider failover and Brain review
+
+Claude rolling reset is recorded for 13:50 UTC. Codex Sol continues the Gate-3 binding repair; Codex Astra independently reviews the provider-lineage candidate `abb2d0e` and Brain label-attestation candidate `36fbfdf`. The Gate-3 seal `5ceae7f` still lacks a verdict. No acceptance score or READY_TO_FUND change.
