@@ -172,9 +172,17 @@ SHA = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _git(repo: Path, *args: str) -> bytes:
+    # core.commitGraph=false: a locally forged `.git/objects/info/commit-graph`
+    # cache file can lie about a commit's parent edges to any Git subcommand
+    # that consults it as a shortcut (e.g. `merge-base --is-ancestor`) instead
+    # of independently walking the real parent-hash chain. Every Git
+    # invocation in this module goes through this helper, so disabling that
+    # cache here means no current or future caller -- including any ancestry
+    # shortcut -- can ever substitute a forged cache claim for genuine
+    # parent-hash-chain verification (see `_raw_ancestor`/`_commit`).
     env = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_GRAFT_FILE": os.devnull}
-    proc = subprocess.run(["git", "--no-replace-objects", *args], cwd=repo,
-                          env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    proc = subprocess.run(["git", "--no-replace-objects", "-c", "core.commitGraph=false", *args],
+                          cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           check=False, timeout=30)
     if proc.returncode:
         raise ValueError(f"unavailable Git object: {args!r}")
@@ -186,6 +194,8 @@ def _commit(repo: Path, oid: str) -> tuple[str, tuple[str, ...]]:
     if not isinstance(oid, str) or not OID.fullmatch(oid):
         raise ValueError("commit must be an exact SHA-1 object ID")
     raw = _git(repo, "cat-file", "commit", oid)
+    if hashlib.sha1(b"commit " + str(len(raw)).encode() + b"\0" + raw).hexdigest() != oid:
+        raise ValueError(f"Git commit content mismatch: {oid}")
     headers = raw.split(b"\n\n", 1)[0].splitlines()
     trees = [line[5:].decode("ascii") for line in headers if line.startswith(b"tree ")]
     parents = tuple(line[7:].decode("ascii") for line in headers if line.startswith(b"parent "))
@@ -244,6 +254,10 @@ def _live(repo: Path, path: str) -> bytes:
 def _raw_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     # Walk immutable parent headers, so replace refs and local grafts cannot
     # invent source ancestry. Bounded to prevent pathological object graphs.
+    # Deliberately never shortcuts to `git merge-base --is-ancestor` or any
+    # other revision-walk command: those can consult the commit-graph cache
+    # (disabled defensively in `_git`, but still not an independent witness)
+    # instead of re-deriving parents from hashed commit bytes via `_commit`.
     pending, seen = [descendant], set()
     while pending:
         oid = pending.pop()
