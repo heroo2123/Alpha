@@ -875,13 +875,18 @@ def _bounded_headers(response, *, max_header_bytes=4096):
               'RUNTIME_HEADER_SHAPE')
         key, value = pair
         check(type(key) is str and type(value) is str and key.isascii() and
-              0 < len(key.encode()) <= 64 and len(value.encode()) <= 1024 and
+              0 < len(key.encode()) <= 64 and
               '\r' not in value and '\n' not in value,
               'RUNTIME_HEADER_SHAPE')
+        try:
+            value_size = len(value.encode())
+        except UnicodeEncodeError as exc:
+            raise LaunchContractError('RUNTIME_HEADER_SHAPE') from exc
+        check(value_size <= 1024, 'RUNTIME_HEADER_SHAPE')
         name = key.lower()
         check(name not in headers, 'RUNTIME_DUPLICATE_HEADER')
         headers[name] = value
-        size += len(key.encode()) + len(value.encode()) + 4
+        size += len(key.encode()) + value_size + 4
     check(size <= max_header_bytes and headers.get('transfer-encoding') is None and
           headers.get('content-encoding', 'identity').lower() == 'identity',
           'RUNTIME_HEADER_SHAPE')

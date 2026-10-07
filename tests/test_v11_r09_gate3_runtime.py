@@ -328,9 +328,14 @@ def test_denial_without_retry_after_blocks_permanently(tmp_path):
 
 
 @pytest.mark.parametrize('failure', ('raises', 'malformed'))
-def test_initial_snapshot_failure_persists_observed_denial_without_accounting(tmp_path, failure):
+@pytest.mark.parametrize('malformed_header', (False, True))
+def test_initial_snapshot_failure_persists_observed_denial_without_accounting(
+        tmp_path, failure, malformed_header):
     _dirs(tmp_path)
-    response = _ok_response(b'abcdef', status=429, headers=(('Retry-After', '60'),))
+    headers = (('Retry-After', '60'),)
+    if malformed_header:
+        headers += (('X-Bad', '\udcff'),)
+    response = _ok_response(b'abcdef', status=429, headers=headers)
     original = OSError('initial snapshot unavailable')
 
     class BrokenStream(SyntheticResponseStream):
@@ -367,8 +372,15 @@ def test_initial_snapshot_failure_persists_observed_denial_without_accounting(tm
                         if event['op'] == 'restriction_unresolved']
         assert len(restrictions) == 1
         restriction = restrictions[0]['restriction']
-        assert restriction['evidence_sha256'] is not None
-        assert 'Retry-After' in base64.b64decode(restriction['evidence_raw_b64']).decode()
+        if malformed_header:
+            assert restriction['evidence_sha256'] is None
+            assert restriction['evidence_raw_b64'] is None
+            assert restriction['evidence_missing_cause'].startswith(
+                'RUNTIME_HEADER_VALIDATION_FAILED:RUNTIME_HEADER_SHAPE')
+        else:
+            assert restriction['evidence_sha256'] is not None
+            assert 'Retry-After' in base64.b64decode(restriction['evidence_raw_b64']).decode()
+            assert restriction['evidence_missing_cause'] is None
         assert restriction['receipt_evidence_cause'].startswith(
             'RUNTIME_INITIAL_STREAM_SNAPSHOT_FAILED:')
         assert session.attempt['state'] == 'DISPATCHED'
@@ -390,7 +402,11 @@ def test_initial_snapshot_failure_persists_observed_denial_without_accounting(tm
             assert shared.inherited_open_request_id == 'req-1'
             assert shared.denials['d' * 64] == denial
             assert shared.is_blocked('d' * 64, now_utc=10 ** 9)
+            assert len([event for event in shared.events
+                        if event['op'] == 'restriction_unresolved']) == 1
+            assert shared.open_intent['denial_recorded'] is True
             assert session.attempt['state'] == 'DISPATCHED'
+            assert session.attempt['denial_observed'] is True
             assert budget.in_flight == 'req-1' and budget.received == 0
             assert not store.receipts
             with pytest.raises(LaunchContractError):
