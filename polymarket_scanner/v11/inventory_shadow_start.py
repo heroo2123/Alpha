@@ -44,10 +44,11 @@ _DENIED_AUDIT_EVENTS = frozenset({
     "subprocess.Popen", "os.system", "os.exec", "os.fork", "os.forkpty",
     "os.posix_spawn", "os.spawn", "ctypes.dlopen", "ctypes.dlsym", "ctypes.dlsym/handle",
 })
-# _posixsubprocess.fork_exec() and a ctypes-obtained libc handle can each reach
-# a raw fork/exec or socket syscall without emitting any of the events above,
-# so the modules themselves are denied at import time instead.
-_DENIED_IMPORT_MODULES = frozenset({"_posixsubprocess", "ctypes", "_ctypes"})
+# _posixsubprocess.fork_exec(), a ctypes-obtained libc handle, and a cffi
+# FFI().dlopen(None) handle can each reach a raw fork/exec or socket syscall
+# without emitting any of the events above, so the modules themselves are
+# denied at import time instead.
+_DENIED_IMPORT_MODULES = frozenset({"_posixsubprocess", "ctypes", "_ctypes", "_cffi_backend"})
 
 
 def artifact_name(source_file_sha256: str, event_slug: str) -> str:

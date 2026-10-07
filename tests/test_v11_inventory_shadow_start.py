@@ -143,6 +143,32 @@ def test_process_guard_denies_raw_subprocess_and_ctypes_socket_bypass():
     assert result.stdout.strip() == "ALL_DENIED"
 
 
+def test_process_guard_denies_cffi_backend_socket_bypass():
+    # cffi's FFI().dlopen(None) can reach a raw libc handle, and thus a raw
+    # socket fd, the same way ctypes.CDLL(None) can (finding L-B). `import
+    # cffi` alone does not pull in the native backend: cffi.api.FFI.__init__
+    # imports `_cffi_backend` lazily, only once an FFI instance is
+    # constructed. The probe stops there: denying `_cffi_backend` makes
+    # `cffi.FFI()` fail before `dlopen` is ever called, so no socket is
+    # reached.
+    code = (
+        "import sys\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "start._deny_ambient_access()\n"
+        "import cffi\n"
+        "try:\n"
+        "    cffi.FFI()\n"
+        "except RuntimeError as exc:\n"
+        "    assert 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED' in str(exc)\n"
+        "else:\n"
+        "    sys.exit(3)\n"
+        "print('DENIED')\n"
+    )
+    result = child("-c", code)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "DENIED"
+
+
 def test_process_entry_refuses_when_a_denied_module_is_already_loaded(tmp_path):
     path = write_fixture(tmp_path / "in")
     out = output_dir(tmp_path)
