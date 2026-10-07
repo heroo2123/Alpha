@@ -206,14 +206,22 @@ def verify_snapshot(policy,req):
         # content_sha256 is a semantic-claim signature, independent of this proof record's own
         # id/sha256 (which the live preparer re-mints every ~5 minutes even when nothing substantive
         # changed): it binds result, financial_authority, checker_version, scope, the rule content
-        # (rule_fingerprint), the live event content (source_event_sha256) and the fixed evidence's
-        # own sha256 (station_raw/station_metadata/technical_readiness, which are pinned once in the
-        # policy and never re-minted). Two proofs with equal content_sha256 assert the identical
-        # semantic claim even if every record_id/sha256 on the path differs cycle to cycle; publish()
-        # uses this to tell benign proof-id churn apart from a genuinely different/conflicting claim.
+        # (rule_fingerprint) and the fixed evidence's own sha256 (station_raw/station_metadata/
+        # technical_readiness, which are pinned once in the policy and never re-minted).
+        # Deliberately excludes source_event_sha256 (the raw live Gamma event's own hash): that
+        # event is re-fetched and re-stored on every RULE_STATE mint and carries volatile fields
+        # (liquidity, volume, openInterest, updatedAt, series, ...) that change on every poll with
+        # zero semantic effect, so including it here would make content_sha256 change every cycle
+        # too and defeat the entire point of this signature (confirmed against live 2026-10-07/-08
+        # snapshots: ~512/517 and ~237/238 distinct source_event_sha256 values for one unchanged
+        # rule_fingerprint). The live event's actually-relevant properties (event id, title, dates,
+        # market ids/condition ids/question/resolutionSource/clobTokenIds/outcomes, and open/closed
+        # state) are independently re-validated by bind_event() on every single verify_snapshot()
+        # call regardless of any stored review, and that call fails closed (raises, before any
+        # proof or content_sha256 is ever built) the moment any of them stops matching the rule's
+        # own preimage -- so this signature does not need to separately track them.
         content={'result':dd.get('result'),'financial_authority':x['body'].get('financial_authority'),
           'checker_version':dd.get('checker_version'),'scope':policy['scope'],'rule_fingerprint':rd['fingerprint'],
-          'source_event_sha256':rd.get('source_event_sha256'),
           'fixed_evidence_sha256':{name:fr[name]['sha256'] for name in fr}}
         proofs[cap]={'id':x['id'],'sha256':x['sha256'],'content_sha256':digest(content)};through=max(through,x['seq'])
     db.close();return {'target_date':target,'rule_fingerprint':rd['fingerprint'],'proofs':proofs,'reviewed_through_seq':through}
@@ -260,8 +268,8 @@ def publish(policy_path,request_path):
             # EXISTING_REVIEW_CONFLICT purely from benign id churn. Compare by content_sha256
             # instead -- the semantic-claim signature computed in verify_snapshot() -- so a fresh
             # re-mint of the SAME already-satisfied claim is a no-op, while a genuinely different
-            # claim (different result, checker_version, scope, rule content, live event content, or
-            # fixed evidence) still fails closed. A stored review from before this fix (or any
+            # claim (different result, checker_version, scope, rule content, or fixed evidence)
+            # still fails closed. A stored review from before this fix (or any
             # malformed/legacy entry) has no content_sha256 to compare against and is therefore
             # never treated as benign -- it still hard-refuses, matching the old strict behavior.
             match=exact[0];stored=match.get('capability_proofs') or {}

@@ -60,7 +60,8 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_off
           metadata_material_changed=False,readiness_release_mismatch=False,
           churn_stale_cap=None,proof_financial=None,proof_checker_mismatch=None,proof_scope_mismatch=None,
           proof_fail_then_pass=None,inject_demotion=False,readiness_financial_violation=False,
-          readiness_real_orders_violation=False,legacy_generations_cap=None,legacy_fail_gen=False):
+          readiness_real_orders_violation=False,legacy_generations_cap=None,legacy_fail_gen=False,
+          proof_evidence_mismatch=None):
     today=datetime.now(ZoneInfo('America/New_York')).date();target=today+timedelta(days=target_offset)
     anchor=payload(today,'1118070');cand=payload(target)
     if mutate:mutate(cand)
@@ -159,6 +160,16 @@ def setup(tmp_path,*,mutate=None,proof_fail=None,bad_live_token=False,target_off
               {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':wrong_scope,'capability':cap,
                'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
                'checker_version':CHECKER},'evidence':refs})
+            continue
+        if proof_evidence_mismatch==cap:
+            # Only a fresh, otherwise-valid (correct checker_version/scope/result) proof exists for
+            # this capability, but its evidence points at the wrong records (the generic `default`
+            # binding instead of this capability's own refs): the evidence filter must still reject
+            # it, leaving zero hits, not silently accept a proof bound to the wrong evidence.
+            append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}:wrongevidence','REGISTRY','station:KATL',
+              {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+               'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS',
+               'checker_version':CHECKER},'evidence':[ready]})
             continue
         append(db,i,f'rollforward:capability:{cand["event_id"]}:5:{cap.lower()}','REGISTRY','station:KATL',
           {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
@@ -502,13 +513,14 @@ def test_demotion_refused(tmp_path):
     with pytest.raises(a.Refusal,match='DEMOTION'):
         a.verify(pp,rp)
 
-def test_publish_remint_same_claim_accepted(tmp_path,monkeypatch):
-    # N1: simulates an earlier cycle's stored review for the identical semantic claim where every
+def test_publish_remint_content_sha256_match_accepted(tmp_path,monkeypatch):
+    # Unit-level check of publish()'s comparison logic in isolation: a stored review whose every
     # capability_proofs id/sha256 differs (the live preparer re-mints these every ~5 minutes) but
-    # content_sha256 -- the semantic-claim signature -- is unchanged because nothing substantive
-    # (result/financial_authority/checker_version/scope/rule content/live event/fixed evidence)
-    # actually changed. publish() must treat this as the same claim (ALREADY_EXACT_REVIEW_PRESENT),
-    # not EXISTING_REVIEW_CONFLICT.
+    # whose content_sha256 was copied verbatim from the same verify() result must be treated as the
+    # identical claim (ALREADY_EXACT_REVIEW_PRESENT), not EXISTING_REVIEW_CONFLICT. This does not by
+    # itself prove content_sha256 is stable across a REAL second cycle (see the two-cycle test
+    # below for that) -- it only proves publish()'s own comparison does the right thing once given
+    # two equal content_sha256 values.
     pp,rp=setup(tmp_path,target_offset=0)
     monkeypatch.setattr(a,'root_file',lambda p:Path(p))
     monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
@@ -523,3 +535,100 @@ def test_publish_remint_same_claim_accepted(tmp_path,monkeypatch):
     assert out['published'] is False
     assert out['state']=='ALREADY_EXACT_REVIEW_PRESENT'
     assert out['review']['capability_proofs']==stored_proofs
+
+def test_publish_remint_genuinely_different_claim_conflict(tmp_path,monkeypatch):
+    # Negative counterpart: a stored review whose content_sha256 genuinely differs from the fresh
+    # verify() result for even one capability (a real covered-field change, e.g. a different
+    # checker_version/scope/fixed-evidence generation) must still hard-refuse, not be waved through
+    # as a benign re-mint.
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    policy=json.loads(pp.read_text());verified=a.verify(pp,rp)
+    stored_proofs={cap:{'id':'remint-'+cap,'sha256':'1'*64,'content_sha256':p['content_sha256']}
+      for cap,p in verified['review']['capability_proofs'].items()}
+    stored_proofs['IDENTITY']=dict(stored_proofs['IDENTITY'],content_sha256='0'*64)
+    review=dict(verified['review']);review['capability_proofs']=stored_proofs
+    manifest_path=Path(policy['review_manifest'])
+    manifest_path.write_text(a.canonical({'version':a.MANIFEST_VERSION,'reviews':[review]}))
+    req=json.loads(rp.read_text());req['expected_manifest_sha256']=hashlib.sha256(manifest_path.read_bytes()).hexdigest();rp.write_text(json.dumps(req))
+    with pytest.raises(a.Refusal,match='EXISTING_REVIEW_CONFLICT'):
+        a.publish(pp,rp)
+
+def test_content_sha256_varies_with_rule_fingerprint(tmp_path):
+    # Mutation guard raised by the independent review: content_sha256 must genuinely depend on its
+    # inputs and must not collapse to a constant, which would make two DIFFERENT semantic claims
+    # (here: two different target dates, hence different rule_fingerprint) wrongly collide and be
+    # treated as the same already-reviewed claim.
+    (tmp_path/'gen1').mkdir();(tmp_path/'gen2').mkdir()
+    # live_event() is monkeypatched at module level by setup() itself (not via the pytest fixture),
+    # so each verify() must run immediately after its own setup(), before the other setup() call
+    # overwrites it.
+    pp1,rp1=setup(tmp_path/'gen1',target_offset=1);out1=a.verify(pp1,rp1)
+    pp2,rp2=setup(tmp_path/'gen2',target_offset=2);out2=a.verify(pp2,rp2)
+    assert out1['verified']['rule_fingerprint']!=out2['verified']['rule_fingerprint']
+    assert out1['review']['capability_proofs']['IDENTITY']['content_sha256']!=out2['review']['capability_proofs']['IDENTITY']['content_sha256']
+
+def test_publish_remint_volatile_event_field_accepted(tmp_path,monkeypatch):
+    # N1, reproduced for real: the live Gamma event carries volatile fields (liquidity, volume,
+    # openInterest, updatedAt, series, ...) this fixture's event_for() deliberately does not model,
+    # because bind_event() never checks them -- exactly the gap the independent review found on the
+    # real 2026-10-07/-08 snapshots (~512/517 and ~237/238 distinct source_event_sha256 values for
+    # one unchanged rule_fingerprint). This builds a GENUINE second cycle: a fresh RULE_STATE/RAW/
+    # capability-proof generation (new record ids, same semantic rule content) whose RAW event
+    # payload carries one such volatile field the first generation's did not. publish() for this
+    # second generation must resolve to the SAME content_sha256 as the first and be accepted
+    # (ALREADY_EXACT_REVIEW_PRESENT), not EXISTING_REVIEW_CONFLICT.
+    pp,rp=setup(tmp_path,target_offset=0)
+    monkeypatch.setattr(a,'root_file',lambda p:Path(p))
+    monkeypatch.setattr(a,'lock_path_for',lambda policy:tmp_path/'test.lock')
+    out1=a.publish(pp,rp)
+    assert out1['published'] is True
+
+    policy=json.loads(pp.read_text());req1=json.loads(rp.read_text())
+    dbp=Path(req1['evidence_snapshot'])
+    os.chmod(dbp,0o644)
+    db=sqlite3.connect(dbp);db.row_factory=sqlite3.Row
+    def mini(x):return {'id':x['id'],'sha256':x['sha256']}
+    sr=mini(a.get(db,'station-raw'));sm=mini(a.get(db,'station-meta'));ready=mini(a.get(db,'readiness'));old_rule=a.get(db,'rule')
+    cand=old_rule['body']['details']['preimage'];rule_sha=old_rule['body']['details']['fingerprint']
+    received_at=old_rule['body']['details']['source_received_at'];scope_key=policy['scope_key']
+    event2=event_for(cand);event2['liquidityNum']=12345.67  # volatile, unchecked by bind_event()
+    source_sha2=a.digest(event2)
+
+    maxseq=db.execute('select max(seq) from v11_records').fetchone()[0];at=time.time()
+    def ap(seq,rid,kind,event_id,extra):
+        body={'record_id':rid,'kind':kind,'event_id':event_id,'recorded_at':at,'available_at':at,
+          'namespace':'CHALLENGER:katl-shadow','financial_authority':False,**extra};h=a.digest(body)
+        db.execute('insert into v11_records values(?,?,?,?,?,?,?,?)',(seq,rid,kind,event_id,at,at,a.canonical(body),h))
+        return {'id':rid,'sha256':h}
+    raw2=ap(maxseq+1,'raw-cycle2','RULES',cand['event_id'],{'evidence_class':'PUBLIC_OBSERVED','payload':{'event':event2}})
+    rule2=ap(maxseq+2,'rule-cycle2','RULE_STATE',cand['event_id'],{'details':{'quarantined':False,'changed':False,
+      'fingerprint':rule_sha,'preimage':cand,'source_event_sha256':source_sha2,'source_received_at':received_at},'evidence':[raw2]})
+    for i,cap in enumerate(a.REQUIRED_CAPS):
+        refs2=[ready]
+        if cap=='IDENTITY':refs2=[sm,rule2]
+        elif cap=='RULE_SEMANTICS':refs2=[rule2,ready]
+        elif cap=='SOURCE_INTEGRITY':refs2=[sr,raw2,ready]
+        ap(maxseq+3+i,f'rollforward:capability:cycle2:{cap.lower()}','REGISTRY','station:KATL',
+          {'details':{'action':'CAPABILITY_EVIDENCE','scope_key':scope_key,'scope':SCOPE,'capability':cap,
+           'metadata_fingerprint':'e'*64,'rule_fingerprint':rule_sha,'result':'PASS','checker_version':CHECKER},'evidence':refs2})
+    db.commit();db.close();os.chmod(dbp,0o444)
+
+    req2={'version':a.REQUEST_VERSION,'target_date':req1['target_date'],'evidence_snapshot':str(dbp),
+      'evidence_snapshot_sha256':hashlib.sha256(dbp.read_bytes()).hexdigest(),'rule_record_id':'rule-cycle2',
+      'expected_manifest_sha256':hashlib.sha256(Path(policy['review_manifest']).read_bytes()).hexdigest(),
+      'prepared_at':time.time()}
+    rp2=tmp_path/'request-cycle2.json';rp2.write_text(json.dumps(req2))
+    a.live_event=lambda _d,e=event2:copy.deepcopy(e)
+    out2=a.publish(pp,rp2)
+    assert out2['published'] is False
+    assert out2['state']=='ALREADY_EXACT_REVIEW_PRESENT'
+
+def test_capability_evidence_mismatch_refused(tmp_path):
+    # Kills the gap the independent review found: deleting the fresh-row evidence filter left the
+    # whole suite green. A fresh, otherwise-valid (correct checker_version/scope/result) proof
+    # bound to the WRONG evidence and no correct proof must still refuse.
+    pp,rp=setup(tmp_path,proof_evidence_mismatch='IDENTITY')
+    with pytest.raises(a.Refusal,match='CAPABILITY_AMBIGUOUS_OR_MISSING_IDENTITY'):
+        a.verify(pp,rp)
