@@ -4,7 +4,9 @@ import ast
 import copy
 import json
 import os
+import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -121,6 +123,67 @@ def test_missing_pinned_live_file_has_stable_refusal(tmp_path):
         binding.verify(clone)
     if str(exc.value) != f"non-regular binding path: {target}":
         pytest.fail(f"unexpected missing-file refusal: {exc.value}")
+
+
+@pytest.mark.parametrize("kind", ("fifo", "socket", "symlink", "missing"))
+def test_real_verifier_promptly_refuses_nonregular_pinned_path(tmp_path, kind):
+    clone = tmp_path / "checkout"
+    subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (clone / binding.MANIFEST).write_bytes((REPO / binding.MANIFEST).read_bytes())
+    target = "config/v11/r09_gate3_observed_message_sizes_20260930.json"
+    path = clone / target
+    path.unlink()
+    if kind == "fifo":
+        os.mkfifo(path)  # No writer: a blocking open stalls before fstat.
+    elif kind == "socket":
+        os.mknod(path, stat.S_IFSOCK | 0o600)  # Filesystem node; no socket syscall.
+    elif kind == "symlink":
+        path.symlink_to(tmp_path / "same-bytes")
+        (tmp_path / "same-bytes").write_bytes((REPO / target).read_bytes())
+
+    script = """
+import sys
+from pathlib import Path
+from tools import v11_gate3_current_executable_binding as binding
+try:
+    binding.verify(Path(sys.argv[1]))
+except ValueError as exc:
+    if str(exc) == f"non-regular binding path: {sys.argv[2]}":
+        sys.exit(0)
+    raise
+raise RuntimeError("nonregular pinned path was accepted")
+"""
+    command = [sys.executable, *(["-O"] if sys.flags.optimize else []),
+               "-c", script, str(clone), target]
+    try:
+        result = subprocess.run(command, cwd=REPO, capture_output=True, text=True,
+                                timeout=15, check=False)
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"real verifier blocked on pinned {kind} for over 15 seconds")
+    if result.returncode:
+        pytest.fail(f"real verifier did not refuse pinned {kind}: {result.stderr}")
+
+
+def test_live_refuses_character_device():
+    # Use a real character device; creating a new one requires privileges.
+    device = Path("/dev/null")
+    if not stat.S_ISCHR(device.stat().st_mode):
+        pytest.fail("expected /dev/null to be a character device")
+    with pytest.raises(ValueError) as exc:
+        binding._live(device.parent, device.name)
+    if str(exc.value) != "non-regular binding path: null":
+        pytest.fail(f"unexpected device refusal: {exc.value}")
+
+
+def test_live_refuses_symlinked_directory_component(tmp_path):
+    (tmp_path / "real").mkdir()
+    (tmp_path / "real" / "file").write_bytes(b"pinned bytes")
+    (tmp_path / "alias").symlink_to(tmp_path / "real", target_is_directory=True)
+    with pytest.raises(ValueError) as exc:
+        binding._live(tmp_path, "alias/file")
+    if str(exc.value) != "non-directory binding path: alias/file":
+        pytest.fail(f"unexpected directory symlink refusal: {exc.value}")
 
 
 def _manifest():

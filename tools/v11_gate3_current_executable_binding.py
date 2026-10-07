@@ -188,7 +188,9 @@ def _live(repo: Path, path: str) -> bytes:
             os.close(fd)
             fd = next_fd
         try:
-            file_fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+            # A writerless FIFO must not block before the fstat type check.
+            file_fd = os.open(parts[-1], os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW,
+                              dir_fd=fd)
         except OSError as exc:
             raise ValueError(f"non-regular binding path: {path}") from exc
         with os.fdopen(file_fd, "rb") as stream:
