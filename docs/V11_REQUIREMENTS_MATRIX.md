@@ -1,3 +1,7 @@
+## 2026-10-07 14:16 UTC KATL plan and receipt-preflight integrated; two repairs await re-review
+
+`fd965a9` (KATL PWS/economic plan commissioning) and InventoryTransform receipt-preflight `23be1c5` are now merged into main (`e89d126`) after passing independent PASS_IN_SCOPE review and post-merge reconciliation testing; neither grants PAPER req8/9, deployment, or transaction-qualification credit on its own. EvidenceStore budget test repair `7d91a85` and Brain label-attestation repair `d614d9d` address their respective `CHANGES_REQUIRED` findings but are not merged pending independent re-review. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11; READY_TO_FUND=false.
+
 ## 2026-10-07 13:46 UTC provider restriction and URL findings pending repair
 
 Independent provider-rights review of `196b34c` requires repair for unmapped appended restrictions and URL control-character normalization. The Gate-3 test-only postbinding candidate `38f0ae8` is under exact review and can prove only HOLD/zero-credit composition. No provider-rights acceptance or G3-L identity follows. Gate-3 remains 91/200 (formal 1/50), 77 identities unqualified; PAPER 9/11; READY_TO_FUND=false.
