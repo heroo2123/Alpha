@@ -1,3 +1,7 @@
+## 2026-10-08 03:58 UTC reviewed PAPER diagnostic integrated
+
+Independent Astra/medium exact review sealed `PASS_IN_SCOPE` for `3e403ae` with 63 adjacent and 286 independent adverse checks per Python mode. Exact two-file blobs were reconciled in isolated worktree, passed 63 adjacent tests per mode, and fast-forwarded to local main `e87ca01`; four focused tests passed per mode on actual main. Gate-3 N5 `f4fba2e` was inspected but not cherry-picked because its parent lineage contains dependent binding-test bytes absent from current main. PAPER `5405add` and Gate-3 `3a7dd98` remain `NO_VERDICT`; no acceptance or financial boundary changed.
+
 ## 2026-10-08 03:51 UTC R6b recovered review and integration
 
 Independent Astra/high review of frozen Brain `211fa25` sealed `PASS_IN_SCOPE` after the first sandbox-startup `NO_VERDICT`; retained recovery report, verdict and terminal under `/tmp/alpha-brain-reader-r6b-review-211fa25.recovery-*`. Exact reviewed file blobs were cherry-picked in isolated integration, tested 163/163 in each Python mode, and fast-forwarded to main `537f2a5`; focused post-main tests passed 70/70 per mode. Read-only PAPER causal map sealed at `/tmp/alpha-paper-r89-causal-map-20261008.report.md`; separate nonpromoting diagnostic `3e403ae` sealed clean with 4 focused tests per mode and entered different-model exact review. Gate-3 and PAPER `5405add` exact candidates remain `NO_VERDICT` pending Claude cooldown. No acceptance or financial boundary changed.

@@ -1,3 +1,7 @@
+## 2026-10-08 03:58 UTC PAPER unknown-input diagnostic adds no requirement credit
+
+Independent `PASS_IN_SCOPE` for `3e403ae` and exact-byte local integration `e87ca01` passed 63 adjacent cases per mode on reconciliation and four focused cases per mode on main. All three engine inputs and seven entry costs remain `UNKNOWN`; R08/R09 remain PARTIAL and PAPER stays **9/11**. Gate-3 N5 is held with its dependent final-byte lineage. Gate-3 **91/200 (formal 1/50)**, 77 unqualified identities, G3-L **NO-GO**; **READY_TO_FUND=false**. No C/J/E/A row crossed.
+
 ## 2026-10-08 03:51 UTC Brain R6b code integrated without acceptance credit
 
 Independent exact review `PASS_IN_SCOPE` for `211fa25` and exact-byte local integration `537f2a5` passed 163 adjacent tests per mode on reconciliation and 70 focused tests per mode on main. Brain official source/label and downstream packet/comparator remain unqualified. Read-only PAPER causal map retains unknown settlement/execution-health and seven-cost inputs; R08/R09 remain PARTIAL. PAPER `5405add` and Gate-3 `3a7dd98` still have `NO_VERDICT`. No requirement or C/J/E/A row crosses: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
