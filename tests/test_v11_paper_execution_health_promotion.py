@@ -1,10 +1,17 @@
 """Adversarial coverage for the execution-health/settlement promotion contract.
 
-Every "promoted" fixture here is a hand-built synthetic row, not a genuine
-archive observe()'d from real fills: per the module's own scope, a synthetic
-fixture proves the code logic and never qualifies live acceptance.
+Most "rejected" fixtures below are still hand-built synthetic rows, exercising
+one structural/scope/freshness check each; per the module's own scope, a
+synthetic fixture only proves the code logic and never qualifies live
+acceptance. Two tests are different on purpose: `promote_execution_health`'s
+real forgery defense (F1) is an independent full re-derivation of a row's
+claimed `observe()` result from the store's own genuine archive history, so
+proving that defense requires at least one *genuinely* `observe()`'d archive,
+built with the same `rig`/`sequenced_fill`/`sample`/`policy` fixtures
+`test_v11_paper_risk_observation.py` already uses for exactly this purpose.
 """
 from copy import deepcopy
+from dataclasses import asdict
 
 import pytest
 
@@ -16,12 +23,34 @@ from polymarket_scanner.v11.paper_execution_health_promotion import (
 )
 from polymarket_scanner.v11.paper_risk_observation import VERSION as OBSERVATION_VERSION
 
+# Reused, not reinvented: this is the same genuine-archive fixture machinery
+# `test_v11_paper_risk_observation.py` already uses to build a real pinned
+# EvidenceStore archive and observe() it for real. `rig` is imported under an
+# alias because this file also keeps its own minimal single-row `rig` fixture
+# (below) for the many structural/scope/freshness tests that never need a
+# full genuine archive to exercise the check they target.
+from test_v11_basket_coordinator import rig as basket_rig
+from test_v11_certification_rules import setup
+from test_v11_model_artifacts import bundle
+from test_v11_strategy_pipeline import factory
+from test_v11_paper_risk_observation import policy as observation_policy, sample, sequenced_fill
+
 
 ACCOUNT_ID = 'account'
 EVENT_ID = 'event'
 RULE_FINGERPRINT = 'a' * 64
 COLLATERAL_ASSET = 'FIXTURE_COLLATERAL'
-POLICY_SHA256 = 'b' * 64
+
+# A real `ObservationPolicy` (same shape `promote_execution_health` now
+# requires via its `policy` parameter), used both to populate the
+# hand-built `details()` fixture's self-declared `policy_sha256`/
+# `policy_config_sha256` and as the exact object passed to `promote()` below.
+# Using the same real instance for both sides is what lets every test that
+# is NOT about policy identity itself (scope, shape, freshness, markout,
+# fill-count checks) reach the specific check it targets instead of failing
+# earlier on a policy mismatch the repaired contract now also verifies.
+POLICY = observation_policy()
+POLICY_CONFIG_SHA256 = digest(asdict(POLICY))
 
 
 @pytest.fixture
@@ -44,8 +73,8 @@ def details(**overrides):
         settlement_finality_status='UNKNOWN', cutoff_reason='REVIEWED_CUTOFF_POLICY_UNAVAILABLE',
         execution_status='OBSERVED_SYNTHETIC_DIAGNOSTIC', reason=None, observed_at=990.,
         account_id=ACCOUNT_ID, event_id=EVENT_ID, rule_fingerprint=RULE_FINGERPRINT,
-        collateral_asset=COLLATERAL_ASSET, policy_sha256=POLICY_SHA256,
-        policy_config_sha256='c' * 64, frontier_tip_sha256='d' * 64, frontier_sha256='e' * 64,
+        collateral_asset=COLLATERAL_ASSET, policy_sha256=POLICY.policy_sha256,
+        policy_config_sha256=POLICY_CONFIG_SHA256, frontier_tip_sha256='d' * 64, frontier_sha256='e' * 64,
         fill_count=1, diagnostic_adverse_fill_count=0, diagnostic_markout_collateral_per_share='0.01',
         evidence_ids=['proof'], valid_until=1100.,
     )
@@ -66,22 +95,85 @@ def record(store, record_id, body, evidence_ids=('anchor',)):
 def promote(store, record_id):
     return promote_execution_health(store, record_id, account_id=ACCOUNT_ID, event_id=EVENT_ID,
                                     rule_fingerprint=RULE_FINGERPRINT, collateral_asset=COLLATERAL_ASSET,
-                                    policy_sha256=POLICY_SHA256)
+                                    policy=POLICY)
 
 
-def test_well_formed_genuine_fixture_promotes_exact_numbers(rig):
+# -- The real contract: genuine archive in, genuine replay out --------------
+
+def test_genuine_observation_promotes_through_real_replay(basket_rig, monkeypatch):
+    """End-to-end proof the F1 repair's replay path is real, not a stub: a
+    genuine `observe()` result over a genuine archive of real synthetic PAPER
+    fills/book updates, written as an unmodified passthrough MEASUREMENT row,
+    independently re-derives to the exact same numbers and is PROMOTED.
+    """
+    sequenced_fill(basket_rig, monkeypatch)
+    result = sample(basket_rig)
+    assert result['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', result['reason']
+    assert result['fill_count'] == 1 and result['diagnostic_adverse_fill_count'] == 1
+    assert result['diagnostic_markout_collateral_per_share'] == '-0.10'
+
+    store = basket_rig['store']
+    store.audit('genuine-obs', event_id=result['event_id'], kind='MEASUREMENT', details=result,
+               evidence_ids=tuple(result['evidence_ids']))
+    promoted = promote_execution_health(store, 'genuine-obs', account_id='account', event_id=result['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted == ExecutionHealthPromotion(1, -0.10, 'PROMOTED', None, tuple(result['evidence_ids']))
+    # Deterministic and non-mutating against a real store, same as the
+    # synthetic-fixture determinism test below.
+    again = promote_execution_health(store, 'genuine-obs', account_id='account', event_id=result['event_id'],
+                                     rule_fingerprint=basket_rig['rule'].sha256,
+                                     collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted == again
+
+
+def test_fabricated_row_with_a_real_frontier_tip_is_rejected_not_promoted(rig):
+    """The prior HIGH-severity hole this module's F1 repair closes: a
+    hand-built MEASUREMENT row that only hashes consistently with itself,
+    now anchored to one real archive row's genuine sha256 (so the lineage
+    scan does find a tip to start from), used to be accepted as PROMOTED by
+    the old design's self-referential `replay_sha256` check -- which only
+    re-hashed fields the row declared about itself and never re-verified
+    anything against the store's real history. The repaired contract
+    independently reconstructs this exact archive slice with `observe()` and
+    requires an EXACT dict match; a fabricated `OBSERVED_SYNTHETIC_DIAGNOSTIC`
+    claim over an archive that in genuine truth has no RULE_STATE/account
+    lineage at all can never match, so it stays UNKNOWN.
+    """
     store, now = rig
-    record(store, 'obs', details())
+    real_tip = store.get('anchor')['sha256']
+    record(store, 'obs', details(frontier_tip_sha256=real_tip))
     result = promote(store, 'obs')
-    assert result == ExecutionHealthPromotion(0, 0.01, 'PROMOTED', None, ('proof',))
+    assert result.status == 'UNKNOWN' and result.reason == 'EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH'
+    assert result.adverse_fills is None and result.recent_markout_per_share is None
 
 
-def test_genuine_adverse_negative_markout_promotes(rig):
-    store, now = rig
-    record(store, 'obs', details(fill_count=3, diagnostic_adverse_fill_count=2,
-                                 diagnostic_markout_collateral_per_share='-0.07'))
-    result = promote(store, 'obs')
-    assert result.status == 'PROMOTED' and result.adverse_fills == 2 and result.recent_markout_per_share == -0.07
+def test_tampered_diagnostic_numbers_in_an_otherwise_genuine_observation_is_rejected(basket_rig, monkeypatch):
+    """Documents the exact boundary the old design got wrong, now closed:
+    `replay_sha256` (mirroring `paper_risk_observation._result`'s own formula)
+    never covered `diagnostic_adverse_fill_count`/
+    `diagnostic_markout_collateral_per_share` themselves, so a row that
+    tampered only those two numbers after an otherwise-genuine `observe()`
+    result still hashed consistently with the old check and used to promote
+    with the tampered number. F1's full-dict replay-equality check closes
+    exactly this gap: the independently recomputed result still has the real
+    numbers, so it no longer matches the tampered row at all.
+    """
+    sequenced_fill(basket_rig, monkeypatch)
+    result = sample(basket_rig)
+    # fill_count is 1 and the genuine adverse count is 1; 0 is the only other
+    # value that still passes this module's own `0 <= adverse <= fill_count`
+    # shape check, so it is the only tamper that reaches the F1 replay check
+    # instead of being caught earlier by that shape check.
+    tampered = dict(result, diagnostic_adverse_fill_count=0)
+    store = basket_rig['store']
+    store.audit('tampered-obs', event_id=tampered['event_id'], kind='MEASUREMENT', details=tampered,
+               evidence_ids=tuple(tampered['evidence_ids']))
+    promoted = promote_execution_health(store, 'tampered-obs', account_id='account', event_id=tampered['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH'
+    assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
 
 
 def test_missing_record_is_unknown(rig):
@@ -183,34 +275,16 @@ def test_malformed_markout_is_unknown(rig, markout):
                                     {'policy_config_sha256': None}, {'evidence_ids': []},
                                     {'evidence_ids': ['x'] * 4097}, {'evidence_ids': ['proof', 'proof']}])
 def test_anonymous_or_oversized_or_duplicated_evidence_is_unknown(rig, change):
+    # F4/F5 (see module docstring): a duplicate evidence id is no longer
+    # rejected by this shape check alone -- genuine multi-fill observe()
+    # output can legally repeat an anchor/horizon-book id. The
+    # ['proof', 'proof'] case below still ends up UNKNOWN, but now via the
+    # F1 replay check (this fixture's frontier_tip_sha256 is still the
+    # fake default and can never be found in the store's real history),
+    # not via a duplicate-id rejection.
     store, now = rig
     record(store, 'obs', details(**change))
     assert promote(store, 'obs').status == 'UNKNOWN'
-
-
-def test_forged_replay_hash_is_unknown(rig):
-    store, now = rig
-    tampered = details()
-    tampered['frontier_sha256'] = 'f' * 64  # edited after replay_sha256 was pinned for the real frontier
-    record(store, 'obs', tampered)
-    result = promote(store, 'obs')
-    assert result.status == 'UNKNOWN' and result.reason == 'EXECUTION_HEALTH_OBSERVATION_FORGED_OR_DUPLICATED'
-
-
-def test_replay_hash_does_not_cover_the_two_diagnostic_numbers_by_design(rig):
-    """Documented boundary, not a regression: replay_sha256 (mirroring
-    paper_risk_observation._result's own formula) pins context/config/frontier
-    identity, never the diagnostic numbers themselves. This module trusts that
-    a future writer's MEASUREMENT row is an unmodified passthrough of
-    observe()'s return value; reviewing that writer is a separate, necessary
-    step this reader cannot substitute for without rescanning the archive.
-    """
-    store, now = rig
-    tampered = details()
-    tampered['diagnostic_adverse_fill_count'] = 1
-    record(store, 'obs', tampered)
-    result = promote(store, 'obs')
-    assert result.status == 'PROMOTED' and result.adverse_fills == 1
 
 
 def test_future_dated_observation_is_unknown(rig):
