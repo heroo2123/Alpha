@@ -1,3 +1,7 @@
+## 2026-10-08 01:27 UTC review failures repaired in parallel
+
+Frozen Opus reviews returned `CHANGES_REQUIRED` for forward witness `a2fdc13` (untypeable OS error regression) and PAPER readiness `490a00d` (reproduced concurrent SQLite WAL record loss). Each original clean worktree now has one sole Sonnet repair author and requires successor exact review. Clean Brain reader successor `1266aad` entered a frozen Opus exact review after author-reported 278 adjacent tests per Python mode. Spare slots were assigned an unapplied coordinator process-accounting patch and a distinct forward writer-inventory fixture provenance audit. Gate-3 final-byte repin, binding N5 review and v3 transition map continue. Eight isolated Claude lanes are live at the sampled safe target, with >6 GiB disk free and ~5 GiB MemAvailable. No integration, provider, runtime/root/V10, credential, order, funding, or acceptance change followed.
+
 ## 2026-10-08 01:22 UTC isolated final-byte repin author launched
 
 Started a sole Sonnet/high author in `/tmp/alpha-g3l-final-byte-repin-20261008` at clean main `098b757` to combine reviewed X1 `23f1150` and eligibility `0a3b465` with the required current-executable repin. The worker has a retained terminal marker contract and may produce only an offline candidate for different-model exact review. Other five specialist lanes remain separately owned. No main merge, provider request, runtime/root/V10 or financial change occurred; no acceptance credit follows.
