@@ -1,3 +1,7 @@
+## 2026-10-08 03:41 UTC R6b reviewer sandbox interruption preserved
+
+Frozen Astra/high reviewer of `211fa25` exited 0 after bwrap loopback failed for initial read-only commands. Explicit `/tmp/alpha-brain-reader-r6b-review-211fa25.verdict.json` is `NO_VERDICT`; checkout and artifacts are retained, with a Claude post-04:50 handoff. The earlier PAPER and Gate-3 review refusals likewise remain unapproved. Daily Shadow and forward observer remain nonfinancial; no integration or acceptance change.
+
 ## 2026-10-08 03:39 UTC Brain R6b recovered and routed to review
 
 The initial CLI writer failed before reading due bwrap loopback setup; its terminal/output are retained. Coordinator recovered the same isolated worktree, reproduced the prior 5,000-digit ValueError in both modes, sealed clean `211fa25` / tree `45eaa09` with two changed files, and retained `/tmp/alpha-brain-reader-r6b-recovery-20261008.{handoff,terminal}`. Focused plus independent controls passed 72/72 and adjacent suites 304/304 per mode. Frozen Astra/high exact review is live with required terminal; no merge or acceptance change.

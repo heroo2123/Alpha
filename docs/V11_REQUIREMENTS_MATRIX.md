@@ -1,3 +1,7 @@
+## 2026-10-08 03:41 UTC Brain R6b review has no verdict
+
+`211fa25` remains unmerged after a sandbox-startup `NO_VERDICT`; author tests do not satisfy independent exact review. PAPER and Gate-3 candidates also retain `NO_VERDICT`. No requirement or C/J/E/A crossing: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 03:39 UTC Brain R6b successor under exact review
 
 Clean R6b candidate `211fa25` passed provisional 72 focused/independent and 304 adjacent tests per mode after parent defect reproduction; independent exact review is live. It grants no Brain source/label qualification. PAPER and Gate-3 exact candidates remain `NO_VERDICT`. No requirement or C/J/E/A crossing: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
