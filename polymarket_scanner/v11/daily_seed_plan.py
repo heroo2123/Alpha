@@ -293,7 +293,7 @@ def plan_daily_seed(snapshot: Path, expected_source_sha256: str) -> SeedPlan:
     try:
         with closing(_memory_db(source_bytes)) as db:
             _validate_schema(db)
-            if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+            if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise SeedPlanError("SOURCE_INTEGRITY_FAILED")
             source_rows = [_row(db, record_id) for record_id in BASE_IDS]
             bodies = {row["record_id"]: _validate_row(row) for row in source_rows}
@@ -344,7 +344,7 @@ def verify_existing_daily(path: Path, plan: SeedPlan, expected_manifest_sha256: 
     try:
         with closing(_memory_db(daily_bytes)) as db:
             _validate_schema(db)
-            if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+            if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise SeedPlanError("EXISTING_DAILY_INTEGRITY_FAILED")
             count, maximum = db.execute("SELECT count(*),max(seq) FROM v11_records").fetchone()
             if count < len(plan.rows) or count != maximum:

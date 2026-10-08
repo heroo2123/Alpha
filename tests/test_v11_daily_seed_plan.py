@@ -24,6 +24,32 @@ def backup(source, target):
         src.backup(dst)
 
 
+def corrupt_hidden_duplicate(path, decoy_id, target_id):
+    """Rewrite a table b-tree leaf's record_id text, leaving its UNIQUE index
+
+    entry pointing at the old text. This reproduces a corrupt index that
+    PRAGMA quick_check cannot see but PRAGMA integrity_check does: a second
+    row visible only to a full table scan, invisible to an indexed lookup.
+    """
+    if len(decoy_id.encode()) != len(target_id.encode()):
+        raise ValueError("decoy_id and target_id must be byte-equal length")
+    data = bytearray(path.read_bytes())
+    page_size = int.from_bytes(data[16:18], "big")
+    page_size = 65536 if page_size == 1 else page_size
+    needle = decoy_id.encode()
+    patched = 0
+    i = data.find(needle)
+    while i != -1:
+        page = i // page_size
+        header = page * page_size + (100 if page == 0 else 0)
+        if data[header] == 0x0D:  # table leaf page; index leaves are 0x0A
+            data[i:i + len(needle)] = target_id.encode()
+            patched += 1
+        i = data.find(needle, i + 1)
+    path.write_bytes(bytes(data))
+    return patched
+
+
 class DailySeedPlanTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -325,6 +351,43 @@ class DailySeedPlanTests(unittest.TestCase):
                 target = self.altered_snapshot(name, alter, record_id)
                 with self.assertRaisesRegex(SeedPlanError, "BASELINE_BODY_UNREVIEWED"):
                     plan_daily_seed(target, file_sha(target))
+
+    def test_hidden_conflicting_source_copy_outside_unique_index_refused(self):
+        decoy = BASE_IDS[0][:-1] + ("9" if not BASE_IDS[0].endswith("9") else "8")
+        body = self._body(decoy, 9000, [])
+        with sqlite3.connect(self.master) as db:
+            db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                       (9000, decoy, body["kind"], body["event_id"], body["recorded_at"],
+                        body["available_at"], canonical(body), digest(body)))
+        corrupted = self.root / "corrupted-source.sqlite"
+        backup(self.master, corrupted)
+        self.assertGreaterEqual(corrupt_hidden_duplicate(corrupted, decoy, BASE_IDS[0]), 1)
+        with closing(sqlite3.connect(corrupted)) as db:
+            self.assertEqual(db.execute("PRAGMA quick_check").fetchone()[0], "ok")
+            self.assertNotEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        with self.assertRaisesRegex(SeedPlanError, "SOURCE_INTEGRITY_FAILED"):
+            plan_daily_seed(corrupted, file_sha(corrupted))
+
+    def test_hidden_conflicting_existing_daily_copy_outside_unique_index_refused(self):
+        plan = self.plan()
+        target_id = plan.rows[0][1]
+        decoy = target_id[:-1] + ("9" if not target_id.endswith("9") else "8")
+        destination = self.root / "daily.sqlite"
+        EvidenceStore(destination, NAMESPACE)
+        with sqlite3.connect(destination) as db:
+            db.executemany("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)", plan.rows)
+            body = self._body(decoy, 9000, [])
+            db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                       (4, decoy, body["kind"], body["event_id"], body["recorded_at"],
+                        body["available_at"], canonical(body), digest(body)))
+        sealed = self.root / "daily-sealed.sqlite"
+        backup(destination, sealed)
+        self.assertGreaterEqual(corrupt_hidden_duplicate(sealed, decoy, target_id), 1)
+        with closing(sqlite3.connect(sealed)) as db:
+            self.assertEqual(db.execute("PRAGMA quick_check").fetchone()[0], "ok")
+            self.assertNotEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        with self.assertRaisesRegex(SeedPlanError, "EXISTING_DAILY_INTEGRITY_FAILED"):
+            verify_existing_daily(sealed, plan, plan.manifest_sha256)
 
 
 if __name__ == "__main__":

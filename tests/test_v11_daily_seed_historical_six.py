@@ -4,6 +4,7 @@ Set V11_HISTORICAL_SIX_SNAPSHOT to the private sealed MASTER backup for exact
 replay. The repository contains no provider body fixture or hash override.
 """
 import copy
+from contextlib import closing
 from dataclasses import replace
 import hashlib
 import json
@@ -16,14 +17,149 @@ import unittest
 from unittest.mock import patch
 
 from polymarket_scanner.v11.daily_seed_historical_six import (
-    CATALOGUE, CATALOGUE_SHA256, PROFILE_ID, SeedPlanError, _validate_six,
+    CATALOGUE, CATALOGUE_SHA256, EXPECTED_GRAPH_EDGES, EXPECTED_MAPPING,
+    PROFILE_ID, SeedPlanError, _validate_six,
     plan_historical_six_seed, verify_existing_historical_six_daily,
 )
-from polymarket_scanner.v11.daily_seed_plan import _json_unique, _memory_db
+from polymarket_scanner.v11.daily_seed_plan import (
+    NAMESPACE, SeedPlan, _json_unique, _memory_db,
+)
 from polymarket_scanner.v11.evidence import EvidenceStore, canonical, digest
 
 
 SNAPSHOT = os.environ.get("V11_HISTORICAL_SIX_SNAPSHOT")
+
+
+def corrupt_hidden_duplicate(path, decoy_id, target_id):
+    """Rewrite a table b-tree leaf's record_id text, leaving its UNIQUE index
+
+    entry pointing at the old text: a second row visible only to a full
+    table scan, invisible to an indexed lookup and to PRAGMA quick_check.
+    """
+    if len(decoy_id.encode()) != len(target_id.encode()):
+        raise ValueError("decoy_id and target_id must be byte-equal length")
+    data = bytearray(path.read_bytes())
+    page_size = int.from_bytes(data[16:18], "big")
+    page_size = 65536 if page_size == 1 else page_size
+    needle = decoy_id.encode()
+    patched = 0
+    i = data.find(needle)
+    while i != -1:
+        page = i // page_size
+        header = page * page_size + (100 if page == 0 else 0)
+        if data[header] == 0x0D:  # table leaf page; index leaves are 0x0A
+            data[i:i + len(needle)] = target_id.encode()
+            patched += 1
+        i = data.find(needle, i + 1)
+    path.write_bytes(bytes(data))
+    return patched
+
+
+class HistoricalSixSourceIntegrityTests(unittest.TestCase):
+    """Always-on: no private snapshot required.
+
+    F2: a hidden conflicting copy of a catalogued record_id, absent from the
+    UNIQUE autoindex but visible to a full table scan, must refuse even
+    though PRAGMA quick_check alone reports 'ok'.
+    """
+
+    def test_hidden_conflicting_copy_outside_unique_index_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            master = root / "master.sqlite"
+            EvidenceStore(master, NAMESPACE)
+            target_id = CATALOGUE[4][1]  # decision-shadow:rule:1118070
+            decoy_id = target_id[:-1] + ("9" if not target_id.endswith("9") else "8")
+
+            def row(record_id, seq):
+                body = dict(namespace=NAMESPACE, financial_authority=False,
+                            record_id=record_id, kind="RULE_STATE", event_id="1118070",
+                            recorded_at=float(seq), available_at=float(seq),
+                            details={}, evidence=[])
+                return (seq, record_id, body["kind"], body["event_id"],
+                        body["recorded_at"], body["available_at"],
+                        canonical(body), digest(body))
+
+            with sqlite3.connect(master) as db:
+                db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)", row(target_id, 5))
+                db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)", row(decoy_id, 9000))
+            sealed = root / "sealed.sqlite"
+            with sqlite3.connect(master) as src, sqlite3.connect(sealed) as dst:
+                src.backup(dst)
+            self.assertGreaterEqual(corrupt_hidden_duplicate(sealed, decoy_id, target_id), 1)
+            with closing(sqlite3.connect(sealed)) as db:
+                self.assertEqual(db.execute("PRAGMA quick_check").fetchone()[0], "ok")
+                self.assertNotEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            pin = hashlib.sha256(sealed.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(SeedPlanError, "HISTORICAL_SIX_SOURCE_INTEGRITY"):
+                plan_historical_six_seed(sealed, pin, target_date="2026-10-10",
+                                         target_event_id="future:distinct", target_generation="g")
+
+
+class HistoricalSixManifestForgeryTests(unittest.TestCase):
+    """Always-on: no private snapshot required.
+
+    F1: verify_existing_historical_six_daily must refuse a forged-but-self-
+    consistent manifest (the caller pins digest(forged) itself), matching the
+    planner's own target-context bounds and using type-exact field equality.
+    """
+
+    @staticmethod
+    def _plan(**manifest_overrides):
+        manifest = dict(version="alpha_v11_daily_seed_plan_v2", profile_id=PROFILE_ID,
+                        profile_catalogue_sha256=CATALOGUE_SHA256, namespace=NAMESPACE,
+                        historical_role="HISTORICAL_EVIDENCE_ONLY",
+                        barrier_reconciliation="UNPERFORMED", runtime_admission=False,
+                        source_snapshot_sha256="0" * 64, target_date="2026-10-10",
+                        target_event_id="future:distinct", target_generation="g",
+                        mapping=copy.deepcopy(EXPECTED_MAPPING),
+                        graph_edges=copy.deepcopy(EXPECTED_GRAPH_EDGES),
+                        rule_receipt_seq=2, financial_authority=False)
+        manifest.update(manifest_overrides)
+        rows = tuple((pin[0], pin[1], pin[2], pin[3], float(pin[0]), float(pin[0]), "{}", pin[4])
+                     for pin in CATALOGUE)
+        return SeedPlan(rows, manifest, digest(manifest))
+
+    def _assert_refused(self, plan, pattern):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "absent.sqlite"
+            with self.assertRaisesRegex(SeedPlanError, pattern):
+                verify_existing_historical_six_daily(missing, plan, plan.manifest_sha256)
+
+    def test_legitimate_manifest_passes_profile_checks(self):
+        # A genuinely matching manifest must clear the profile checks and
+        # reach the sealed-image read, failing only because the path is absent.
+        self._assert_refused(self._plan(), "SNAPSHOT_MISSING")
+
+    def test_historical_target_day_rejected(self):
+        self._assert_refused(self._plan(target_date="2026-10-04"), "HISTORICAL_SIX_TARGET_CONTEXT")
+
+    def test_malformed_target_date_rejected(self):
+        self._assert_refused(self._plan(target_date="not-a-date"), "HISTORICAL_SIX_TARGET_DATE")
+
+    def test_empty_target_event_rejected(self):
+        self._assert_refused(self._plan(target_event_id=""), "HISTORICAL_SIX_TARGET_CONTEXT")
+
+    def test_oversized_target_generation_rejected(self):
+        self._assert_refused(self._plan(target_generation="g" * 10_000),
+                             "HISTORICAL_SIX_TARGET_CONTEXT")
+
+    def test_rule_receipt_seq_float_type_confusion_rejected(self):
+        self._assert_refused(self._plan(rule_receipt_seq=2.0), "HISTORICAL_SIX_PLAN_PROFILE")
+
+    def test_mapping_source_seq_bool_type_confusion_rejected(self):
+        mapping = copy.deepcopy(EXPECTED_MAPPING)
+        mapping[0]["source_seq"] = True
+        self._assert_refused(self._plan(mapping=mapping), "HISTORICAL_SIX_PLAN_PROFILE")
+
+    def test_mapping_local_seq_float_type_confusion_rejected(self):
+        mapping = copy.deepcopy(EXPECTED_MAPPING)
+        mapping[0]["local_seq"] = 1.0
+        self._assert_refused(self._plan(mapping=mapping), "HISTORICAL_SIX_PLAN_PROFILE")
+
+    def test_graph_edges_float_type_confusion_rejected(self):
+        edges = {key: [float(v) for v in value] for key, value in EXPECTED_GRAPH_EDGES.items()}
+        self._assert_refused(self._plan(graph_edges=edges), "HISTORICAL_SIX_PLAN_PROFILE")
 
 
 @unittest.skipUnless(SNAPSHOT, "private sealed source snapshot not supplied")
@@ -90,6 +226,33 @@ class HistoricalSixTests(unittest.TestCase):
                     db.backup(dst)
             self.assertEqual(verify_existing_historical_six_daily(
                 sealed, plan, plan.manifest_sha256), 7)
+
+    def test_hidden_conflicting_existing_daily_copy_outside_unique_index_refused(self):
+        plan = self.plan()
+        target_id = plan.rows[4][1]  # decision-shadow:rule:1118070
+        decoy_id = target_id[:-1] + ("9" if not target_id.endswith("9") else "8")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "daily.sqlite"
+            sealed = Path(tmp) / "sealed.sqlite"
+            EvidenceStore(path, "CHALLENGER:katl-shadow")
+            with sqlite3.connect(path) as db:
+                db.executemany("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)", plan.rows)
+                body = dict(namespace="CHALLENGER:katl-shadow", financial_authority=False,
+                            record_id=decoy_id, kind="RULE_STATE", event_id="1118070",
+                            recorded_at=1792000000.0, available_at=1792000000.0,
+                            details={}, evidence=[])
+                db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                           (7, decoy_id, body["kind"], body["event_id"],
+                            body["recorded_at"], body["available_at"], canonical(body), digest(body)))
+                db.commit()
+                with sqlite3.connect(sealed) as dst:
+                    db.backup(dst)
+            self.assertGreaterEqual(corrupt_hidden_duplicate(sealed, decoy_id, target_id), 1)
+            with closing(sqlite3.connect(sealed)) as db:
+                self.assertEqual(db.execute("PRAGMA quick_check").fetchone()[0], "ok")
+                self.assertNotEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            with self.assertRaisesRegex(SeedPlanError, "EXISTING_DAILY_INTEGRITY_FAILED"):
+                verify_existing_historical_six_daily(sealed, plan, plan.manifest_sha256)
 
     def test_target_and_source_identity_refusals(self):
         for args in (dict(target_date="2026-10-04"), dict(target_date="2026-10-03"),

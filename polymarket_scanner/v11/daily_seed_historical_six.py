@@ -17,7 +17,7 @@ from .daily_seed_plan import (AUDIT_KEYS, CAPTURE_KEYS, COLUMNS, NAMESPACE,
                               SeedPlan, SeedPlanError, _memory_db,
                               _row, _same_path, _sealed_bytes, _validate_row,
                               _validate_schema, verify_existing_daily)
-from .evidence import digest
+from .evidence import EvidenceError, digest
 
 PROFILE_ID = "alpha_v11_historical_six_20261004_v1"
 HISTORICAL_EVENT = "1118070"
@@ -64,11 +64,38 @@ READINESS_KEYS = frozenset({"kind", "claim_not_protected_approval", "financial_a
                              "prior_exact_katl_book_replay", "runtime_candidate_shadow_adjacent_tests",
                              "runtime_health_nested_transaction_fix", "source_view_regression_tests"})
 EDGES = {2: (1,), 4: (3,), 5: (2,), 6: (4, 5, 2)}
+EXPECTED_MAPPING = [dict(source_seq=pin[0], local_seq=pin[0], record_id=pin[1],
+                         kind=pin[2], event_id=pin[3], body_sha256=pin[4]) for pin in CATALOGUE]
+EXPECTED_GRAPH_EDGES = {str(k): list(v) for k, v in EDGES.items()}
 
 
 def _need(condition: bool, reason: str) -> None:
     if not condition:
         raise SeedPlanError("HISTORICAL_SIX_" + reason)
+
+
+def _canonical_equal(actual: object, expected: object) -> bool:
+    """Type-exact structural equality: Python == treats 1==1.0==True."""
+    try:
+        return digest(actual) == digest(expected)
+    except EvidenceError:
+        return False
+
+
+def _target_context(target_date: object, target_event_id: object,
+                    target_generation: object) -> date:
+    """Shared by the planner and the existing-daily verifier: never diverge."""
+    try:
+        target_day = date.fromisoformat(target_date)
+    except (TypeError, ValueError) as exc:
+        raise SeedPlanError("HISTORICAL_SIX_TARGET_DATE") from exc
+    _need(target_day.isoformat() == target_date and target_day > HISTORICAL_DAY and
+          type(target_event_id) is str and bool(target_event_id) and
+          target_event_id != HISTORICAL_EVENT and
+          type(target_generation) is str and bool(target_generation) and
+          len(target_event_id) <= 256 and len(target_generation) <= 256,
+          "TARGET_CONTEXT")
+    return target_day
 
 
 def _finite(value: object) -> bool:
@@ -229,16 +256,7 @@ def plan_historical_six_seed(snapshot: Path, expected_source_sha256: str, *,
     """Return historical rows and a canonical manifest from one sealed image."""
     _need(type(expected_source_sha256) is str and HEX.fullmatch(expected_source_sha256)
           is not None, "SOURCE_PIN_REQUIRED")
-    try:
-        target_day = date.fromisoformat(target_date)
-    except (TypeError, ValueError) as exc:
-        raise SeedPlanError("HISTORICAL_SIX_TARGET_DATE") from exc
-    _need(target_day.isoformat() == target_date and target_day > HISTORICAL_DAY and
-          type(target_event_id) is str and bool(target_event_id) and
-          target_event_id != HISTORICAL_EVENT and
-          type(target_generation) is str and bool(target_generation) and
-          len(target_event_id) <= 256 and len(target_generation) <= 256,
-          "TARGET_CONTEXT")
+    _target_context(target_date, target_event_id, target_generation)
     snapshot = Path(snapshot)
     source_bytes, identity = _sealed_bytes(snapshot)
     source_sha = hashlib.sha256(source_bytes).hexdigest()
@@ -246,7 +264,7 @@ def plan_historical_six_seed(snapshot: Path, expected_source_sha256: str, *,
     try:
         with closing(_memory_db(source_bytes)) as db:
             _validate_schema(db)
-            _need(db.execute("PRAGMA quick_check").fetchone()[0] == "ok", "SOURCE_INTEGRITY")
+            _need(db.execute("PRAGMA integrity_check").fetchone()[0] == "ok", "SOURCE_INTEGRITY")
             source_rows = [_row(db, pin[1]) for pin in CATALOGUE]
             bodies = [_validate_row(row) for row in source_rows]
             _validate_six(source_rows, bodies)
@@ -254,15 +272,13 @@ def plan_historical_six_seed(snapshot: Path, expected_source_sha256: str, *,
     except sqlite3.DatabaseError as exc:
         raise SeedPlanError("HISTORICAL_SIX_SQLITE_INVALID") from exc
     _same_path(snapshot, identity)
-    mapping = [dict(source_seq=pin[0], local_seq=pin[0], record_id=pin[1],
-                    kind=pin[2], event_id=pin[3], body_sha256=pin[4]) for pin in CATALOGUE]
     manifest = dict(version="alpha_v11_daily_seed_plan_v2", profile_id=PROFILE_ID,
                     profile_catalogue_sha256=CATALOGUE_SHA256, namespace=NAMESPACE,
                     historical_role="HISTORICAL_EVIDENCE_ONLY",
                     barrier_reconciliation="UNPERFORMED", runtime_admission=False,
                     source_snapshot_sha256=source_sha, target_date=target_date,
                     target_event_id=target_event_id, target_generation=target_generation,
-                    mapping=mapping, graph_edges={str(k): list(v) for k, v in EDGES.items()},
+                    mapping=EXPECTED_MAPPING, graph_edges=EXPECTED_GRAPH_EDGES,
                     rule_receipt_seq=2, financial_authority=False)
     return SeedPlan(rows, manifest, digest(manifest))
 
@@ -271,9 +287,6 @@ def verify_existing_historical_six_daily(path: Path, plan: SeedPlan,
                                          expected_manifest_sha256: str) -> int:
     """Verify a sealed daily image, including its exact six-row genesis."""
     manifest = plan.manifest
-    expected_mapping = [dict(source_seq=pin[0], local_seq=pin[0], record_id=pin[1],
-                             kind=pin[2], event_id=pin[3], body_sha256=pin[4])
-                        for pin in CATALOGUE]
     _need(type(manifest) is dict and
           set(manifest) == {"version", "profile_id", "profile_catalogue_sha256",
                             "namespace", "historical_role", "barrier_reconciliation",
@@ -286,18 +299,15 @@ def verify_existing_historical_six_daily(path: Path, plan: SeedPlan,
           manifest["historical_role"] == "HISTORICAL_EVIDENCE_ONLY" and
           manifest["barrier_reconciliation"] == "UNPERFORMED" and
           manifest["runtime_admission"] is False and
-          manifest["mapping"] == expected_mapping and
-          manifest["graph_edges"] == {str(k): list(v) for k, v in EDGES.items()} and
+          _canonical_equal(manifest["mapping"], EXPECTED_MAPPING) and
+          _canonical_equal(manifest["graph_edges"], EXPECTED_GRAPH_EDGES) and
+          type(manifest["rule_receipt_seq"]) is int and
           manifest["rule_receipt_seq"] == 2 and
           type(manifest["source_snapshot_sha256"]) is str and
           HEX.fullmatch(manifest["source_snapshot_sha256"]) is not None and
-          type(manifest["target_event_id"]) is str and
-          manifest["target_event_id"] != HISTORICAL_EVENT and
-          type(manifest["target_generation"]) is str and
-          bool(manifest["target_generation"]) and
-          type(manifest["target_date"]) is str and
-          bool(manifest["target_date"]) and
           len(plan.rows) == 6 and
           all((row[0], row[1], row[2], row[3], row[7]) == pin
               for row, pin in zip(plan.rows, CATALOGUE)), "PLAN_PROFILE")
+    _target_context(manifest["target_date"], manifest["target_event_id"],
+                    manifest["target_generation"])
     return verify_existing_daily(path, plan, expected_manifest_sha256)
