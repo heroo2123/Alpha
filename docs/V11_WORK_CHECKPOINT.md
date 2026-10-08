@@ -1,3 +1,32 @@
+## 2026-10-08 15:34 UTC Writer-inventory fixture repin verified and merged to main (f7c4782); closes the one known FOURTH-priority full-regression failure
+
+Did not take the repair lane's claim on faith. Read `/tmp/alpha-writer-inventory-fixture-fix-20261008.terminal`
+(`exit_code=0`/`ended_utc=2026-10-08T15:25:21Z`) and its candidate commit `5400afc` directly, then
+independently re-derived the chronology myself with `git log --oneline --all` rather than trusting the
+reported commit titles: `3ae3852` ("Repair PWS readiness malformed evidence refusals") → repins
+`b806867`/`32036b7` → `1777335` ("Add nonfinancial real-input capture commissioning path", introduces
+`tools/v11_real_input_capture.py`, confirmed via `git show --stat`/`git log --follow`) → `3fa6c1e`.
+This independently confirms the repair lane's correction to this session's own prior memory note (which
+had wrongly named `3ae3852` as the root cause): the real, sole drift was one unrepinned `EvidenceStore`
+call site from the later, already-merged, nonfinancial `1777335`, not `3ae3852` (already covered by the
+earlier repins). Corrected the stale memory note rather than leaving it to mislead a future session.
+
+Re-ran `tests/test_v11_forward_writer_inventory.py -q` myself, both in the isolated candidate worktree
+and again after cherry-picking the single-line fixture insertion (commit `5400afc`) onto current main
+HEAD as `f7c4782` — 2 passed both times. This is a one-line test-fixture data correction (no
+`evidence.py` logic touched, confirmed by diff: `1 file changed, 1 insertion(+)`), independently
+cross-checked against git history and re-executed directly by this session rather than by a second
+review agent, which this session judges equivalent rigor for a change this narrow and avoids
+spinning up a review lane purely to re-confirm a single JSON line. Pushed to origin; local/remote
+match at `f7c4782`. This closes the one known failure in the last full-regression run
+(9522 passed/22 skipped/1 failed → now expected clean on a fresh run); no full-suite rerun performed
+this cycle per the project's own anti-churn rule — the next coherent full regression will confirm it.
+
+No selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes — this is release-infra correctness, not evidence.
+`R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 15:26 UTC Independent Opus review of R08 contract candidate returns CHANGES_REQUIRED with adversarially-proven findings; scoped Sonnet repair launched
 
 Read actual host state before acting, not the subagent's claim alone: opened

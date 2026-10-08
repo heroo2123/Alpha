@@ -1,3 +1,13 @@
+## 2026-10-08 15:34 UTC Writer-inventory fixture repin merged (f7c4782) adds no new C/J/E/A credit
+
+Merging the independently-verified single-line writer-inventory fixture repin (true root cause:
+unrepinned `tools/v11_real_input_capture.py` call site from already-merged `1777335`, not `3ae3852`
+as this session's stale memory had claimed) closes the one known failure from the last full-regression
+run. This is release-infra correctness only -- it supplies no selected-window identity, provider-rights
+evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit. `R89-2`
+remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 15:26 UTC R08 contract candidate CHANGES_REQUIRED (adversarially proven) and its repair launch add no new C/J/E/A credit
 
 The independent Opus review of the R08 execution-health/settlement-finality contract candidate
