@@ -333,6 +333,14 @@ def test_stopped_or_dead_guardian_closes_broker_lease(broker,peer,monkeypatch):
     b.handle(protocol.request(b.config,'check','CHECK'),peer);admission(b.g)
     os.kill(peer['pid'],signal.SIGSTOP)
     try:
+        # Delivery is asynchronous; observe the kernel stop before checking
+        # that the still-fresh broker lease fails closed.
+        stopped_pid, stopped_status=wait_for(lambda:(event if
+            (event:=os.waitpid(peer['pid'],os.WUNTRACED|os.WNOHANG))[0] else None))
+        if stopped_pid!=peer['pid'] or not os.WIFSTOPPED(stopped_status):
+            raise AssertionError('guardian did not stop before lease check')
+        if os.WSTOPSIG(stopped_status)!=signal.SIGSTOP:
+            raise AssertionError('guardian stopped for an unexpected signal')
         with pytest.raises(EvidenceError):admission(b.g)
     finally:os.kill(peer['pid'],signal.SIGCONT)
 
