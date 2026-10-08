@@ -149,7 +149,9 @@ def _json_unique(raw: str) -> dict:
             value[key] = item
         return value
     try:
-        body = json.loads(raw, object_pairs_hook=unique)
+        body = json.loads(raw, object_pairs_hook=unique,
+                          parse_constant=lambda value: (_ for _ in ()).throw(
+                              SeedPlanError("BODY_NONFINITE:" + value)))
     except (ValueError, TypeError) as exc:
         raise SeedPlanError("BODY_JSON_INVALID") from exc
     if type(body) is not dict or canonical(body) != raw:
