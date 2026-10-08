@@ -1,3 +1,7 @@
+## 2026-10-08 04:21 UTC Shadow generation authority and seed candidate unqualified
+
+The read-only generation plan identified missing root-custodied daily Shadow selection/supersession authority; offline v2 reader work is in progress. Future-seed planner `d6c68cb` received independent `CHANGES_REQUIRED` for reproduced provenance, reference-closure and sidecar defects; one isolated repair is active. Neither candidate may deploy or qualify Oct 8/9. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No requirement or C/J/E/A row crossed.
+
 ## 2026-10-08 04:09 UTC Shadow sparse-seed repair remains unqualified
 
 Architecture adjudication confirms sparse baseline sequence import and a protected review generation/frontier collision. Offline future-genesis repair and read-only same-day authority mapping are in progress; neither is acceptance or deployment. Original Oct 8/9 ledgers remain retained and the audit refusal remains active. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No C/J/E/A row crossed.

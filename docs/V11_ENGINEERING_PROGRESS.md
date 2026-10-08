@@ -1,3 +1,7 @@
+## 2026-10-08 04:21 UTC exact seed review routed to repair
+
+Offline seed candidate `d6c68cb` passed eight synthetic tests per mode, but independent Astra/high exact review reproduced R1 pathname-swap custody, R2 reference-closure, and R3 dangling-sidecar failures and sealed `CHANGES_REQUIRED`. One sole Sol/high R2 writer is repairing it in the original isolated worktree; fresh exact review remains required. Separate read-only Astra/high generation plan found a v1 registry/frontier collision and missing daily Shadow root gateway capability; a distinct offline v2 reader writer is active. No live archive/runtime or authority was modified.
+
 ## 2026-10-08 04:09 UTC sparse-seed adjudication and parallel preparation
 
 Read-only high-depth adjudication completed at `/tmp/alpha-daily-shadow-sparse-seed-20261008.report.md`: future genesis must be contiguous and provenance-bound; active/prepared originals must be retained, and same-day protected review reuse is invalid without explicit generation/frontier supersession. Started one isolated offline future-day seed repair writer and one independent read-only protected review generation plan. No live archive, preparer, root/runtime, audit gate or financial state was changed.
