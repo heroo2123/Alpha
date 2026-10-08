@@ -449,9 +449,12 @@ def test_forged_commit_graph_cannot_fake_ancestor_edge(tmp_path, monkeypatch):
 
     # (a) the exact forged-commit-graph construction: confirm the forged cache
     # really does fool a plain `merge-base --is-ancestor` shortcut -- i.e. this
-    # is a real exploitable gap, not a hypothetical one.
-    shortcut = subprocess.run(["git", "--no-replace-objects", "merge-base", "--is-ancestor",
-                               source, head], cwd=repo,
+    # is a real exploitable gap, not a hypothetical one. Force
+    # core.commitGraph=true explicitly so this setup probe is not itself
+    # fooled by an ambient `core.commitGraph=false` in the environment or
+    # `~/.gitconfig` (N5): -c on the command line outranks both.
+    shortcut = subprocess.run(["git", "--no-replace-objects", "-c", "core.commitGraph=true",
+                               "merge-base", "--is-ancestor", source, head], cwd=repo,
                               env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1",
                                    "GIT_GRAFT_FILE": os.devnull})
     if shortcut.returncode != 0:
@@ -487,6 +490,209 @@ def test_forged_commit_graph_cannot_fake_ancestor_edge(tmp_path, monkeypatch):
             pytest.fail(f"unexpected _git refusal reason: {exc}")
     else:
         pytest.fail("hardened _git() helper did not refuse the merge-base shortcut")
+
+
+def test_substituted_loose_subtree_rebinds_pinned_path_without_tree_hash_check(tmp_path, monkeypatch):
+    """N1: `_blob()` used to resolve a pinned path's blob oid via a single
+    `git ls-tree <commit> -- <path>` call and hash-check only the final
+    blob -- never the tree objects the path walked through. That matters
+    specifically for a *nested* path: Git's pathspec-limited tree resolution
+    hash-verifies the commit's immediate root tree (it must fully parse that
+    one regardless), but does **not** verify an intermediate subtree it
+    prunes into while narrowing to the given path -- unlike `ls-tree`
+    without a pathspec, or a full `-r` walk. A loose subtree object tampered
+    in place under its own original oid (the same filesystem-write threat
+    model as the loose-commit forgery in
+    `test_forged_loose_commit_object_refuses_hash_mismatch`) can therefore
+    silently rebind a pinned nested path's name to an attacker blob while
+    `_commit` and the final blob hash check both still pass.
+
+    Build a guaranteed-loose scratch repo (freshly created objects are never
+    packed) with a one-level-nested path (`pkg/file.py`), then overwrite the
+    inner `pkg` tree's own loose object on disk so its one entry falsely
+    names an attacker blob, while its oid stays unchanged.
+    """
+    repo = tmp_path / "forge"
+    env = {**os.environ, "GIT_AUTHOR_NAME": "Binding Test", "GIT_AUTHOR_EMAIL": "binding@example.invalid",
+           "GIT_COMMITTER_NAME": "Binding Test", "GIT_COMMITTER_EMAIL": "binding@example.invalid"}
+
+    def git(*args, inp=None):
+        return subprocess.run(["git", *args], cwd=repo, env=env, input=inp, check=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().strip()
+
+    repo.mkdir()
+    subprocess.run(["git", "init", "--quiet", str(repo)], check=True,
+                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    honest_blob = git("hash-object", "-w", "--stdin", inp=b"print('honest')\n")
+    attacker_blob = git("hash-object", "-w", "--stdin", inp=b"print('ATTACKER')\n")
+    inner_tree = git("mktree", inp=f"100644 blob {honest_blob}\tfile.py\n".encode())
+    root_tree = git("mktree", inp=f"040000 tree {inner_tree}\tpkg\n".encode())
+    commit = git("commit-tree", root_tree, inp=b"root\n")
+
+    raw = subprocess.run(["git", "cat-file", "tree", inner_tree], cwd=repo, env=env, check=True,
+                         stdout=subprocess.PIPE).stdout
+    forged = raw.replace(bytes.fromhex(honest_blob), bytes.fromhex(attacker_blob))
+    if forged == raw or len(forged) != len(raw):
+        pytest.fail("forgery setup invalid: blob substitution did not change raw tree bytes")
+
+    loose = repo / ".git/objects" / inner_tree[:2] / inner_tree[2:]
+    loose.chmod(0o644)  # loose objects are written read-only by git
+    loose.write_bytes(zlib.compress(b"tree %d\0" % len(forged) + forged))
+
+    # Sanity: confirm the loose-object tamper actually took hold, mirroring
+    # the equivalent check in the loose-commit forgery test above.
+    tampered = subprocess.run(["git", "--no-replace-objects", "cat-file", "tree", inner_tree],
+                              cwd=repo, env={**env, "GIT_NO_REPLACE_OBJECTS": "1",
+                                             "GIT_GRAFT_FILE": os.devnull},
+                              check=True, stdout=subprocess.PIPE).stdout
+    if tampered != forged:
+        pytest.fail("loose-object forgery setup invalid: cat-file did not return tampered bytes")
+
+    monkeypatch.setattr(binding, "PATHS", frozenset({"pkg/file.py"}))
+    # pytest.raises(match=...) alone loses its regex assertion under -O.
+    try:
+        binding._blob(repo, commit, "pkg/file.py")
+    except ValueError as exc:
+        if f"Git tree content mismatch: {inner_tree}" not in str(exc):
+            pytest.fail(f"unexpected refusal reason: {exc}")
+    else:
+        pytest.fail("forged loose tree object was wrongly accepted")
+
+
+def test_substituted_loose_tree_refuses_even_with_forged_manifest_and_live_bytes(tmp_path):
+    """N1 (integration): the same threat model as the test above, but routed
+    through the real pinned source commit and `binding.verify()`, mirroring
+    tests/test_v11_gate3_current_executable_binding_survivor_coverage.py's
+    loose-blob substitution test. Tamper with a pinned path's containing
+    tree instead of its blob, and also forge the manifest digests and the
+    live file to match the attacker bytes, so only the tree-hash check can
+    still catch it. Like that sibling test, this can only reach the loose
+    object store if the pinned tree is not already packed in this repo.
+    """
+    clone = tmp_path / "checkout"
+    subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (clone / binding.MANIFEST).write_bytes((REPO / binding.MANIFEST).read_bytes())
+    path = "tools/v11_r09_gate3_runtime.py"
+    directory, name = path.rsplit("/", 1)
+    tree_oid = subprocess.run(["git", "rev-parse", f"{binding.SOURCE_COMMIT}:{directory}"],
+                              cwd=clone, check=True, stdout=subprocess.PIPE).stdout.decode().strip()
+    blob_oid = subprocess.run(["git", "rev-parse", f"{binding.SOURCE_COMMIT}:{path}"],
+                              cwd=clone, check=True, stdout=subprocess.PIPE).stdout.decode().strip()
+    attacker_bytes = b"print('ATTACKER')\n"
+    attacker_oid = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=clone,
+                                  input=attacker_bytes, check=True,
+                                  stdout=subprocess.PIPE).stdout.decode().strip()
+
+    raw = subprocess.run(["git", "cat-file", "tree", tree_oid], cwd=clone, check=True,
+                         stdout=subprocess.PIPE).stdout
+    forged = raw.replace(b"\0" + bytes.fromhex(blob_oid), b"\0" + bytes.fromhex(attacker_oid))
+    if forged == raw or len(forged) != len(raw):
+        pytest.fail("forgery setup invalid: tree substitution did not change raw tree bytes")
+
+    loose = clone / ".git/objects" / tree_oid[:2] / tree_oid[2:]
+    loose.parent.mkdir(parents=True, exist_ok=True)
+    if loose.exists():
+        loose.chmod(0o644)
+    loose.write_bytes(zlib.compress(b"tree %d\0" % len(forged) + forged))
+    tampered = subprocess.run(["git", "--no-replace-objects", "cat-file", "tree", tree_oid], cwd=clone,
+                              env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_GRAFT_FILE": os.devnull},
+                              check=True, stdout=subprocess.PIPE).stdout
+    if tampered != forged:
+        pytest.skip("pinned tree is packed; loose substitution not reachable here")
+
+    (clone / path).write_bytes(attacker_bytes)
+    manifest = json.loads((REPO / binding.MANIFEST).read_bytes())
+    manifest["files"][path].update(git_blob=attacker_oid,
+                                   sha256=hashlib.sha256(attacker_bytes).hexdigest(),
+                                   byte_length=len(attacker_bytes))
+    forged_manifest = tmp_path / "forged.json"
+    forged_manifest.write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError) as exc:
+        binding.verify(clone, forged_manifest)
+    if f"Git tree content mismatch: {tree_oid}" not in str(exc.value):
+        pytest.fail(f"unexpected refusal reason: {exc.value}")
+
+
+def test_raw_ancestor_refuses_loose_commit_forged_chain_and_kills_mutant_m5(tmp_path):
+    """N2: `test_forged_commit_graph_cannot_fake_ancestor_edge`'s step (c) and
+    `test_forged_loose_commit_object_refuses_hash_mismatch` only ever exercise
+    a test-local function or `_commit()` directly, so neither proves that the
+    module's real `_raw_ancestor()` -- the function `verify()` actually calls
+    for ancestry -- refuses a loose-commit-forged chain. Mutant M5 (replacing
+    `_raw_ancestor`'s independent parent-hash walk with a shortcut through
+    this module's own hardened `_git` helper, i.e. `merge-base
+    --is-ancestor`) would therefore survive this suite even though it is
+    exploitable: a loose-object forgery fools `merge-base` regardless of
+    `core.commitGraph=false` (see F1/N4), because Git does not re-hash loose
+    objects on ordinary reads.
+
+    Build the same kind of loose-commit forgery as the F1 test (parent
+    insertion changes the object length), but on an intermediate commit of a
+    three-deep chain, then show: the real `_raw_ancestor` refuses the forged
+    ancestry claim (via `_commit`'s hash check), while the M5 shortcut --
+    expressed through the module's own `_git`, not a local reimplementation
+    -- wrongly admits it.
+    """
+    repo = tmp_path / "forge"
+    env = {**os.environ, "GIT_AUTHOR_NAME": "Binding Test", "GIT_AUTHOR_EMAIL": "binding@example.invalid",
+           "GIT_COMMITTER_NAME": "Binding Test", "GIT_COMMITTER_EMAIL": "binding@example.invalid"}
+
+    def git(*args, inp=None):
+        return subprocess.run(["git", *args], cwd=repo, env=env, input=inp, check=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().strip()
+
+    repo.mkdir()
+    subprocess.run(["git", "init", "--quiet", str(repo)], check=True,
+                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    empty_tree = git("hash-object", "-t", "tree", os.devnull)
+    unrelated = git("commit-tree", empty_tree, inp=b"unrelated\n")  # the claimed (fake) ancestor
+    real_parent = git("commit-tree", empty_tree, inp=b"real parent\n")
+    root = git("commit-tree", empty_tree, "-p", real_parent, inp=b"root\n")  # will be forged
+    head = git("commit-tree", empty_tree, "-p", root, inp=b"head\n")  # honest parent
+
+    raw = subprocess.run(["git", "cat-file", "commit", root], cwd=repo, env=env, check=True,
+                         stdout=subprocess.PIPE).stdout
+    forged = raw.replace(real_parent.encode(), unrelated.encode())
+    if forged == raw or len(forged) != len(raw):
+        pytest.fail("forgery setup invalid: parent substitution did not change raw commit bytes")
+
+    loose = repo / ".git/objects" / root[:2] / root[2:]
+    loose.chmod(0o644)  # loose objects are written read-only by git
+    loose.write_bytes(zlib.compress(b"commit %d\0" % len(forged) + forged))
+
+    tampered_env = {**env, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_GRAFT_FILE": os.devnull}
+    tampered = subprocess.run(["git", "--no-replace-objects", "cat-file", "commit", root],
+                              cwd=repo, env=tampered_env, check=True,
+                              stdout=subprocess.PIPE).stdout
+    if tampered != forged:
+        pytest.fail("loose-object forgery setup invalid: cat-file did not return tampered bytes")
+
+    # Mutant M5, expressed through the module's own hardened `_git` helper
+    # (not a test-local reimplementation): prove it is exploitable against
+    # this exact forged chain -- `root`'s rewritten parent line makes
+    # `unrelated` look like head's ancestor.
+    def mutant_m5_shortcut_through_hardened_git(repo, ancestor, descendant):
+        try:
+            binding._git(repo, "merge-base", "--is-ancestor", ancestor, descendant)
+        except ValueError:
+            return False
+        return True
+
+    if not mutant_m5_shortcut_through_hardened_git(repo, unrelated, head):
+        pytest.fail("mutant-M5 probe setup invalid: hardened _git unexpectedly refused merge-base")
+
+    # The real _raw_ancestor must not silently admit the same forged claim.
+    # pytest.raises(match=...) alone loses its regex assertion under -O.
+    try:
+        accepted = binding._raw_ancestor(repo, unrelated, head)
+    except ValueError as exc:
+        if f"Git commit content mismatch: {root}" not in str(exc):
+            pytest.fail(f"unexpected refusal reason: {exc}")
+    else:
+        if accepted:
+            pytest.fail("forged loose commit object let the real _raw_ancestor admit a fake ancestor")
 
 
 def test_manifest_duplicate_key_refuses(tmp_path):

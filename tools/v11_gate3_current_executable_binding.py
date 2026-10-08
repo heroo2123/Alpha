@@ -175,12 +175,18 @@ def _git(repo: Path, *args: str) -> bytes:
     # core.commitGraph=false: a locally forged `.git/objects/info/commit-graph`
     # cache file can lie about a commit's parent edges to any Git subcommand
     # that consults it as a shortcut (e.g. `merge-base --is-ancestor`) instead
-    # of independently walking the real parent-hash chain. Every Git
-    # invocation in this module goes through this helper, so disabling that
-    # cache here means no current or future caller -- including any ancestry
-    # shortcut -- can ever substitute a forged cache claim for genuine
-    # parent-hash-chain verification (see `_raw_ancestor`/`_commit`).
-    env = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_GRAFT_FILE": os.devnull}
+    # of independently walking the real parent-hash chain. Strip ambient
+    # GIT_TEST_* (e.g. GIT_TEST_COMMIT_GRAPH), since Git's own test knobs can
+    # force that cache back on even under -c core.commitGraph=false. This is
+    # defense in depth only, not a substitute for `_raw_ancestor`: a
+    # loose-object forgery (see `_commit`) can still fool a merge-base-style
+    # shortcut even with the commit-graph fully disabled, because Git does
+    # not re-hash loose objects on ordinary reads. No caller in this module
+    # may treat `_git`'s output as a verified ancestry witness -- only
+    # `_raw_ancestor`/`_commit`, which re-derive hashes from object bytes,
+    # are trusted for that.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_TEST_")}
+    env.update(GIT_NO_REPLACE_OBJECTS="1", GIT_GRAFT_FILE=os.devnull)
     proc = subprocess.run(["git", "--no-replace-objects", "-c", "core.commitGraph=false", *args],
                           cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           check=False, timeout=30)
@@ -204,20 +210,48 @@ def _commit(repo: Path, oid: str) -> tuple[str, tuple[str, ...]]:
     return trees[0], parents
 
 
+@cache
+def _tree(repo: Path, oid: str) -> tuple[tuple[bytes, bytes, str], ...]:
+    # Hash-verify the raw tree object ourselves instead of trusting `git
+    # ls-tree`'s recursive path resolution: a loose tree object tampered in
+    # place under its original oid (same threat model as the loose-commit
+    # forgery in `_commit`) would otherwise rebind a pinned path to attacker
+    # bytes without `_commit`'s per-commit hash check ever noticing.
+    raw = _git(repo, "cat-file", "tree", oid)
+    if hashlib.sha1(b"tree " + str(len(raw)).encode() + b"\0" + raw).hexdigest() != oid:
+        raise ValueError(f"Git tree content mismatch: {oid}")
+    entries = []
+    pos = 0
+    while pos < len(raw):
+        space = raw.index(b" ", pos)
+        nul = raw.index(b"\0", space + 1)
+        mode, name, child = raw[pos:space], raw[space + 1:nul], raw[nul + 1:nul + 21]
+        if len(child) != 20:
+            raise ValueError(f"malformed tree object: {oid}")
+        entries.append((mode, name, child.hex()))
+        pos = nul + 21
+    return tuple(entries)
+
+
 def _blob(repo: Path, commit: str, path: str) -> tuple[str, bytes]:
     if path not in PATHS:
         raise ValueError("path outside fixed current-executable coverage")
-    rows = _git(repo, "ls-tree", commit, "--", path).splitlines()
-    if len(rows) != 1:
-        raise ValueError(f"missing exact tree path: {path}")
-    meta, named = rows[0].split(b"\t", 1)
-    mode, kind, oid = meta.split()
-    if named.decode() != path or mode not in (b"100644", b"100755") or kind != b"blob":
-        raise ValueError(f"non-regular tree path: {path}")
-    data = _git(repo, "cat-file", "blob", oid.decode())
-    if hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() != oid.decode():
+    oid = _commit(repo, commit)[0]
+    parts = path.split("/")
+    for index, part in enumerate(parts):
+        match = next((entry for entry in _tree(repo, oid) if entry[1] == part.encode()), None)
+        if match is None:
+            raise ValueError(f"missing exact tree path: {path}")
+        mode, _, oid = match
+        if index < len(parts) - 1:
+            if mode != b"40000":
+                raise ValueError(f"non-directory tree path: {path}")
+        elif mode not in (b"100644", b"100755"):
+            raise ValueError(f"non-regular tree path: {path}")
+    data = _git(repo, "cat-file", "blob", oid)
+    if hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() != oid:
         raise ValueError(f"Git blob content mismatch: {path}")
-    return oid.decode(), data
+    return oid, data
 
 
 def _live(repo: Path, path: str) -> bytes:
