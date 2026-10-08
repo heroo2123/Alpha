@@ -36,6 +36,7 @@ retained record could even be verified without risking fabricated authority.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from json import JSONDecodeError
 
 from .evidence import EvidenceError, EvidenceStore, digest
 from .learning_capture import TARGET as CAPTURE_TARGET, VERSION as CAPTURE_VERSION
@@ -182,11 +183,13 @@ def _gamma_market_candidates(value, depth: int = 0):
         for item in value:
             yield from _gamma_market_candidates(item, depth + 1)
     elif isinstance(value, dict):
+        # A market may also carry a ``markets`` array. Its own payout and
+        # every child branch must be examined independently.
+        if "clobTokenIds" in value or "outcomePrices" in value:
+            yield value
         markets = value.get("markets")
         if isinstance(markets, list):
             yield from _gamma_market_candidates(markets, depth + 1)
-        elif "clobTokenIds" in value or "outcomePrices" in value:
-            yield value
         for key in _GAMMA_WRAPPERS:
             if key in value:
                 yield from _gamma_market_candidates(value[key], depth + 1)
@@ -349,7 +352,11 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
               and isinstance(rule_dict.get("canonical_json"), str) and isinstance(rule_dict.get("sha256"), str)
               and isinstance(rule_dict.get("source_event_sha256"), str), "RULE_PREIMAGE_INVALID")
     rule = RuleFingerprint(**rule_dict)
-    rule_payload = rule.payload  # raises EvidenceError('RULE_FINGERPRINT_INTEGRITY') on tamper.
+    try:
+        rule_payload = rule.payload  # keeps RULE_FINGERPRINT_INTEGRITY on digest mismatch.
+    except JSONDecodeError:
+        raise EvidenceError("LABEL_REVIEW_READER_RULE_PREIMAGE_INVALID") from None
+    _require(isinstance(rule_payload, dict), "RULE_PREIMAGE_INVALID")
     _require(rule_payload.get("event_id") == event_id, "RULE_EVENT_MISMATCH")
 
     binding = details.get("binding")
@@ -373,6 +380,8 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     row_market_ids = [r["target_identity"]["market_id"] for r in rows]
     _require(len(set(row_market_ids)) == len(row_market_ids)
              and set(row_market_ids) == set(partition_by_id), "ROW_PARTITION_MISMATCH")
+    _require(all(isinstance(r.get("decision_id"), str) and r["decision_id"] for r in rows),
+             "ROW_DECISION_ID_INVALID")
     _require(len({r.get("decision_id") for r in rows}) == len(rows), "ROW_DECISION_ID_DUPLICATED")
 
     request_sha256 = details.get("request_sha256")

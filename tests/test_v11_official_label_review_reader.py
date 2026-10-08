@@ -903,6 +903,77 @@ def test_pre_decision_payout_from_any_gamma_provider_is_disclosed(rig, provider,
     assert "LOOKAHEAD_VIOLATION" in packet.violations
 
 
+@pytest.mark.parametrize("extension", [[], [{"id": "unrelated", "closed": False}]])
+def test_market_payout_with_markets_extension_is_disclosed(rig, extension):
+    store, now = rig
+    rule, _ = _observe(store, event=_event(station="KATL", family="high"), label="hybrid")
+    event_id = rule.payload["event_id"]
+    bucket = rule.payload["partition"][0]
+    market = _closed_market(bucket["market_id"], bucket["yes_token"], bucket["no_token"],
+                            condition_id=bucket["condition_id"])
+    market["markets"] = extension
+    early = store.capture("hybrid-early", event_id=event_id, kind="RULES", provider="GAMMA_EVENT",
+                          source_identity="synthetic", revision="1", evidence_class="SYNTHETIC",
+                          payload={"market": market})
+    now[0] += 1.
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id, record_id="hybrid-model")
+    request_sha256 = digest(["request", "hybrid"])
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id,
+                           order=[b["market_id"] for b in threshold_partition(rule)],
+                           request_sha256=request_sha256, evidence_row=evidence_row, prefix="hybrid")
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="hybrid-capture")
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert early["seq"] < result.decision["seq"]
+    assert early["id"] in {d["id"] for d in result.disclosures}
+    assert "DISCLOSURE_SCAN_INCOMPLETE" not in result.holds
+    assert set(PERMANENT_HOLDS) <= set(result.holds)
+    assert result.packet is None and result.gamma_comparator is None
+    assert all(getattr(result, name) is False for name in (
+        "independent_label_attestation", "settlement_authority", "calibration_authority",
+        "financial_authority", "automatic_promotion", "qualified"))
+
+    # Packet construction is a synthetic diagnostic, outside the reader.
+    source_claim = dict(version=official_settlement_source.VERSION, code="SYNTHETIC_DERIVATION_ONLY",
+        rule_fingerprint_sha256=rule.sha256, station=rule.payload["station"], target_date=rule.payload["target_date"],
+        independent_label_attestation=False, settlement_authority=False, financial_authority=False,
+        automatic_promotion=False, synthetic_mechanism_only=True, winning_market_id=bucket["market_id"],
+        winning_yes_token=bucket["yes_token"], raw_sha256="f" * 64)
+    packet = build_review_packet(rule=result.rule, rule_receipt=result.rule_receipt, decision=result.decision,
+                                  capture=result.capture, disclosures=result.disclosures, source_claim=source_claim)
+    assert "LOOKAHEAD_VIOLATION" in packet.violations
+
+
+def test_market_payout_with_deep_markets_child_marks_scan_incomplete(rig):
+    store, now = rig
+    rule, _ = _observe(store, event=_event(station="KATL", family="high"), label="hybrid-deep")
+    event_id = rule.payload["event_id"]
+    bucket = rule.payload["partition"][0]
+    market = _closed_market(bucket["market_id"], bucket["yes_token"], bucket["no_token"],
+                            condition_id=bucket["condition_id"])
+    market["markets"] = [{"response": {"response": {}}}]
+    store.capture("hybrid-deep-early", event_id=event_id, kind="RULES", provider="GAMMA_EVENT",
+                  source_identity="synthetic", revision="1", evidence_class="SYNTHETIC",
+                  payload={"market": market})
+    now[0] += 1.
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id, record_id="hybrid-deep-model")
+    request_sha256 = digest(["request", "hybrid-deep"])
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id,
+                           order=[b["market_id"] for b in threshold_partition(rule)],
+                           request_sha256=request_sha256, evidence_row=evidence_row, prefix="hybrid-deep")
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="hybrid-deep-capture")
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert result.disclosures == ()
+    assert "DISCLOSURE_SCAN_INCOMPLETE" in result.holds
+    assert set(PERMANENT_HOLDS) <= set(result.holds)
+    assert result.packet is None and result.gamma_comparator is None
+
+
 @pytest.mark.parametrize("also_shallow", [False, True])
 def test_gamma_depth_limit_marks_disclosure_scan_incomplete(rig, also_shallow):
     """A market beyond the walk bound cannot produce a complete-looking tuple.
@@ -1116,6 +1187,26 @@ def test_malformed_capture_shapes_raise_typed_refusals(rig, mutate, refusal):
     view = TamperedView(store, {cid: lambda row: mutate(row["body"]["details"])})
     with expect_refusal(refusal):
         read_review_inputs(store=view, capture_id=cid)
+
+
+@pytest.mark.parametrize("damage", ["rule_list", "rule_json", "decision_list"])
+def test_archived_malformed_rule_and_decision_id_raise_typed_refusals(rig, damage):
+    store, _ = rig
+    fixture = _build_simple_capture(store, label="archived-" + damage)
+    details = copy.deepcopy(fixture["capture"]["body"]["details"])
+    if damage == "rule_list":
+        details["rule"]["canonical_json"] = canonical([])
+        details["rule"]["sha256"] = digest([])
+    elif damage == "rule_json":
+        details["rule"]["canonical_json"] = "{"
+    else:
+        details["rows"][0]["decision_id"] = []
+    archived = store.audit("malformed-" + damage, event_id=fixture["event_id"],
+                           kind="MEASUREMENT", details=details)
+    refusal = ("LABEL_REVIEW_READER_ROW_DECISION_ID_INVALID" if damage == "decision_list"
+               else "LABEL_REVIEW_READER_RULE_PREIMAGE_INVALID")
+    with expect_refusal(refusal):
+        read_review_inputs(store=store, capture_id=archived["id"])
 
 
 # ==========================================================================

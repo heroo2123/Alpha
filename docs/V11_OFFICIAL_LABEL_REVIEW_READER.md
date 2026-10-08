@@ -63,7 +63,9 @@ v2 `MEASUREMENT` record id. It:
    a resolvable payout for one of the rule's own partition markets, and
    every `LABEL` record for the event, as disclosure candidates -- every
    one, not only a "selected" one -- bounded, never returning a truncated
-   tuple. If any Gamma wrapper exceeds the depth bound, the scan returns an
+   tuple. A market's own payout is checked even when that same object also
+   has a `markets` array; every child branch is still traversed. If any Gamma
+   wrapper exceeds the depth bound, the scan returns an
    empty tuple with `DISCLOSURE_SCAN_INCOMPLETE`; finding a payout in the
    same receipt does not excuse an unexamined branch. Each disclosure's
    `recorded_at` is clamped to the earliest of the archive's own
@@ -163,6 +165,10 @@ than being a declared residual. Likewise, a child `DECISION` whose own
 wrapper injects a write between the pin and the read, since a genuinely
 pinned frontier excludes it by construction -- is a refusal
 (`CHILD_AFTER_FRONTIER`), not a hold.
+Malformed capture-embedded rule JSON or a decoded non-object rule raises
+`LABEL_REVIEW_READER_RULE_PREIMAGE_INVALID`; an invalid row `decision_id`
+raises `LABEL_REVIEW_READER_ROW_DECISION_ID_INVALID` before duplicate-ID
+checking or child lookup.
 
 `holds` itself is enforced, not merely populated: `ReviewInputs.__post_init__`
 requires a `tuple` of `str`, requires every permanent hold to be present,
