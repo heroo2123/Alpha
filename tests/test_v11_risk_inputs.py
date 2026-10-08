@@ -177,3 +177,44 @@ def test_whole_event_and_account_configuration_bounds_are_not_silently_truncated
         EventRiskInputs(worker.assembler,rt.coordinator,replace(worker.policy,maximum_tokens=2))
     with pytest.raises(EvidenceError,match='DUPLICATE_EVENT'):
         RiskAwareEventAdapter(rt.evaluator,(worker,worker))
+
+
+def test_execution_health_default_keeps_existing_config_and_unknown(rig,monkeypatch):
+    from test_v11_paper_risk_observation import policy as observation_policy
+    rt,worker,_=components(rig,monkeypatch)
+    assert EventRiskInputs(worker.assembler,rt.coordinator,worker.policy,None).config==worker.config
+    configured=EventRiskInputs(worker.assembler,rt.coordinator,worker.policy,observation_policy())
+    assert configured.config!=worker.config
+    with pytest.raises(EvidenceError) as exc:
+        EventRiskInputs(worker.assembler,rt.coordinator,worker.policy,object())
+    assert str(exc.value)=='RISK_INPUT_COMPONENT_SCOPE'
+    d,_=evaluate(rig,rt,worker,books(rig,'default'))
+    assert 'execution_health' not in d
+    assert d['unknown_inputs']==['SETTLEMENT_TIMING','OWN_EXECUTION_ADVERSE_FILLS','OWN_EXECUTION_MARKOUT']
+
+
+def test_configured_execution_health_without_paper_fills_stays_unknown(rig,monkeypatch):
+    from test_v11_paper_risk_observation import policy as observation_policy
+    rt,worker,_=components(rig,monkeypatch)
+    worker=EventRiskInputs(worker.assembler,rt.coordinator,worker.policy,observation_policy())
+    d,state=evaluate(rig,rt,worker,books(rig,'nofills'))
+    m=d['metrics']
+    assert m['adverse_fills'] is None and m['recent_markout_per_share'] is None
+    assert m['time_to_settlement_seconds'] is None and not d['settlement_finality']
+    assert d['execution_health']['status']=='UNKNOWN' and d['execution_health']['reason']
+    assert 'OWN_EXECUTION_ADVERSE_FILLS' in d['unknown_inputs'] and 'SETTLEMENT_TIMING' in d['unknown_inputs']
+    assert 'EXECUTION_HEALTH_UNKNOWN' in state['reasons']
+
+
+def test_genuine_paper_fill_promotes_into_event_metrics_settlement_stays_unknown(rig,monkeypatch):
+    from test_v11_paper_risk_observation import policy as observation_policy, sequenced_fill
+    sequenced_fill(rig,monkeypatch)
+    rt,worker,_=components(rig,monkeypatch)
+    worker=EventRiskInputs(worker.assembler,rt.coordinator,worker.policy,observation_policy())
+    rt.health.sample('fill-health')
+    d,state=evaluate(rig,rt,worker,books(rig,'afterfill'))
+    assert d['execution_health']=={'status':'PROMOTED','reason':None}, d['execution_health']
+    m=d['metrics']
+    assert m['adverse_fills']==1 and m['recent_markout_per_share']==pytest.approx(-.1)
+    assert m['time_to_settlement_seconds'] is None and d['unknown_inputs']==['SETTLEMENT_TIMING']
+    assert state['financial_authority'] is False and not d['settlement_finality']
