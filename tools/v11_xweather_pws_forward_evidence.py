@@ -49,7 +49,8 @@ MAX_DISTANCE_KM = 51.0          # Matches the capture script's own station-admis
 NEAR_DISTANCE_KM = 30.0         # "close" vs "farther" split, same threshold used elsewhere for this radius.
 ACCEPT_QC_CODE = 10
 ACCEPT_TRUST_MIN = 80
-LOOKBACK_SECONDS = 3600.0       # Candidate PWS observations must be no older than this before the official instant.
+LOOKBACK_SECONDS = 900.0        # Contemporaneity (F1): candidate PWS observations must be taken no more than
+                                # 15 min before the official instant -- an hour-old reading is not a lead on it.
 MAX_ARTIFACT_BYTES = 2_000_000
 MAX_AWC_BYTES = 1_310_720
 AWC_MAX_AGE_SECONDS = 10800.0
@@ -473,6 +474,8 @@ def pair_forward_evidence(xweather_summary: dict, official_summary: dict, *, red
                 "candidate_within_near_distance_count": 0,
                 "candidate_lead_exists": False,
                 "candidate_near_lead_exists": False,
+                "candidate_near_lead_seconds_min": None,
+                "candidate_near_lead_seconds_max": None,
                 "candidate_station_ids": [],
             })
             continue
@@ -483,6 +486,7 @@ def pair_forward_evidence(xweather_summary: dict, official_summary: dict, *, red
                       and obs_time >= collection_started_at
                       and lower_bound < alpha_receipt < official_received_at]
         near_candidates = [c for c in candidates if c[0] in near_labels]
+        near_lead_seconds = [official_received_at - receipt for _, _, receipt in near_candidates]
         rows.append({
             "official_observed_at": observed_at,
             "official_received_at": official_received_at,
@@ -493,6 +497,8 @@ def pair_forward_evidence(xweather_summary: dict, official_summary: dict, *, red
             "candidate_within_near_distance_count": len(near_candidates),
             "candidate_lead_exists": bool(candidates),
             "candidate_near_lead_exists": bool(near_candidates),
+            "candidate_near_lead_seconds_min": min(near_lead_seconds, default=None),
+            "candidate_near_lead_seconds_max": max(near_lead_seconds, default=None),
             "candidate_station_ids": sorted({(_redact(label) if redact else label) for label, _, _ in candidates}),
         })
     return {"official_comparison": rows,

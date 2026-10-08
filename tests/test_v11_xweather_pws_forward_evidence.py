@@ -737,3 +737,30 @@ def test_build_report_is_non_qualifying_and_reports_wrh_as_not_captured(tmp_path
     assert "earliest_receipt_by_observation" not in report["xweather_source"]
     assert "near_station_labels" not in report["xweather_source"]
     assert json.dumps(report)  # fully JSON-serializable, no stray tuple keys
+
+
+def test_hour_old_reading_received_inside_straddle_is_not_contemporaneous():
+    """F1 residual: a reading taken long before the official instant is never a lead on it,
+    even when Alpha first received it inside the confirmed straddle bracket."""
+    observed_at = 1_700_003_600.0
+    official_summary = _official_summary({
+        observed_at: _official_row(observed_at, observed_at + 300.0, 20.0,
+                                    straddle_lower_bound=observed_at - 300.0),
+    })
+    stale = _xw_summary({("PWS_A", observed_at - 3300.0): observed_at - 60.0}, {"PWS_A"})
+    row = pair_forward_evidence(stale, official_summary, redact=False)["official_comparison"][0]
+    assert row["candidate_lead_exists"] is False and row["candidate_near_lead_seconds_min"] is None
+
+
+def test_per_candidate_near_lead_seconds_reported():
+    observed_at = 1_700_000_900.0
+    official_summary = _official_summary({
+        observed_at: _official_row(observed_at, observed_at + 400.0, 20.0,
+                                    straddle_lower_bound=observed_at - 200.0),
+    })
+    xw = _xw_summary({("PWS_A", observed_at - 60.0): observed_at - 100.0,
+                      ("PWS_B", observed_at - 30.0): observed_at + 250.0}, {"PWS_A", "PWS_B"})
+    row = pair_forward_evidence(xw, official_summary, redact=False)["official_comparison"][0]
+    assert row["candidate_within_near_distance_count"] == 2
+    assert row["candidate_near_lead_seconds_min"] == 150.0
+    assert row["candidate_near_lead_seconds_max"] == 500.0
