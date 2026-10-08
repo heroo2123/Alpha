@@ -1,3 +1,53 @@
+## 2026-10-08 17:02 UTC Round-4 independent Opus review of `dce1f95` returns genuine PASS_IN_SCOPE for R2-H1/R2-L3/R2-L4, but finds a real new-before-wiring MEDIUM (R3-M1); round-5 scoped repair launched
+
+Read the reviewer's full report directly (`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-opus-review-dce1f95-20261008.report.md`),
+not just its hand-back summary. This review was genuinely rigorous, not a formality: verified frozen-tree
+byte integrity (1540/1540 files, before and after), re-derived `_replay_observation`'s correctness
+by hand against the store's real append-only/contiguous-sequence guarantees, ran 8 adversarial probes
+with real coordinator/fill fixtures (preserved at `r08-opus-probe-round3/`), and ran six hand-applied
+mutants against the test suite to confirm the new R2-H1 tests actually discriminate (mutant M1 =
+reverting to the pre-fix module kills exactly the 3 new tests; mutants M3-M5 exposed real coverage
+gaps, below). Independently re-ran the suite itself (57 passed target file / 78 passed with
+`test_v11_paper_risk_observation.py`), matching this session's own count rather than trusting it.
+
+**Verdict: PASS_IN_SCOPE for the round's actual target.** R2-H1 (self-chosen stale replay tip),
+R2-L3 (exact-type policy check), and R2-L4 (`OverflowError` on an absurd age bound) are all
+confirmed closed with no new hole; the reviewer could not construct any row promoted while real
+disqualifying history exists between its self-declared tip and its true insertion point.
+
+**But a real residual survives, found by the reviewer's own adversarial construction, not assumed:**
+- **R3-M1 (MEDIUM, carried-forward, not a new hole, but must be closed or owner-accepted before any
+  wiring):** promotion only ever verifies a row's claim against history *up to* the row's own
+  insertion point; it never checks what happened in the store's real history *since*. Concretely
+  reproduced: a row honestly recorded right after a favourable fill, before an adverse fill B lands,
+  still returns `PROMOTED(0, 0.3)` when read later, even though the real complete history by then
+  genuinely gives `(1, 0.1)` (probe P4); same pattern with a later `stream_healthy:false` event
+  (probe P5, correct answer is UNKNOWN, actual is `PROMOTED(1, -0.1)`). The reviewer offered four
+  concrete remediation directions (re-observe at real head; page forward and refuse if disqualifying
+  rows exist; require latest-MEASUREMENT-for-scope; or push a documented head-CAS obligation onto a
+  future caller).
+- **R3-L1 (LOW, coverage that guards a HIGH):** the scan-bound completeness guard has no dedicated
+  test; removing it (mutant M3) leaves all 57 tests green and silently re-opens R2-H1 through a
+  caller-supplied small scan bound.
+- **R3-L2 (LOW):** no regression tests for R2-L3/R2-L4 (mutants M4/M5 survive); round-2's R2-L1
+  (missing F2/F3/F4/F6 promotion-test coverage) remains open, unclaimed by this round.
+- **R3-L3 (LOW):** one test asserts only `status == 'UNKNOWN'`, not the specific reason code; one
+  docstring overclaims "never raises."
+
+Recycled the freed review lane (not a new/duplicate lane) into a round-5 scoped Sonnet repair in the
+same sole-writer worktree (`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008`,
+building on `dce1f95`), briefed with the reviewer's own findings and remediation options verbatim,
+told to prefer the option most consistent with the module's existing full-replay-and-exact-equality
+architecture, add real regression tests for P4/P5 plus R3-L1/L2/L3, and explicitly told not to expand
+scope into the still-open, out-of-scope R2-L1 (F2/F3/F4/F6) coverage gap. Not yet landed as of this
+entry. The separate read-only wiring-prep lane (mapping the eventual integration point to the
+OWNER_ACTION_REQUIRED `EventMetrics` blocker) also has not yet returned.
+
+This is process, not evidence: no selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 16:49 UTC Recovered the orphaned round-3 R08 repair (no process attached, uncommitted), independently verified and committed it (`dce1f95`), launched round-4 independent Opus review plus a read-only wiring-prep lane in parallel
 
 Read actual host state before acting, not any handoff claim: `tmux list-sessions` showed only the
