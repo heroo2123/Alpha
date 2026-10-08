@@ -441,25 +441,126 @@ def test_nothing_new_since_a_genuine_insertion_point_still_promotes(basket_rig, 
     assert promoted.status == 'PROMOTED', promoted
 
 
+# -- R5-L2 regression: the fresh-head check must be shown to actually RUN ---
+# -- (head > row.seq) on both a benign pass-through and a markout-only drift -
+
+def test_fresh_head_check_runs_but_unrelated_history_still_promotes(basket_rig, monkeypatch):
+    """R5-L2: every drift test above demotes once `_verify_fresh_head`
+    actually runs; none of them prove a case where the check runs (the
+    store's real head is genuinely newer than the row) and the claim is
+    still honest, so it must still PROMOTE. Without a test like this, a
+    mutant that always returns `HEAD_DRIFT` whenever the head has moved
+    (M5), or that folds `frontier_tip_sha256` into the drift-field
+    comparison even though it can never match once the head has moved
+    forward (M4), survives the committed suite -- both would falsely demote
+    every claim the instant anything else, anywhere, gets appended.
+    """
+    sequenced_fill(basket_rig, monkeypatch)
+    result = sample(basket_rig)
+    assert result['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', result['reason']
+    store = basket_rig['store']
+    store.audit('benign-obs', event_id=result['event_id'], kind='MEASUREMENT', details=result,
+               evidence_ids=tuple(result['evidence_ids']))
+    row_seq = store.get('benign-obs')['seq']
+    basket_rig['now'][0] += 0.5
+    store.capture('unrelated', event_id='some-other-event', kind='BOOK', provider='other',
+                  source_identity='other-token', revision='1', observed_at=basket_rig['now'][0],
+                  evidence_class='SYNTHETIC', payload={'stream_healthy': True})
+    store.audit('obs-other', event_id='some-other-event', kind='MEASUREMENT', details={'x': 1},
+               evidence_ids=('unrelated',))
+    assert store.pin_read_view()['through_seq'] == row_seq + 2, 'fresh-head check would not actually run'
+    promoted = promote_execution_health(store, 'benign-obs', account_id='account', event_id=result['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'PROMOTED', promoted
+    assert promoted.adverse_fills == result['diagnostic_adverse_fill_count']
+
+
+def test_fresh_head_markout_only_drift_without_adverse_fill_change_is_refused(basket_rig, monkeypatch):
+    """R5-L2: a second, later-received horizon book -- still inside the
+    fixture's lookback window, but with an EARLIER `observed_at` than the
+    one the honest claim used -- becomes the fresh check's chosen horizon
+    book once it lands for real. `fill_count` and
+    `diagnostic_adverse_fill_count` are unchanged; only
+    `diagnostic_markout_collateral_per_share` drifts. Without a dedicated
+    test like this, a mutant that compares only
+    `(execution_status, reason, fill_count)` (M2), or that drops the
+    markout field from the drift comparison entirely (M3), survives the
+    committed suite -- both would let this stale, now-wrong markout number
+    PROMOTE.
+    """
+    _sequenced_books(monkeypatch)
+    reserve(basket_rig)
+    store = basket_rig['store']
+    ex_a = _fill(basket_rig, 0, 'fill-a')
+    basket_rig['now'][0] = ex_a + 3.
+    intent = _intent(basket_rig, 0)
+
+    def book(key, observed, bid, ask, seq, prev):
+        return store.capture(key, event_id=basket_rig['rule'].payload['event_id'], kind='BOOK',
+                             provider='basket-fixture', source_identity=intent['token_id'], revision=key,
+                             observed_at=observed, evidence_class='PUBLIC_OBSERVED',
+                             payload=dict(intent['target'], rule_fingerprint=basket_rig['rule'].sha256,
+                                          collateral_asset='FIXTURE_COLLATERAL', stream_healthy=True,
+                                          bids=[dict(price=bid, size='20')], asks=[dict(price=ask, size='20')],
+                                          book_sequence=dict(version=STREAM_VERSION, epoch='fixture-epoch',
+                                                             sequence=seq, previous_sequence=prev)))
+
+    book('h-late-observed', ex_a + 3., '.5', '.6', 2, 1)
+    honest = sample(basket_rig)
+    assert honest['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', honest['reason']
+    store.audit('honest-markout-obs', event_id=honest['event_id'], kind='MEASUREMENT', details=honest,
+               evidence_ids=tuple(dict.fromkeys(honest['evidence_ids'])))
+
+    basket_rig['now'][0] = ex_a + 3.4
+    book('h-earlier-observed', ex_a + 2.5, '.55', '.65', 3, 2)
+    truth = sample(basket_rig)
+    assert truth['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', truth['reason']
+    assert truth['fill_count'] == honest['fill_count']
+    assert truth['diagnostic_adverse_fill_count'] == honest['diagnostic_adverse_fill_count']
+    assert truth['diagnostic_markout_collateral_per_share'] != honest['diagnostic_markout_collateral_per_share'], \
+        'fixture no longer lands a markout-only drift'
+
+    promoted = promote_execution_health(store, 'honest-markout-obs', account_id='account',
+                                        event_id=honest['event_id'], rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_HEAD_DRIFT', promoted
+
+
 # -- R3-L1 regression: the scan-bound completeness guard must actually be ---
 # -- exercised, not merely present and untested -----------------------------
 
 def test_scan_bound_truncation_before_reaching_the_real_predecessor_stays_unknown(rig):
-    """R3-L1: `_page_prefix`'s `collected[-1]['seq'] != through_seq` guard
-    had no dedicated test -- removing it left every existing test green.
-    Force a real truncation: two real rows exist before 'obs' (seq 1, 2),
-    so replaying through `row['seq'] - 1 == 2` needs both, but a caller
-    `ObservationPolicy` with `complete_history_scan_bound=1` can only ever
-    collect the first. Without the guard this would silently treat that
-    single-row truncated scan as a complete prefix; with it, the row's
-    claim stays `UNKNOWN`, never a truncated-but-matching `PROMOTED`.
+    """R3-L1 (R5-L1 repair): `_page_prefix`'s
+    `collected[-1]['seq'] != through_seq` completeness guard had no
+    dedicated test that was actually decided by the guard itself. The
+    original version of this test claimed the real predecessor's tip
+    (anchor2, seq 2) while `complete_history_scan_bound=1` truncates the
+    scan to seq 1 alone -- so the claimed tip never appears in the
+    truncated one-row `collected` list either way, and the *unrelated*
+    tip-existence check in `_replay_observation` already returned
+    `LINEAGE_UNKNOWN` regardless of whether the completeness guard existed.
+    The M8 mutant (keeping only `not collected`, dropping the
+    `collected[-1]['seq'] != through_seq` half) left the original test
+    green for that wrong reason.
+
+    Fix: claim the TRUNCATION-POINT tip itself (anchor's own sha256, seq 1)
+    -- the one sha256 that IS present in the truncated, one-row
+    `collected`. With the guard present, `_page_prefix` still refuses this
+    truncated-but-tip-matching prefix as incomplete
+    (`collected[-1]['seq'] == 1 != through_seq == 2`) and the row stays
+    `LINEAGE_UNKNOWN`. Without the guard (M8), the truncated one-row prefix
+    would instead be accepted as if it were the complete real history and
+    replayed on its own, producing `REPLAY_MISMATCH` -- so this version of
+    the test is genuinely decided by the guard.
     """
     store, now = rig
     store.capture('anchor2', event_id=EVENT_ID, kind='BOOK', provider='clob', source_identity='token2',
                   revision='1', observed_at=now[0], evidence_class='SYNTHETIC', payload={'stream_healthy': True})
-    real_tip = store.get('anchor2')['sha256']
+    truncation_point_tip = store.get('anchor')['sha256']
+    assert store.get('anchor')['seq'] == 1 and store.get('anchor2')['seq'] == 2
     small_policy = observation_policy(complete_history_scan_bound=1)
-    record(store, 'obs', details(frontier_tip_sha256=real_tip, observed_at=now[0],
+    record(store, 'obs', details(frontier_tip_sha256=truncation_point_tip, observed_at=now[0],
                                  policy_sha256=small_policy.policy_sha256,
                                  policy_config_sha256=digest(asdict(small_policy))))
     result = promote_execution_health(store, 'obs', account_id=ACCOUNT_ID, event_id=EVENT_ID,

@@ -309,7 +309,7 @@ def promote_execution_health(store, record_id, *, account_id, event_id, rule_fin
         # real history has moved against it since.
         drift_reason = _verify_fresh_head(store, row, details, policy=policy, account_id=account_id,
                                           event_id=event_id, rule_fingerprint=rule_fingerprint,
-                                          collateral_asset=collateral_asset, now=now)
+                                          collateral_asset=collateral_asset)
         if drift_reason is not None:
             return _unknown(drift_reason)
         return ExecutionHealthPromotion(adverse_fills, recent_markout_per_share, 'PROMOTED', None,
@@ -409,7 +409,7 @@ def _page_prefix(store, through_seq, scan_bound):
 
 
 def _verify_fresh_head(store, row, details, *, policy, account_id, event_id, rule_fingerprint,
-                       collateral_asset, now):
+                       collateral_asset):
     """R3-M1 fix: refuse a claim whose diagnostic numbers have gone stale.
 
     `_replay_observation` only ever proves a row's claim was a genuine
@@ -423,17 +423,30 @@ def _verify_fresh_head(store, row, details, *, policy, account_id, event_id, rul
     This closes that second gap by independently re-running `observe()` a
     SECOND time, now over the complete real archive through the store's
     real current tip (`store.pin_read_view()`, never a self-chosen earlier
-    cutoff), at the real current time (`now`), and requiring the diagnostic
-    subset of that fresh result (`execution_status`, `reason`, `fill_count`,
-    `diagnostic_adverse_fill_count`, `diagnostic_markout_collateral_per_share`)
-    to still equal what the row claims. `frontier_tip_sha256`/
-    `frontier_sha256` are deliberately excluded from this comparison: the
-    fresh window always covers strictly more real history than the row's own
-    claim ever could (it necessarily includes the row's own MEASUREMENT slot,
-    a kind `observe()` itself ignores, plus everything appended since), so
-    those two fields can never genuinely match the row's claim here and are
-    not a sign of forgery the way they are in `_replay_observation`'s own
-    check.
+    cutoff), at a fresh `store.clock()` read taken immediately AFTER that
+    pin (R5-L3: never an earlier-read `now` -- see below), and requiring the
+    diagnostic subset of that fresh result (`execution_status`, `reason`,
+    `fill_count`, `diagnostic_adverse_fill_count`,
+    `diagnostic_markout_collateral_per_share`) to still equal what the row
+    claims. `frontier_tip_sha256`/`frontier_sha256` are deliberately excluded
+    from this comparison: the fresh window always covers strictly more real
+    history than the row's own claim ever could (it necessarily includes the
+    row's own MEASUREMENT slot, a kind `observe()` itself ignores, plus
+    everything appended since), so those two fields can never genuinely
+    match the row's claim here and are not a sign of forgery the way they
+    are in `_replay_observation`'s own check.
+
+    R5-L3: the clock bound for this fresh `observe()` must be read AFTER
+    `pin_read_view()`, never before. If `now` were captured first (as the
+    caller does for its own, unrelated staleness checks) and a genuine row
+    landed in the store in the gap between that read and the pin, that
+    row's own `recorded_at` could exceed the already-stale `now`, and the
+    fresh `observe()` would then fail closed with `OBSERVATION_FUTURE_
+    RECEIPT` -- mapped below to `HEAD_DRIFT` -- a misleading false demotion
+    for what was really just a liveness hiccup, not genuine drift. Reading
+    the clock immediately after the pin instead guarantees every row in
+    `collected` (all pinned at or before `through_seq`) was recorded at or
+    before this fresh `now`.
 
     Returns `None` when there is nothing new to check (the row's own
     insertion point already IS the real current head) or the fresh recompute
@@ -441,6 +454,7 @@ def _verify_fresh_head(store, row, details, *, policy, account_id, event_id, rul
     promotion -- never a stale, now-wrong `PROMOTED`.
     """
     view = store.pin_read_view()
+    now = finite(store.clock())
     through_seq = view['through_seq']
     if through_seq <= row['seq']:
         return None
