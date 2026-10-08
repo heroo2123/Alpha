@@ -1,3 +1,54 @@
+## 2026-10-08 17:12 UTC Read-only R08 wiring-integration map returned and persisted; confirms the EventMetrics blocker's exact code-only vs owner-gated split, and that wiring should wait on the R3-M1 repair
+
+The parallel read-only wiring-prep lane (Explore-type, no write access) finished its mapping and
+handed back its full report; it could not write its own output file (no Write tool, as instructed),
+so this session persisted it verbatim to
+`/home/alphaadmin/AlphaV11_Reviews/r08-wiring-integration-map-20261008.md` with one appended
+coordinator note (below). Key confirmed-by-direct-read findings, not taken on the subagent's summary
+alone -- the report cites exact file:line evidence throughout (`risk_inputs.py:189-190`,
+`event_risk.py:329-337`, `katl_live_plan.py:340-348`) that is consistent with this session's own
+earlier independent read of the same lines at 14:16Z:
+
+- The four scope values `promote_execution_health` needs (account_id, event_id, rule_fingerprint,
+  collateral_asset) plus an `EvidenceStore` handle are **already locally available** inside
+  `EventRiskInputs.evaluate()` -- no new threading up the call stack for those.
+- **Code-only, genuinely missing today:** (1) no writer anywhere appends a
+  `paper_risk_observation.observe()` result as a MEASUREMENT row for this diagnostic (confirmed by
+  grep: nothing production calls `observe()`); (2) no discovery/key convention exists for reading
+  such a row back; (3) no production `ObservationPolicy` exists (only a test fixture,
+  `'fixture-only-policy'`); (4) the one call site needing a new field threaded through is
+  `katl_live_plan.py:348`'s `RiskInputPolicy(...)` construction -- confirmed to not ripple further
+  up the call stack.
+- **Irreducibly owner-gated, confirmed exhaustively (grepped the whole live repo and all three
+  promotion-module branches for any similar construct):** `AUTHORIZED_SETTLEMENT_PROVIDERS =
+  frozenset()` is the *only* "intentionally empty authorization set" of its kind in the codebase --
+  the settlement half of R08/R09 is dead code with no exercisable path until a real provider is
+  independently reviewed and named, plus a separate reviewed finality-to-seconds rule is authored.
+  Also owner-gated: choosing real `ObservationPolicy` numeric windows for production, and sign-off
+  that `observe()`-derived diagnostics are acceptable real evidence for live EVENT/CAUTION gating
+  (not fabricated signal in spirit).
+- The already-live `EventPolicy` thresholds in `katl_live_plan.py:340` (`adverse_fills_event=3`,
+  `negative_markout_event=.1`, `settlement_caution_seconds=60.`) mean the gating *threshold*
+  calibration decision is already made -- the missing piece is purely the *evidence* feeding them.
+
+Appended one coordinator note to the persisted file: this map's "safe to hand to a future writer"
+list for the execution-health half should wait on the round-5 repair (R3-M1, the staleness gap found
+by the round-4 review -- see prior entry) resolving first, since wiring the contract into
+`risk_inputs.py` on top of an unresolved staleness gap would just relocate the same correctness
+problem into the live gate rather than fix it.
+
+Checked for a third genuinely independent, ready, non-duplicate lane before deciding whether to fill
+remaining adaptive-parallelism capacity: G3-L remains rights-blocked (no code path); InventoryTransform
+was directly verified healthy and unchanged two entries ago (no redundant re-check); a full-regression
+rerun would be premature while the R08 candidate is unmerged; wiring work itself should wait on R3-M1
+per the note above. Held at the one genuinely ready lane (round-5 repair, in progress) rather than
+force-filling capacity with redundant investigation, per the standing instruction not to exceed the
+safe target merely to increase process count.
+
+No PAPER/Gate-3/READY_TO_FUND credit changes -- this is read-only research persisted for a future
+writer, not evidence or a wiring change. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**,
+77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 17:02 UTC Round-4 independent Opus review of `dce1f95` returns genuine PASS_IN_SCOPE for R2-H1/R2-L3/R2-L4, but finds a real new-before-wiring MEDIUM (R3-M1); round-5 scoped repair launched
 
 Read the reviewer's full report directly (`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-opus-review-dce1f95-20261008.report.md`),
