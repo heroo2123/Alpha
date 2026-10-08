@@ -1,3 +1,7 @@
+## 2026-10-08 05:52 UTC offline candidates under review or repair
+
+Six-record `b0c6ced` received independent `CHANGES_REQUIRED` and is in sole-writer repair. Daily transition `bdab6e8` and PAPER manifest `e0de7fa` have only provisional author tests and are in frozen different-model exact review. No active daily audit repair or PAPER input evidence follows. Gate-3 **91/200 (formal 1/50)**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No requirement or C/J/E/A crossing.
+
 ## 2026-10-08 05:49 UTC scheduler review adds no requirement credit
 
 The coordinator accounting patch is under independent exact-byte review and remains unapplied. Daily v2 consumer mapping is read-only preparation; the active daily Shadow manager still refuses audit on missing pinned sequence. Gate-3 **91/200 (formal 1/50)**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No requirement or C/J/E/A crossing.
