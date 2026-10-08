@@ -1,3 +1,7 @@
+## 2026-10-08 07:12 UTC selector candidate and priority Gate-3 review recovery
+
+Intook clean exit-0 offline selector R2 `4d76a85` / tree `ecf4eea`, exact handoff, 47 focused and 178 adjacent test passes per mode, and 11 blocked-I/O adverse probes. It remains review-only. Recycled the freed Codex slot into the prepared frozen Gate-3 `51e228a` Astra/high exact-review recovery in its clean detached checkout; corrected the prepared runner's absent executable bit by invoking it with `bash`, and verified live tmux/process. Daily v2 R2 and Brain Gamma R4 remain sole writers in separate worktrees. No merge, provider, root/runtime/V10, financial or acceptance action.
+
 ## 2026-10-08 07:11 UTC Brain Gamma R3 review routed to R4 repair
 
 Intook clean detached `e48c832` exact-review terminal and `CHANGES_REQUIRED` verdict with three independently reproduced F1/F4/F3 defects. Launched one Sol/high sole writer in the original clean Brain Gamma comparator worktree with exact review report and terminal-marked `/tmp/alpha-brain-gamma-r4-repair-e48c832.*` handoff. Daily v2 R2 and G3-L selector R2 writers remain live in separate worktrees; frozen Gate-3 `51e228a` recovery waits for a Codex slot. Verified unchanged protected master hash, V10 disabled, execution masked, nonfinancial forward/daily observers and healthy resource headroom. No integration, provider, root/runtime/V10, financial or acceptance transition.
