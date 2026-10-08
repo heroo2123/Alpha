@@ -1,3 +1,7 @@
+## 2026-10-08 01:16 UTC Gate-3 v3 transition preparation dispatched
+
+A sole terminal-marked Sonnet/high read-only worker is live in `/tmp/alpha-g3l-v3-root-transition-map-20261008` at `d67d482`. Its scope is static/synthetic mapping of the X1 schema-v3 root transition and future adverse tests; it has no authority to edit live roots, merge code or grant G3-L credit. Other exact reviews and the Brain repair remain live. No safety or acceptance boundary changed.
+
 ## 2026-10-08 01:14 UTC X1 review intake and coordinator accounting audit
 
 Independent Opus/high exact review of `23f1150` sealed `PASS_IN_SCOPE`, closing the historical v2 shared-ledger X1 bypass in offline code review. Its 204 focused tests per Python mode and adverse cross-tree controls are retained in `/tmp/alpha-g3l-whole-x1-review-23f1150.{report.md,verdict.json}`. The 21 current-executable pin-drift failures still require a separately reviewed final-byte repin before integration. A separate read-only audit retained at `/tmp/alpha-coordinator-worker-accounting-audit-20261008T0113Z.md` identified live specialist undercounting in `coordinator.py` for `/tmp/alpha-*` worktrees; use direct process/terminal inventory until repaired. No merge, qualification, provider request, runtime/root/V10 or financial action occurred. Gate-3 **91/200 (formal 1/50)**, **77 unqualified identities**, **G3-L NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
