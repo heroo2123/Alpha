@@ -1,0 +1,185 @@
+"""Offline refusal tests for the deployed preparer's sparse baseline pattern."""
+import hashlib
+from pathlib import Path
+import sqlite3
+import tempfile
+import unittest
+from dataclasses import replace
+
+from polymarket_scanner.v11.daily_seed_plan import (
+    BASE_IDS, NAMESPACE, SeedPlanError, plan_daily_seed, verify_existing_daily,
+)
+from polymarket_scanner.v11.evidence import EvidenceStore, canonical, digest
+
+
+def file_sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def backup(source, target):
+    with sqlite3.connect(source) as src, sqlite3.connect(target) as dst:
+        src.backup(dst)
+
+
+class DailySeedPlanTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.master = self.root / "master.sqlite"
+        self.snapshot = self.root / "sealed.sqlite"
+        EvidenceStore(self.master, NAMESPACE)
+        self.make_source()
+        backup(self.master, self.snapshot)
+
+    def make_source(self, missing=None, bad_ref=False, bad_hash=False, external_ref=False):
+        with sqlite3.connect(self.master) as db:
+            for seq, rid in zip((3, 4, 6), BASE_IDS):
+                if rid == missing:
+                    continue
+                refs = []
+                if seq == 4:
+                    raw = self._body(BASE_IDS[0], 3, [])
+                    refs = [{"id": BASE_IDS[0], "sha256": "0" * 64 if bad_ref else digest(raw)}]
+                if seq == 6:
+                    md = self._body(BASE_IDS[1], 4, [{"id": BASE_IDS[0], "sha256": digest(self._body(BASE_IDS[0], 3, []))}])
+                    refs = [{"id": BASE_IDS[1], "sha256": digest(md)}]
+                    if external_ref:
+                        refs.append({"id": "outside:dependency", "sha256": "a" * 64})
+                body = self._body(rid, seq, refs)
+                db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                           (seq, rid, body["kind"], body["event_id"], body["recorded_at"],
+                            body["available_at"], canonical(body),
+                            "f" * 64 if bad_hash and seq == 6 else digest(body)))
+
+    @staticmethod
+    def _body(rid, seq, refs):
+        return dict(namespace=NAMESPACE, financial_authority=False, record_id=rid,
+                    kind="STATION_METADATA" if seq == 3 else "REGISTRY",
+                    event_id="station:KATL", recorded_at=float(seq),
+                    available_at=float(seq), details={"sample": seq}, evidence=refs)
+
+    def plan(self):
+        return plan_daily_seed(self.snapshot, file_sha(self.snapshot))
+
+    def test_sparse_source_plans_contiguous_local_genesis_and_preserves_envelopes(self):
+        plan = self.plan()
+        self.assertEqual([row[0] for row in plan.rows], [1, 2, 3])
+        self.assertEqual([entry["source_seq"] for entry in plan.manifest["mapping"]], [3, 4, 6])
+        self.assertEqual(plan.manifest_sha256, digest(plan.manifest))
+        with sqlite3.connect(self.master) as db:
+            original = db.execute("SELECT record_id,body,body_sha256,recorded_at,available_at FROM v11_records ORDER BY seq").fetchall()
+        self.assertEqual([(row[1], row[6], row[7], row[4], row[5]) for row in plan.rows], original)
+        self.assertEqual(file_sha(self.snapshot), plan.manifest["source_snapshot_sha256"])
+
+    def test_existing_sparse_and_partial_refused_without_mutation(self):
+        plan = self.plan()
+        before = file_sha(self.snapshot)
+        with self.assertRaisesRegex(SeedPlanError, "EXISTING_DAILY_SPARSE_OR_PARTIAL"):
+            verify_existing_daily(self.snapshot, plan, plan.manifest_sha256)
+        self.assertEqual(file_sha(self.snapshot), before)
+        empty = self.root / "empty.sqlite"
+        EvidenceStore(empty, NAMESPACE)
+        backup(empty, self.root / "empty-sealed.sqlite")
+        with self.assertRaisesRegex(SeedPlanError, "EXISTING_DAILY_SPARSE_OR_PARTIAL"):
+            verify_existing_daily(self.root / "empty-sealed.sqlite", plan, plan.manifest_sha256)
+
+    def test_contiguous_seed_and_append_are_admitted(self):
+        plan = self.plan()
+        destination = self.root / "new.sqlite"
+        EvidenceStore(destination, NAMESPACE)
+        with sqlite3.connect(destination) as db:
+            db.executemany("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)", plan.rows)
+            body = self._body("future:append", 7, [])
+            db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                       (4, body["record_id"], body["kind"], body["event_id"],
+                        body["recorded_at"], body["available_at"], canonical(body), digest(body)))
+        sealed = self.root / "new-sealed.sqlite"
+        backup(destination, sealed)
+        self.assertEqual(verify_existing_daily(sealed, plan, plan.manifest_sha256), 4)
+        tampered = dict(plan.manifest)
+        tampered["mapping"] = [dict(item) for item in plan.manifest["mapping"]]
+        tampered["mapping"][0]["source_seq"] = 999
+        with self.assertRaisesRegex(SeedPlanError, "SEED_MANIFEST_IDENTITY_MISMATCH"):
+            verify_existing_daily(sealed, replace(plan, manifest=tampered), plan.manifest_sha256)
+        with self.assertRaisesRegex(SeedPlanError, "SEED_MANIFEST_IDENTITY_MISMATCH"):
+            verify_existing_daily(sealed, plan, "0" * 64)
+
+    def test_middle_and_final_gaps_refused(self):
+        plan = self.plan()
+        for missing, remaining in ((2, (1, 3)), (3, (1, 2, 4))):
+            target = self.root / f"gap-{missing}.sqlite"
+            EvidenceStore(target, NAMESPACE)
+            with sqlite3.connect(target) as db:
+                db.executemany("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                               [plan.rows[i - 1] for i in remaining if i <= 3])
+                if 4 in remaining:
+                    body = self._body("future:append", 7, [])
+                    db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                               (4, body["record_id"], body["kind"], body["event_id"],
+                                body["recorded_at"], body["available_at"], canonical(body), digest(body)))
+            sealed = self.root / f"gap-{missing}-sealed.sqlite"
+            backup(target, sealed)
+            with self.assertRaises(SeedPlanError):
+                verify_existing_daily(sealed, plan, plan.manifest_sha256)
+
+    def test_sidecars_and_hardlinks_refused(self):
+        sidecar = Path(str(self.snapshot) + "-wal")
+        sidecar.write_bytes(b"synthetic")
+        with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_SIDECAR_REFUSED"):
+            self.plan()
+        sidecar.unlink()
+        alias = self.root / "hardlink.sqlite"
+        alias.hardlink_to(self.snapshot)
+        with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_FILE_BOUNDS_OR_ALIAS"):
+            self.plan()
+
+    def test_source_identity_missing_closure_and_hash_refusals(self):
+        with self.assertRaisesRegex(SeedPlanError, "SOURCE_SNAPSHOT_IDENTITY_CHANGED"):
+            plan_daily_seed(self.snapshot, "0" * 64)
+        for mode, message in (("missing", "BASELINE_MISSING"),
+                              ("ref", "BASELINE_REFERENCE_HASH_MISMATCH"),
+                              ("hash", "BASELINE_ENVELOPE_OR_HASH")):
+            source = self.root / (mode + ".sqlite")
+            sealed = self.root / (mode + "-sealed.sqlite")
+            EvidenceStore(source, NAMESPACE)
+            self.master = source
+            self.make_source(missing=BASE_IDS[2] if mode == "missing" else None,
+                             bad_ref=mode == "ref", bad_hash=mode == "hash")
+            backup(source, sealed)
+            with self.assertRaisesRegex(SeedPlanError, message):
+                plan_daily_seed(sealed, file_sha(sealed))
+
+    def test_zero_and_negative_source_sequences_refused(self):
+        for invalid_seq in (0, -1):
+            source = self.root / f"seq-{invalid_seq}.sqlite"
+            sealed = self.root / f"seq-{invalid_seq}-sealed.sqlite"
+            EvidenceStore(source, NAMESPACE)
+            with sqlite3.connect(source) as db:
+                for index, rid in enumerate(BASE_IDS):
+                    body = self._body(rid, 3 + index, [])
+                    db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                               (invalid_seq if index == 0 else 4 + index, rid,
+                                body["kind"], body["event_id"], body["recorded_at"],
+                                body["available_at"], canonical(body), digest(body)))
+            backup(source, sealed)
+            with self.assertRaisesRegex(SeedPlanError, "BASELINE_ENVELOPE_OR_HASH"):
+                plan_daily_seed(sealed, file_sha(sealed))
+
+    def test_unreviewed_dependency_and_path_alias_refused(self):
+        source = self.root / "external.sqlite"
+        sealed = self.root / "external-sealed.sqlite"
+        EvidenceStore(source, NAMESPACE)
+        self.master = source
+        self.make_source(external_ref=True)
+        backup(source, sealed)
+        with self.assertRaisesRegex(SeedPlanError, "BASELINE_CLOSURE_UNREVIEWED"):
+            plan_daily_seed(sealed, file_sha(sealed))
+        alias = self.root / "alias.sqlite"
+        alias.symlink_to(self.snapshot)
+        with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_SYMLINK_REFUSED"):
+            plan_daily_seed(alias, file_sha(self.snapshot))
+
+
+if __name__ == "__main__":
+    unittest.main()
