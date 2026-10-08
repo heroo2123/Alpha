@@ -1,3 +1,7 @@
+## 2026-10-08 03:39 UTC Brain R6b successor under exact review
+
+Clean R6b candidate `211fa25` passed provisional 72 focused/independent and 304 adjacent tests per mode after parent defect reproduction; independent exact review is live. It grants no Brain source/label qualification. PAPER and Gate-3 exact candidates remain `NO_VERDICT`. No requirement or C/J/E/A crossing: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 03:32 UTC Brain R6b follow-up has no credit
 
 An isolated offline repair writer is active for the reviewed Brain reader's nonblocking parser-limit residual. No successor bytes or independent verdict exist. PAPER and Gate-3 exact reviews remain `NO_VERDICT` pending the alternate provider. No requirement or C/J/E/A crossing: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.

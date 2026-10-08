@@ -1,3 +1,7 @@
+## 2026-10-08 03:39 UTC Brain R6b recovered and routed to review
+
+The initial CLI writer failed before reading due bwrap loopback setup; its terminal/output are retained. Coordinator recovered the same isolated worktree, reproduced the prior 5,000-digit ValueError in both modes, sealed clean `211fa25` / tree `45eaa09` with two changed files, and retained `/tmp/alpha-brain-reader-r6b-recovery-20261008.{handoff,terminal}`. Focused plus independent controls passed 72/72 and adjacent suites 304/304 per mode. Frozen Astra/high exact review is live with required terminal; no merge or acceptance change.
+
 ## 2026-10-08 03:32 UTC next Brain residual assigned
 
 Started one isolated Sol/medium sole writer under `/tmp/alpha-brain-reader-r6b-20261008.{prompt,runner.sh,out,final,terminal}` to reproduce and narrowly repair the reviewed R6b parser-limit typed-refusal gap. It is independent of the held Gate-3/PAPER reviews and grants no Brain qualification. No merge or acceptance change.
