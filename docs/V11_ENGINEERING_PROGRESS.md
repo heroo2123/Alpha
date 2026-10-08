@@ -8211,3 +8211,7 @@ Gate-3 whole-closure recovery sealed `7ff3094` with 201 focused author tests per
 ## 2026-10-08 00:27 UTC completed Gate-3 slot recycled
 
 Intook clean `0a3b465` with exact author handoff, diff and test disclosure; launched a frozen different-role Opus exact review in `/tmp/alpha-g3l-eligibility-review-0a3b465` with retained terminal marker. Eight isolated specialist lanes are live. Deterministic binding-pin drift remains integration debt, not acceptance credit. Root gateway safety masks remain intact; no runtime, provider, V10, credential, account, order or financial mutation.
+
+## 2026-10-08 00:33 UTC InventoryTransform L-B integrated after independent review
+
+Opus exact review of Sonnet `7dd1aa0` returned `PASS_IN_SCOPE`. Isolated cherry-pick produced `492f098..d9d27a5`; three reviewed blobs match exactly, with no newer-main overlap. Focused InventoryTransform/structural tests passed 71/71 in normal and optimized Python on integration and on actual main. The dormant observer gained no qualification or financial authority. Low-severity Python audit-tripwire residuals remain tracked in the verdict; Gate-3 and PAPER scores and READY_TO_FUND remain unchanged.
