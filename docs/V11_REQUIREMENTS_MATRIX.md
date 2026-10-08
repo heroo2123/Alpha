@@ -1,3 +1,7 @@
+## 2026-10-08 02:21 UTC Gate-3 descriptor/root binding remains unqualified
+
+An offline historical-writer probe in frozen X1 `23f1150` confirmed v2 root refusal before downstream acquisition in normal and optimized Python, but separately exposed an unresolved denial-root descriptor-to-opened-root binding question. An isolated Astra/high adjudication is live; no reviewed fix, root attestation, G3-L identity, PAPER R08/R09 or C/J/E/A requirement crosses. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 02:13 UTC review and local integration without requirement credit
 
 Forward writer-inventory digest repair `7bcfc69` passed independent exact review and was integrated as `b806867` with 2/2 focused post-main tests in both Python modes. It grants no protected-interval or qualification credit. PAPER `5f522ee` received `CHANGES_REQUIRED` for independently reproduced SHM hard-link corruption and ancestor-path substitution; sole repair is live. Gate-3 final-byte `da29ff1` review ended on a tool cybersecurity flag without a verdict and remains unmerged. N5 remains separately reviewed and unmerged. No C/J/E/A or requirement boundary crossed: Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.

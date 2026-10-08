@@ -1,3 +1,7 @@
+## 2026-10-08 02:21 UTC v3 adverse report intaken and descriptor adjudication launched
+
+Read-only adverse recovery sealed `REPORT_READY` from clean `23f1150`: a synthetic historical v2 journal refused at matching head, stale head and occupied-directory genesis with no downstream construction, under normal and optimized Python. A separate shape-level descriptor/history check did not bind a well-formed descriptor to the opened root; full-manifest impact remains to adjudicate. Launched clean current-main `12ccc71` isolated Astra/high read-only review in `/tmp/alpha-g3l-v3-descriptor-adjudication-20261008` with required terminal/verdict. PAPER A1/A2 repair and forward witness exact review continue; Claude remains in recorded cooldown. No gate or readiness credit.
+
 ## 2026-10-08 02:16 UTC safe specialist capacity filled
 
 A third isolated, read-only Codex Sol lane resumed the interrupted Gate-3 schema-v3 adverse-test map from frozen `23f1150`. PAPER A1/A2 sole repair and forward-witness exact review remain active in separate worktrees. This is offline preparation only and grants no G3-L, PAPER or funding-readiness credit.
