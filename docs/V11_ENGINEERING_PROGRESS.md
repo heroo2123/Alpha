@@ -1,3 +1,7 @@
+## 2026-10-08 08:26 UTC guarded release recovery prepared
+
+The current-main full release suite is live at about 22%; its 1,800-second time limit could stop it before completion. Prepared, but did not launch, `/tmp/alpha-release-full-suite-20261008-recovery.runner.py` with a 5,400-second limit and the same 3 GiB disk reserve; launch only after the original terminal confirms a time-limit stop. Three independent Codex workers remain live on coordinator-accounting review and G3-L/PAPER eligibility audits. No runtime, provider, root, V10, financial or acceptance change; Gate-3 91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 08:21 UTC two independent timed-lane audits fill safe Codex capacity
 
 Launched separate clean detached read-only Sol/medium specialists for current-main Gate-3 next selected-window readiness and PAPER R08/R09 real-evidence automatic-start eligibility, each with report/summary/terminal targets and no operational authority. The offline coordinator R2 Astra exact-byte review occupies the third normal Codex lane; the persistent offline full suite is ~11% through with 3 GiB disk reserve and no verdict. Disk free is ~6.3 GiB, memory headroom healthy. No provider, root/runtime/V10 or financial action or acceptance credit. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**, **READY_TO_FUND=false**.
