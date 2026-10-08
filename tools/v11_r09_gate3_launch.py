@@ -22,6 +22,7 @@ from urllib.parse import urljoin, urlsplit
 from zoneinfo import TZPATH, ZoneInfo
 
 from tools.v11_multimodel_panel import canonical
+from tools.v11_r09_gate3_eligibility import latest_ready_run
 
 SCHEMA = 'R09_GATE3_LAUNCH_MANIFEST_V3'
 SLOTS = {'GEFS': (31, 3), 'IFS': (51, 3), 'AIFS': (51, 6)}
@@ -500,10 +501,9 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
         check(len(inventory) == len(candidates) and
               {item['run_utc'] for item in inventory} == set(candidates),
               'RUN_CANDIDATES')
-        eligible = [item['run_utc'] for item in inventory if
-                    item['status'] == 'READY' and item['ready_upper_utc'] <= lower]
-        check(type(run) is int and run in candidates and eligible and
-              run == max(eligible) and
+        eligible_run = latest_ready_run(inventory, lower)
+        check(type(run) is int and run in candidates and eligible_run is not None and
+              run == eligible_run and
               sources[provider]['effective_run_start_utc'] <= run <=
               sources[provider]['effective_run_end_utc'], 'RUN_TIME')
     expected = _slot_inventory(runs['run_utc'])

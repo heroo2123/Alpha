@@ -16,8 +16,8 @@ from functools import cache
 from pathlib import Path
 
 MANIFEST = "docs/V11_GATE3_CURRENT_EXECUTABLE_BINDING_20261007.json"
-SOURCE_COMMIT = "d806c11082fe81defd74993152906ee7454bce1d"
-SOURCE_TREE = "153752a33294f2531283bb78b6e77bb2235fd99a"
+SOURCE_COMMIT = "fea59027cd3296e55db564a8aaece8975203706b"
+SOURCE_TREE = "022fd9663ab2603639ab1451f596a170a0641d88"
 HISTORICAL = {
     # Prior observations remain scoped to their own frozen source commits.
     "polymarket_scanner/v11/evidence.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
@@ -56,7 +56,9 @@ DRIFT_COMMITS = {
         "ef4f534eaae442dd0aac149c9850f0ef3c76d78f",),
     "tests/test_v11_r09_gate3_runtime.py": (
         "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
-        "d806c11082fe81defd74993152906ee7454bce1d"),
+        "d806c11082fe81defd74993152906ee7454bce1d",
+        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",
+        "7ff30948dfbcc0d164b6395e4749094472bfe134"),
     "tools/v11_gate3_evidence_preflight_real_intake.py": (
         "a582a005d08c0bcb62a9061946aa0bf096657360",),
     "tools/v11_r09_gate3_collector.py": (
@@ -71,9 +73,14 @@ DRIFT_COMMITS = {
         "5a0ce218c2815512ee592e9203d718cfc458b43a",
         "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",
         "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
-        "d806c11082fe81defd74993152906ee7454bce1d"),
+        "d806c11082fe81defd74993152906ee7454bce1d",
+        "fe311384953e01cc132ca8fe39f8b631b2f7c52a"),
     "tools/v11_r09_gate3_ledgers.py": (
-        "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",),
+        "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",
+        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",
+        "0090c1f7967aa45db360e47f31c297f5c534400d",
+        "7ff30948dfbcc0d164b6395e4749094472bfe134",
+        "23f11501d26b785c549e1568cca0d7d375ed4e5e"),
 }
 DEPENDENCIES = frozenset({
     "polymarket_scanner/__init__.py",
@@ -145,6 +152,7 @@ DEPENDENCIES = frozenset({
     "tools/v11_multimodel_panel.py",
     "tools/v11_multimodel_stacking.py",
     "tools/v11_r09_gate3_a7_decoder.py",
+    "tools/v11_r09_gate3_eligibility.py",
     "tools/v11_r09_gate3_launch_v4.py",
     "tools/v11_r09_gate3_offline_io.py",
     "tools/v11_trajectory_contract.py",
