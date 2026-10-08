@@ -8,8 +8,9 @@ for the execution-health half, plus a structurally separate, currently
 unauthorized settlement-finality contract. It supplies no values today
 against any live store: it only defines, and tests, the exact strict checks
 a genuine future observation must pass before either field may ever leave
-`None`. Wiring either promotion into `risk_inputs.py`'s live `EventMetrics`
-construction is a deliberate owner decision, out of scope here.
+`None`. The execution-health half is reachable only through
+`risk_inputs.py`'s opt-in `execution_health_policy` (default inert); settlement
+finality stays unwired and unauthorized.
 
 Execution health: `paper_risk_observation.observe()` already derives
 `diagnostic_adverse_fill_count` / `diagnostic_markout_collateral_per_share`

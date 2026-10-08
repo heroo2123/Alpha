@@ -20,7 +20,7 @@ from .model_artifacts import predict_with_bundle
 from .model_registry import ActiveModelRegistry
 from .paper_coordinator import ACCOUNT_KEY
 from .paper_execution_health_measurement import (
-    current_execution_health_record_id, observe_and_promote_execution_health,
+    observe_and_promote_execution_health_record,
 )
 from .paper_risk_observation import ObservationPolicy
 from .paper_runtime import Evaluation, VERSION as RUNTIME_VERSION
@@ -80,12 +80,13 @@ class EventRiskInputs:
         scope = dict(account_id=self.assembler.inputs.context.account_id, event_id=event,
                      rule_fingerprint=self.assembler.inputs.rule.sha256,
                      collateral_asset=self.policy.microstructure.collateral_asset)
-        promotion = observe_and_promote_execution_health(self.store, policy=self.execution_health_policy, **scope)
+        # Cite the exact row that was promoted; re-deriving its id from the
+        # store's current tip races concurrent BOOK/TRADE appends.
+        promotion, record_id = observe_and_promote_execution_health_record(
+            self.store, policy=self.execution_health_policy, **scope)
         summary = dict(status=promotion.status, reason=promotion.reason)
-        if promotion.status != 'PROMOTED':
+        if promotion.status != 'PROMOTED' or record_id is None:
             return None, None, None, summary
-        record_id = current_execution_health_record_id(
-            self.store, policy_sha256=self.execution_health_policy.policy_sha256, **scope)
         return promotion.adverse_fills, promotion.recent_markout_per_share, record_id, summary
 
     def _model(self, claim):

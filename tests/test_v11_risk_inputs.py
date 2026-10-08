@@ -218,3 +218,37 @@ def test_genuine_paper_fill_promotes_into_event_metrics_settlement_stays_unknown
     assert m['adverse_fills']==1 and m['recent_markout_per_share']==pytest.approx(-.1)
     assert m['time_to_settlement_seconds'] is None and d['unknown_inputs']==['SETTLEMENT_TIMING']
     assert state['financial_authority'] is False and not d['settlement_finality']
+
+
+def test_promoted_health_cites_written_row_despite_concurrent_book_append(rig,monkeypatch):
+    # Review F1: the effective tip is store-wide, so a relevant-kind append for
+    # another event (outside this event's head guard) between promotion and
+    # citation made a re-derived id name no row and the audit raised.
+    import polymarket_scanner.v11.risk_inputs as module
+    from test_v11_paper_risk_observation import policy as observation_policy, sequenced_fill
+    sequenced_fill(rig,monkeypatch)
+    rt,worker,_=components(rig,monkeypatch)
+    worker=EventRiskInputs(worker.assembler,rt.coordinator,worker.policy,observation_policy())
+    rt.health.sample('fill-health')
+    real,seen=module.observe_and_promote_execution_health_record,[]
+    def racing(store,**scope):
+        promotion,record_id=real(store,**scope)
+        if promotion.status=='PROMOTED' and not seen:
+            store.capture('race-intervening-book',event_id='race-other-event',kind='BOOK',
+                provider='race-fixture',source_identity='race-fixture-token',revision='race',
+                observed_at=rig['now'][0],evidence_class='SYNTHETIC',payload=dict(
+                    token_id='race-fixture-token',rule_fingerprint=scope['rule_fingerprint'],
+                    collateral_asset=scope['collateral_asset'],stream_healthy=True,snapshot_type='FULL',
+                    bids=[dict(price='.1',size='1')],asks=[dict(price='.2',size='1')]))
+        seen.append(record_id)
+        return promotion,record_id
+    monkeypatch.setattr(module,'observe_and_promote_execution_health_record',racing)
+    current=books(rig,'afterfill')
+    rt.queue.publish('risk:update',kind='BOOK',evidence_id=current[0])
+    with rt.queue.work('risk:claim') as claim:
+        measured,_=worker.evaluate(claim,'risk')
+    d=measured['body']['details']
+    assert d['execution_health']=={'status':'PROMOTED','reason':None}, d['execution_health']
+    assert d['metrics']['adverse_fills']==1 and seen[0] is not None
+    assert rt.store.get(seen[0])['kind']=='MEASUREMENT'
+    assert seen[0] in {e['id'] for e in measured['body']['evidence']}
