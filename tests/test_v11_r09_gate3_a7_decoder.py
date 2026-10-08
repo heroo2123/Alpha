@@ -407,32 +407,49 @@ def test_already_exited_child_at_deadline_still_reports_wall_refusal():
 
 
 @pytest.mark.parametrize('phase', ['serialization', 'shutdown'])
-def test_rss_includes_real_worker_serialization_and_shutdown(monkeypatch, phase):
+def test_rss_includes_real_worker_serialization_and_shutdown(monkeypatch, tmp_path, phase):
     import os
+    import json
     raw, identity, pins = fixture()
     monkeypatch.setattr(a7, '_available_memory', lambda: 8*1024**3)
     real_popen, real_wait4 = subprocess.Popen, os.wait4
     reaped = []
+    shutdown_rss = tmp_path / 'shutdown-rss.json'
     # Retain the real decoder and output, injecting resident memory only after
-    # decode. Read the earlier high-water mark independently from child output.
+    # decode. VmHWM is a fresh-process resident peak; getrusage's ru_maxrss can
+    # inherit the pytest parent's older high-water mark across fork/exec.
     script = (
-        'import sys,resource,atexit\n'
+        'import sys,atexit\n'
         'sys.path.insert(0,sys.argv[1])\n'
         'from tools import v11_r09_gate3_a7_decoder as a\n'
         'dump=a.json.dumps\n'
+        'def vm_hwm():\n'
+        ' with open("/proc/self/status") as status:\n'
+        '  fields=[line.split() for line in status if line.startswith("VmHWM:")]\n'
+        ' if len(fields)!=1 or len(fields[0])!=3 or fields[0][2]!="kB":\n'
+        '  raise RuntimeError("missing VmHWM")\n'
+        ' return int(fields[0][1])*1024\n'
         'def allocate():\n'
+        ' before=vm_hwm()\n'
         ' a._test_allocation=bytearray(96*1024**2)\n'
+        ' return before,vm_hwm()\n'
+        'def shutdown():\n'
+        ' before,after=allocate()\n'
+        ' with open(sys.argv[2],"w") as sidecar:\n'
+        '  sidecar.write(dump({"before":before,"after":after}))\n'
         'def serialize(value,*args,**kwargs):\n'
         ' if isinstance(value,dict) and "inner_cpu_seconds" in value:\n'
-        '  value["point"]["rss_before_serialization"]=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*1024\n'
-        + ('  allocate()\n' if phase == 'serialization' else '  atexit.register(allocate)\n') +
+        + ('  before,after=allocate()\n'
+           '  value["point"]["rss_phase"]={"before":before,"after":after}\n'
+           if phase == 'serialization' else '  atexit.register(shutdown)\n') +
         ' return dump(value,*args,**kwargs)\n'
         'a.json.dumps=serialize\n'
         'a.worker_main()\n'
     )
 
     def popen(command, **kwargs):
-        return real_popen([sys.executable, '-I', '-B', '-c', script, str(a7.ROOT)], **kwargs)
+        return real_popen([sys.executable, '-I', '-B', '-c', script,
+                           str(a7.ROOT), str(shutdown_rss)], **kwargs)
 
     def wait4(pid, options):
         result = real_wait4(pid, options)
@@ -448,5 +465,39 @@ def test_rss_includes_real_worker_serialization_and_shutdown(monkeypatch, phase)
     usage = reaped[0][2]
     assert result['max_rss_bytes'] == usage.ru_maxrss * 1024
     assert result['cpu_seconds'] == usage.ru_utime + usage.ru_stime
-    assert result['max_rss_bytes'] > result['point']['rss_before_serialization']
-    assert result['max_rss_bytes'] >= 96*1024**2
+    phase_rss = (result['point']['rss_phase'] if phase == 'serialization'
+                 else json.loads(shutdown_rss.read_text()))
+    assert set(phase_rss) == {'before', 'after'}
+    assert type(phase_rss['before']) is int and type(phase_rss['after']) is int
+    assert phase_rss['after'] - phase_rss['before'] >= 90*1024**2
+    assert phase_rss['after'] >= 96*1024**2
+    # Linux's /proc VmHWM and wait4 ru_maxrss can differ slightly because RSS
+    # accounting is sampled asynchronously. The exact wait4 equality above is
+    # the parent-accounting contract; this allows only a small sampling gap.
+    assert result['max_rss_bytes'] + 2*1024**2 >= phase_rss['after']
+
+
+def test_final_wait4_rss_above_ceiling_refuses(monkeypatch):
+    import os
+    raw, identity, pins = fixture()
+    monkeypatch.setattr(a7, '_available_memory', lambda: 8*1024**3)
+    real_wait4 = os.wait4
+    reaped = []
+    ceiling_kib = a7.Bounds().memory_bytes // 1024
+
+    def over_ceiling_wait4(pid, options):
+        waited_pid, status, usage = real_wait4(pid, options)
+        if waited_pid:
+            assert usage.ru_maxrss < ceiling_kib
+            reaped.append((waited_pid, status, usage))
+            fields = list(usage)
+            fields[2] = ceiling_kib + 1
+            usage = type(usage)(fields)
+        return waited_pid, status, usage
+
+    monkeypatch.setattr(a7.os, 'wait4', over_ceiling_wait4)
+    with pytest.raises(a7.A7Refusal, match='^A7_RESOURCE_LIMIT$'):
+        invoke(raw, identity, pins)
+    assert len(reaped) == 1
+    with pytest.raises(ChildProcessError):
+        real_wait4(reaped[0][0], os.WNOHANG)
