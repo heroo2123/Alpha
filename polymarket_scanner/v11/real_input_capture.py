@@ -32,19 +32,24 @@ def _held_providers(details):
 
     ``collection.sources`` is written by every record of this kind, including
     the parent format that predates ``held_providers``; trust it over the
-    newer field so a legacy record cannot be read as holding nothing. If
-    neither can be parsed, fail closed as rights-sensitive rather than let an
-    unclassifiable held record escape the latch.
+    newer field so a legacy record cannot be read as holding nothing. An
+    outcome of PROVIDER_HELD always has at least one non-SUCCESS source on
+    the genuine write path, so an empty, missing, or unparseable recovery
+    from either field is itself a malformed or contradictory record, not
+    evidence of nothing held: fail closed as rights-sensitive rather than
+    let an unclassifiable held record escape the latch.
     """
     collection = details.get('collection')
     if isinstance(collection, dict) and isinstance(collection.get('sources'), list):
         try:
-            return frozenset(source['provider'] for source in collection['sources']
-                              if source.get('state') != 'SUCCESS')
+            recovered = frozenset(source['provider'] for source in collection['sources']
+                                   if source.get('state') != 'SUCCESS')
         except (KeyError, TypeError):
-            pass
+            recovered = None
+        if recovered:
+            return recovered
     held_providers = details.get('held_providers')
-    if isinstance(held_providers, (list, tuple, set, frozenset)):
+    if isinstance(held_providers, (list, tuple, set, frozenset)) and held_providers:
         return frozenset(held_providers)
     return RIGHTS_SENSITIVE_PROVIDERS
 

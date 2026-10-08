@@ -159,6 +159,52 @@ def test_legacy_parent_format_madis_hold_without_held_providers_field_still_bloc
         run(r,cycle='after-legacy-hold')
 
 
+@pytest.mark.parametrize('collection,held_providers', [
+    (dict(sources=[], omitted=[]), None),  # empty sources: nothing to recover, must not mean nothing held
+    (dict(sources=[], omitted=[]), []),  # empty held_providers fallback must not be trusted either
+    (None, None),  # collection itself missing or unparseable
+])
+def test_malformed_or_contradictory_held_record_still_blocks(capture_rig,collection,held_providers):
+    r=capture_rig
+    details=dict(config_sha256=digest(asdict(r['plan'])), outcome='PROVIDER_HELD',
+        errors=['REAL_INPUT_SOURCE_HELD'], raw_ids=[], normalized_ids=[], book_ids=[], qc_id=None,
+        financial_authority=False, real_orders_sent=False, settlement_authority=False, acceptance_granted=False)
+    if collection is not None:
+        details['collection']=collection
+    if held_providers is not None:
+        details['held_providers']=held_providers
+    r['store'].audit('real-input:malformed-held',event_id='v11-real-input-capture',kind='RUNTIME_STATUS',details=details)
+    r['now'][0]+=1000
+    with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r,cycle='after-malformed-hold')
+
+
+def test_held_providers_fallback_recovers_an_explicit_hold_when_sources_is_empty(capture_rig):
+    r=capture_rig
+    r['store'].audit('real-input:empty-sources-explicit-held',event_id='v11-real-input-capture',kind='RUNTIME_STATUS',
+        details=dict(config_sha256=digest(asdict(r['plan'])), outcome='PROVIDER_HELD',
+            collection=dict(sources=[], omitted=[]), held_providers=['NOAA_MADIS_CWOP'],
+            errors=['REAL_INPUT_SOURCE_HELD'], raw_ids=[], normalized_ids=[], book_ids=[], qc_id=None,
+            financial_authority=False, real_orders_sent=False, settlement_authority=False, acceptance_granted=False))
+    r['now'][0]+=1000
+    with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r,cycle='after-empty-sources-explicit-held')
+
+
+def test_nonempty_sources_take_precedence_over_a_conflicting_held_providers_field(capture_rig):
+    r=capture_rig
+    r['store'].audit('real-input:conflicting-held',event_id='v11-real-input-capture',kind='RUNTIME_STATUS',
+        details=dict(config_sha256=digest(asdict(r['plan'])), outcome='PROVIDER_HELD',
+            collection=dict(sources=[dict(provider='NOAA_AWC',state='TRANSPORT_FAILURE')], omitted=[]),
+            held_providers=['NOAA_MADIS_CWOP'],  # only possible via a forged/corrupted record
+            errors=['REAL_INPUT_SOURCE_HELD'], raw_ids=[], normalized_ids=[], book_ids=[], qc_id=None,
+            financial_authority=False, real_orders_sent=False, settlement_authority=False, acceptance_granted=False))
+    r['now'][0]+=1000
+    row,calls=run(r,cycle='after-conflicting-held')
+    assert row['body']['details']['outcome']=='FRESH_SOURCE_EVIDENCE_ONLY'
+    assert any(c.url.host=='madis-data.ncep.noaa.gov' for c in calls)
+
+
 def test_interrupted_request_cannot_be_retried_unattended(capture_rig):
     with pytest.raises(RuntimeError,match='interrupted'):
         run(capture_rig,crash=True)
