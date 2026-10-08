@@ -1,3 +1,62 @@
+## 2026-10-08 16:49 UTC Recovered the orphaned round-3 R08 repair (no process attached, uncommitted), independently verified and committed it (`dce1f95`), launched round-4 independent Opus review plus a read-only wiring-prep lane in parallel
+
+Read actual host state before acting, not any handoff claim: `tmux list-sessions` showed only the
+two long-lived infra sessions (`alpha-daily-shadow`, `alpha-forward-observer`); none of the five
+specialist tmux sessions named in the embedded handoff text (`alpha-seed-r2-opus`,
+`alpha-seed-r3-sonnet`, `alpha-r08-real-evidence`, `alpha-r3-opus-independent`,
+`alpha-paper-r08-contract`) existed any more, and `ps -ef`/`ListAgents` confirmed no specialist
+process or agent was alive anywhere on the host — the handoff text was stale (11:20-14:42Z) relative
+to this checkpoint file's own latest entry (16:52Z). The real current state per the checkpoint: a
+third scoped Sonnet repair for the R2-H1 HIGH finding (self-chosen stale replay tip in
+`_replay_observation`) had been launched but was "not yet landed as of this entry."
+
+Found it: `/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008` had two modified,
+uncommitted files (mtimes 16:28-16:29Z, i.e. actually from the round-2 finish, not round-3 -- the
+round-3 edits were sitting on top of HEAD `0e13fa6` with no process attached and no commit). Did not
+take this on faith: read the full diff directly. It genuinely implements the exact fix the round-2
+Opus review demanded -- `_replay_observation` now always replays the complete real history through
+`row['seq'] - 1` (the row's true immediate predecessor in the store's real append order) and
+recomputes `frontier_tip_sha256` from the real final row rather than trusting the row's self-declared
+one, and binds `observed_at` to `[tip.recorded_at, row.recorded_at]` -- plus two LOW fixes (an
+uncaught `OverflowError` from `math.isfinite` on an absurd age bound now caught; `isinstance` on the
+policy object tightened to exact `type(policy) is ObservationPolicy`). Independently ran the test
+suite myself rather than trusting any prior count: 78/78 passed in both normal and `python -O` mode.
+Committed as `dce1f95` (same sole-writer worktree, no duplicate writer).
+
+Per this project's own standing rule for every R08 contract candidate, did not merge. Created a fresh
+byte-pinned frozen clone (`alpha-r08-contract-opus-review-dce1f95-20261008`, 1540-file SHA256SUMS
+manifest) and launched a fourth independent Opus review against it (background agent, not yet
+returned as of this entry) with the exact adversarial brief: verify frozen-tree integrity first,
+construct any row that still gets PROMOTED despite later disqualifying history, check the new
+`observed_at`-bracket and LOW fixes for off-by-one/edge-case holes of their own, independently re-run
+the suite rather than trusting "78 passed," and write a verdict.
+
+In parallel, used spare adaptive-parallelism capacity (read-only, no write access, no duplicate of
+the review) to map the eventual wiring point between this contract and the confirmed structural R08/R09
+blocker (`risk_inputs.py`'s `EventMetrics` constructor permanently fixing three fields to `None`,
+unconditionally forcing `state == 'EVENT'` -- flagged `OWNER_ACTION_REQUIRED` in an earlier cycle,
+since filling those fields requires an owner-level settlement-finality/execution-health policy
+decision, not a plumbing fix). This prep is read-only exploration only, not a wiring change, and
+not yet returned as of this entry.
+
+Directly verified, without spinning a lane: InventoryTransform (`inventory_supervisor.py`, PID 1003)
+alive and healthy, `iteration` 1725->1778, `inputs_seen` steady at 2, `errors: []` -- already doing
+genuine ongoing intake, no new lane needed. Forward Shadow's `structural-status.json` shows a recent
+clean cycle (`cycle_ok: true`, finished ~16:42Z) -- the DEGRADED/`AUDIT_PINNED_SEQUENCE_MISSING`
+state the embedded (stale) handoff described has since cleared; did not re-investigate further since
+nothing currently indicates a live problem. G3-L remains genuinely owner/rights-blocked (NOAA MADIS
+continuous access requires a real owner applicant/organization submission); no lane spent on
+noncredit G3-L activity this cycle, per the standing instruction not to manufacture G3-L activity
+around a hard non-code blocker. No full-regression rerun this cycle: the R08 contract candidate is
+still unmerged and under review, so a fresh full run now would be premature per the project's own
+anti-churn rule.
+
+This cycle's work (recovering and verifying a completed-but-orphaned repair, committing it, and
+launching its required independent review plus read-only downstream prep) is process, not evidence --
+no selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal
+1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 16:52 UTC Second-round independent Opus review returns genuine CHANGES_REQUIRED (HIGH): the F1 replay fix can itself be defeated by a self-chosen stale tip; scoped repair launched
 
 The adversarial second-round Opus review of `0e13fa6` (probes and full report preserved at
