@@ -1,3 +1,7 @@
+## 2026-10-08 02:24 UTC PAPER repair awaiting exact review
+
+Clean PAPER `5aa2e63` has provisional author-side A1/A2 regression and adjacent test evidence, with a different-model exact review live. It grants no R08/R09 credit or requirement crossing until PASS, reconciliation, post-merge tests and genuine evidence. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 02:22 UTC forward witness remains unqualified
 
 Exact review of `809bad9` returned `CHANGES_REQUIRED` for inherited cleanup OSError escape despite closing R1; a sole R2 repair is live and requires fresh exact review. No protected-interval or forward qualification credit. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
