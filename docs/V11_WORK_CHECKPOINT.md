@@ -1,3 +1,47 @@
+## 2026-10-08 13:36 UTC Round-2 Astra R2fix review: CHANGES_REQUIRED again, new blocking findings; deferred round-3 repair for disk headroom, not idled
+
+Host-state read found the round-2 independent Astra re-review of the R2-M1/R2-M2 repair candidate
+(`/tmp/alpha-shadow-seed-r2fix-astra-review-20261008.verdict.json`) had finished at 13:22Z with no
+verdict yet recorded. Verdict: **CHANGES_REQUIRED** (second consecutive CHANGES_REQUIRED on this
+line of work). F1/F2 seed-provenance regression and F3 closure remain
+`PASS_REGRESSION_TESTS_UNCHANGED(_NOT_DEPLOYED)`, unaffected. The round-2 repair itself (101/101
+supplied tests passing both Python modes, confirmed via the reviewer's own independent/strict
+probes) is credible but introduced or left five HIGH/blocking findings in
+`migration/retire_prospective_days.py`: **R2-M1.1** destination-first reconciliation lets rollback
+destructively overwrite a regenerated source artifact after a full completed install+retirement
+cycle; **R2-M1.2** relocation is shallow, so an unchanged nested `epochs/<day>/<epoch>/` directory
+interrupted mid-rename becomes unrecoverable (`MOVE_PRECONDITION_FAILED`/`ROLLBACK_BLOCKED`);
+**R2-M1.3** rollback still renames-then-fsyncs with no durable pre-action intent record, and a
+torn trailing journal append is unrecoverable; **R2-M2.1** the crash barrier is conditional on an
+optional, unenforced `install` argument, so the same public `execute` path can silently skip it;
+**R2-M2.2** recovery validates the saved lock fd's inode but never the live cron lock pathname
+still names that inode, so a sibling-replace-then-reacquire window is unguarded. The reviewer
+explicitly reproduced all five independently (not just re-asserting the repair agent's own
+claims) and restates, as in round 1, that **neither this tool nor the unperformed root layer
+repairs the already-sparse, already-pinned live Oct 8 ledger regardless of outcome** -- this line
+of work is for Oct 9/10 prevention, not Oct 8 recovery. This is a truthful negative result, not
+evidence: no C/J/E/A transition.
+
+Did **not** launch a round-3 repair this pass despite the specific, actionable `required_change`
+guidance the reviewer supplied per finding (worth doing before Oct 9 04:00Z root publication,
+since Oct 9/10 databases are already showing sparse seq holes [1,2,5]). Reason: host disk is at
+**90% used / 4178 MiB free**, above this project's own `disk_guard.py`
+`NEW_WORK_MAX_USED_PERCENT=83.0` new-work gate, while the FOURTH-priority full-regression retest
+of current HEAD (`27b4c71`, launched 12:59Z, ~77% collected at read time) is still mid-run and
+`disk_guard`'s own reclaim pass is already active -- starting a third heavy writer lane now would
+contend with both rather than filling genuinely idle capacity. The round-2 candidate directory
+(`/tmp/alpha-shadow-seed-r2-20261008`) is confirmed idle (no process holds it) and untouched since
+13:07Z, so it remains available as the sole writer target for a round-3 repair once disk headroom
+recovers; do not duplicate it. Confirmed real scheduled collectors remain healthy at read time
+(AWC KATL `awc-katl-20261008T1{3001,2001,1001}*.json` present at the expected 10-minute cadence;
+`pws_pair.log` current to 13:31Z) and InventoryTransform's Tokyo intake is still live
+(`iteration` advanced 1543->1581, `inputs_seen` steady at 2, consistent with "no new genuine
+local observation available to add without inventing one," not stalled ingestion). G3-L's 14:00Z
+window had not yet opened at read time (13:36Z); no G3-L action taken. Confirmed this coordinator
+invocation is itself the sole live specialist-launching process (child of
+`AlphaV11_ContinuousCoordinator/coordinator.py`), so no duplicate-coordinator risk. Gate-3
+**91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 13:08 UTC R2-M1/R2-M2 repair candidate finished (101 passed both Python modes); independent Astra review launched
 
 The Sonnet repair agent launched last pass finished in `/tmp/alpha-shadow-seed-r2-20261008`

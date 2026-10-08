@@ -1,3 +1,25 @@
+## 2026-10-08 13:36 UTC Round-2 Astra R2fix CHANGES_REQUIRED and deferred round-3 add no new C/J/E/A credit
+
+The round-2 independent Astra re-review of the R2-M1/R2-M2 repair candidate is again
+CHANGES_REQUIRED: five HIGH/blocking findings (destructive destination-first rollback over a
+regenerated artifact, shallow non-recursive relocation of unchanged nested epoch directories,
+rollback with no durable pre-action intent record and an unrecoverable torn journal tail, a
+crash barrier conditional on an unenforced optional argument, and lock-recovery that checks the
+held fd's inode but never the live cron lock pathname) in `migration/retire_prospective_days.py`,
+independently reproduced by the reviewer rather than taken on the repair agent's claim. F1/F2
+seed-provenance and F3 remain unaffected (`PASS_REGRESSION_TESTS_UNCHANGED(_NOT_DEPLOYED)`). The
+reviewer again confirms neither this tool nor the undeployed root layer resolves the live Oct 8
+`AUDIT_PINNED_SEQUENCE_MISSING` state regardless of outcome -- this remains Oct 9/10 prevention
+work, not Oct 8 recovery, and still requires separate reviewed root commissioning before any
+live effect either way. A round-3 repair against the reviewer's specific per-finding
+`required_change` guidance was deliberately deferred this pass, not abandoned: host disk was at
+90% used (4178 MiB free), above this project's own `disk_guard.py` 83%-used new-work gate, while
+the unrelated full-regression retest of current HEAD was still mid-run; starting a third heavy
+writer lane would have contended with both. No selected-window identity, provider-rights
+evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit
+changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 13:08 UTC R2-M1/R2-M2 repair-candidate result and new Astra review add no new C/J/E/A credit
 
 The R2-M1/R2-M2 repair candidate (101/101 relevant tests passing both Python modes, two genuine
