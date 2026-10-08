@@ -1,3 +1,36 @@
+## 2026-10-08 11:33 UTC G3-L confirmed still HELD; INVENTORYTRANSFORM broke the single-fixture loop
+
+Two read-only/bounded specialist lanes filled otherwise-idle capacity (target 3; the Opus
+`alpha-shadow-seed-r2-20261008` FIRST-PRIORITY Shadow-seed lane stayed untouched throughout).
+(1) SECOND PRIORITY G3-L: a read-only check (not a new audit/packet-repin) found today's only
+mechanical acquisition window opens 2026-10-08T14:00:00Z (checked at ~11:28Z, so not yet
+reachable — the offline `next_window_candidate()` selector in `tools/v11_r09_gate3_g3l_prep.py`
+simply rolls its proposed target to 2026-10-10 once a day's window closes unused, it never opens
+one on its own), and the ECMWF/NOAA_GEFS provider holds carry no expiry/Retry-After at all —
+`HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW`, indefinite pending a separate review, not a clock
+that can pass. No previously-identified blocker cleared; no tool/network call was made since
+neither gating precondition (expiry passed; safe pre-approved tool to run) was met. G3-L stays
+**NO-GO**, unchanged. (2) THIRD PRIORITY INVENTORYTRANSFORM: found a genuine, already-retained
+local file, `/home/alphaadmin/donthackme-research-20261001/activity_v2_page0.json` (a real saved
+Polymarket Data-API v2 `/activity` page), whose SHA-256
+(`dec9803a1458df006afcd875c698342cf168005c03d3c1103bda95d1e48144b5`) is byte-identical to the
+`source.raw_sha256` already declared inside the repo's existing, already-accepted Singapore
+fixture — independently verified this session, confirming it is that fixture's actual raw
+capture, not a new claim. Extracted a different real event_slug
+(`highest-temperature-in-tokyo-on-october-2-2026`, 70 rows) from the same genuine page using the
+Singapore fixture's own already-validated filtering method, with no values altered or re-dated,
+and placed it with a provenance note at
+`/home/alphaadmin/AlphaV11_InventoryShadow/intake/tokyo_20261002_api_observed.json` after an
+offline dry run (`inventory_shadow_start`, exit 0, `evidence_class=API_OBSERVED`,
+`coverage=INCOMPLETE` correctly since `has_more=true`). Confirmed the live
+`inventory_supervisor.py` (not modified, not restarted) picked it up on its own 60-second loop:
+`supervisor-status.json` iteration 1457 now shows `inputs_seen: 2`, both the Singapore fixture
+and the new Tokyo file processed with `rc: 0`. This is offline diagnostics only
+(`OFFLINE_SHADOW_DIAGNOSTICS_ONLY`, `financial_authority: false`); it supplies no PAPER
+R08/R09/PWS evidence and is kept logically separate from PAPER qualification. No provider,
+runtime/root/V10, financial or acceptance transition. Gate-3 **91/200 (formal 1/50)**, 77
+missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 11:20 UTC R89-5-FC2 closed; R89 rights-hold repair chain has zero open findings
 
 Intook host state before new work: the independent Codex Astra/high review of `40282d3`

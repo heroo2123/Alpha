@@ -1,3 +1,24 @@
+## 2026-10-08 11:33 UTC G3-L confirmed HELD; InventoryShadow now fed a second genuine source
+
+Two background specialists filled the idle lanes identified in the prior entry, both reporting
+back with verified (not just claimed) results. G3-L: read-only check found today's only
+mechanical window opens 2026-10-08T14:00Z (checked ~11:28Z) and the ECMWF/NOAA_GEFS provider
+holds have no expiry at all (indefinite `HOLD_UNTIL_INDEPENDENT_RESUMPTION_REVIEW`); correctly
+made no tool/network call since neither gating precondition was met. INVENTORYTRANSFORM: found
+`/home/alphaadmin/donthackme-research-20261001/activity_v2_page0.json`, a genuine saved
+Polymarket activity-API page, and I independently re-verified its SHA-256 matches the existing
+Singapore fixture's declared `source.raw_sha256` exactly before trusting the agent's provenance
+claim — confirming it really is that fixture's raw capture. Extracted a different real
+event_slug (Tokyo temperature market, 70 rows) via the same already-validated method, placed it
+in `AlphaV11_InventoryShadow/intake/` with a provenance note after an offline dry-run passed, and
+independently confirmed the live, untouched supervisor already consumed it on its own loop
+(`supervisor-status.json` iteration 1457, `inputs_seen: 2`, both `rc: 0`) — breaking the
+single-fixture loop with a second genuine source rather than a fabricated one. The Opus
+`alpha-shadow-seed-r2-20261008` FIRST-PRIORITY lane remained the only writer in its own scope
+throughout; not checked for completion this round since no terminal marker was expected yet.
+No provider, runtime/root/V10, financial or acceptance transition. Gate-3 91/200, G3-L NO-GO,
+PAPER 9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 11:20 UTC closed R89-5-FC2; confirmed two chains already merged; filling idle lanes
 
 Read actual host state before acting: process table, tmux sessions, and terminal/verdict files
