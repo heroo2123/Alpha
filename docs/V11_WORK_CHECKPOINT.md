@@ -1,3 +1,39 @@
+## 2026-10-08 16:52 UTC Second-round independent Opus review returns genuine CHANGES_REQUIRED (HIGH): the F1 replay fix can itself be defeated by a self-chosen stale tip; scoped repair launched
+
+The adversarial second-round Opus review of `0e13fa6` (probes and full report preserved at
+`/home/alphaadmin/AlphaV11_Reviews/r08-opus-probe-round2/`) is genuinely `CHANGES_REQUIRED`, not a
+formality -- independently re-derived, not taken on the reviewer's word alone: re-read the exact
+`_replay_observation` loop in `polymarket_scanner/v11/paper_execution_health_promotion.py` myself
+and confirmed it really does `break` the scan the instant it finds ANY row matching the
+MEASUREMENT row's self-declared `frontier_tip_sha256`, with no check that this tip is the store's
+actual current head or even the row's immediate predecessor (`tip.seq == row.seq - 1`). This means
+the F1 repair's own core guarantee -- "independently re-derive this row's claim from the store's
+real history" -- silently only covers however much history the row itself chooses to claim, not
+the real present. The reviewer reproduced this concretely with real fixtures, not hypothetically: a
+row claiming an early real tip was `PROMOTED(adverse_fills=0, recent_markout_per_share=0.3)` while
+the complete real history to the present genuinely gives `(1, 0.1)`; a second case hid a later
+`stream_healthy: false` book update behind an early claimed tip and still promoted `(1, -0.1)` where
+the full history gives `UNKNOWN`. This is the same class of hole F1 was built to close, one layer
+deeper -- confirmed real, not a false positive. Four LOW findings also survive review (missing F2
+NaN/inf-age-bound, F3 non-`V11_PAPER`-namespace, F4 nested-evidence-id, and F6
+non-canonical-markout regression tests; an uncaught `OverflowError` instead of the module's own
+typed `EvidenceError` on an absurd age bound; one test's docstring naming the wrong failure reason
+it actually takes -- `OBSERVATION_FUTURE_RECEIPT`, not `OBSERVATION_RULE_OR_ACCOUNT_HEAD_MISSING`
+as written, though it does still correctly end in `REPLAY_MISMATCH`). What held up under adversarial
+probing: the exact-dict-equality check, `_EXPECTED_DETAIL_KEYS`, the policy-config digest binding,
+and the type-before-`set()` evidence-id check all genuinely close what they claim to.
+
+Launched a third scoped Sonnet repair (same sole-writer worktree
+`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008`, building on `0e13fa6`,
+senior model already diagnosed the exact bug and gave two concrete fix directions) to bind the
+replay's accepted history to the store's real current head (or require the claimed tip to be the
+row's true immediate predecessor, whichever the real store/writer API actually supports safely) and
+to close the four LOW gaps. Not yet landed as of this entry. This negative result and the repair
+it unblocks are both process, not evidence -- no selected-window identity, provider-rights
+evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes.
+`R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 16:28 UTC R08 contract-repair test suite finished and independently re-verified by this session; second-round independent Opus review launched before any merge
 
 The scoped Sonnet finish lane launched this cycle landed commit `0e13fa6` in
