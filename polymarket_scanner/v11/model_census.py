@@ -8,8 +8,11 @@ Persistence is O(1) per step: each RUNTIME_STATUS row records only the delta
 (the field just staged, if any, plus a running count/hash-chain digest), never
 the whole accumulated field_ids list. fields() reconstructs the current tuple
 by replaying this census run's own RUNTIME_STATUS chain, walking backward from
-the latest row through each row's own `chain_previous_id` pointer, bounded by
-the plan's own known slot count. A pre-existing head written by the old
+the latest row through each row's own `chain_previous_id` pointer. Only the
+genesis row and field-bearing rows advance that pointer; reserve/pending/
+interrupted rows point at the last advancing row and are never walked unless
+they are the head. The walk is therefore bounded by the plan's own slot count
+(genesis + fields + head) however long a source stays pending. A pre-existing head written by the old
 full-list format is still read correctly (and transparently promoted to the
 new delta format on the next write), so a run already in progress at upgrade
 time resumes without loss or duplication.
@@ -27,7 +30,7 @@ from .rules import RuleFingerprint
 
 
 VERSION='alpha_v11_model_census_stage_v1'
-CHAIN_FORMAT='alpha_v11_model_census_chain_v1'
+CHAIN_FORMAT='alpha_v11_model_census_chain_v2'
 
 
 def restore_plan(preparation):
@@ -85,13 +88,11 @@ class ModelCensusStage:
             return dict(field_ids=tuple(ids),active=legacy.get('active'),chain_previous_id=None,
                         inherited_field_ids=list(ids),chain_digest=_genesis_digest(ids),chain_count=len(ids))
         required=31*len(restore_plan(preparation).hours)
-        # Generous but finite: normal operation is <=2 rows/slot (reserve+stage);
-        # this tolerates extra interrupted/pending retries without ever becoming
-        # an unbounded walk over the whole archive.
-        bound=64*max(required,1)+64
+        # Genesis + at most `required` field rows + one non-advancing head.
+        bound=required+2
         chain=[];node=head
         while True:
-            if len(chain)>bound:raise EvidenceError('MODEL_CENSUS_CHAIN_BOUND_EXCEEDED')
+            if len(chain)>=bound:raise EvidenceError('MODEL_CENSUS_CHAIN_BOUND_EXCEEDED')
             nd=node['body']['details']
             if (node['kind']!='RUNTIME_STATUS' or node['event_id']!='model-census:'+event
                     or nd.get('preparation_id')!=prep_id):
@@ -114,8 +115,13 @@ class ModelCensusStage:
         ids=list(inherited);seen=set(ids)
         if len(seen)!=len(ids):raise EvidenceError('MODEL_CENSUS_CHAIN_DUPLICATE_FIELD')
         running_digest=_genesis_digest(inherited);running_count=len(inherited)
-        for census in chain:
+        for index,census in enumerate(chain):
             field=census.get('field_id')
+            if field is None and 0<index<len(chain)-1:
+                # A non-advancing row is only ever the head; nothing chains onto it.
+                raise EvidenceError('MODEL_CENSUS_CHAIN_FORMAT_INVALID')
+            if index and census.get('inherited_field_ids') is not None:
+                raise EvidenceError('MODEL_CENSUS_CHAIN_FORMAT_INVALID')
             if field is not None:
                 if type(field) is not str or field in seen:raise EvidenceError('MODEL_CENSUS_CHAIN_DUPLICATE_FIELD')
                 seen.add(field);ids.append(field);running_count+=1
@@ -123,7 +129,10 @@ class ModelCensusStage:
             if census.get('count')!=running_count:raise EvidenceError('MODEL_CENSUS_CHAIN_GAP')
             if census.get('digest')!=running_digest:raise EvidenceError('MODEL_CENSUS_CHAIN_DIGEST_MISMATCH')
         if len(ids)>required:raise EvidenceError('MODEL_CENSUS_CHAIN_OVERRUN')
-        return dict(field_ids=tuple(ids),active=chain[-1].get('active'),chain_previous_id=head['id'],
+        # Next rows chain onto the last advancing row: the head itself if it is
+        # genesis or carries a field, else the row the head points at.
+        anchor=head['id'] if len(chain)==1 or chain[-1].get('field_id') is not None else chain[-1]['chain_previous_id']
+        return dict(field_ids=tuple(ids),active=chain[-1].get('active'),chain_previous_id=anchor,
                     inherited_field_ids=None,chain_digest=running_digest,chain_count=running_count)
 
     def fields(self,preparation):
@@ -139,9 +148,11 @@ class ModelCensusStage:
         row=self.store.audit(key,event_id='model-census:'+p['event_id'],kind='RUNTIME_STATUS',details=dict(
             version=VERSION,preparation_id=p['id'],census=census,**details,financial_authority=False),
             evidence_ids=(p['id'],),expected_previous_seq=head['seq'] if head else 0)
-        # Advance the cursor to the row just written so a second _save within the
-        # same step (reserve, then stage) chains onto it instead of re-deriving it.
-        cursor['chain_previous_id']=row['id'];cursor['inherited_field_ids']=None
+        # Only genesis and field rows advance the chain, so reserve/pending rows
+        # never lengthen the replay walk; a stage after a reserve within the same
+        # step chains onto the same last advancing row.
+        if field_id is not None or cursor['chain_previous_id'] is None:cursor['chain_previous_id']=row['id']
+        cursor['inherited_field_ids']=None
         cursor['chain_digest']=new_digest;cursor['chain_count']=new_count
         if field_id is not None:cursor['field_ids']=cursor['field_ids']+(field_id,)
         return row

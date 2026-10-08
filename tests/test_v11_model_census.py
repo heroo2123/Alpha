@@ -216,3 +216,87 @@ def test_model_census_failure_does_not_bypass_shared_provider_backoff(gefs,monke
         assert len(calls)==1 and q.snapshot()['needs_census'] and not r['store'].records(kind='MODEL')
         await gw.scheduled.collector.client.aclose()
     asyncio.run(run())
+
+
+def _staged(r,monkeypatch,count):
+    q,cw,gw,calls=setup(r,monkeypatch);barrier,_=begin(r,q);stage=cw.model_stage
+    async def run():
+        for index in range(count):
+            row=await stage.step('stage-'+str(index),preparation_id=barrier['id'],event_id=r['plan'].event_id)
+            assert row['body']['details']['outcome']=='MODEL_FIELD_STAGED',row['body']['details'];advance(r)
+    asyncio.run(run())
+    _,p=q.model_preparation(barrier['id'],event_id=r['plan'].event_id)
+    return q,gw,stage,barrier,p
+
+
+def _forge(r,stage,p,key,**changes):
+    head=stage._head(p['event_id']);census=dict(head['body']['details']['census'])
+    census.update(chain_previous_id=head['id'],inherited_field_ids=None,field_id=None,active=None);census.update(changes)
+    return r['store'].audit(key,event_id='model-census:'+p['event_id'],kind='RUNTIME_STATUS',
+        details=dict(version='forged',preparation_id=p['id'],census=census,financial_authority=False),
+        evidence_ids=(p['id'],),expected_previous_seq=head['seq'])
+
+
+@pytest.mark.parametrize('case,code',[
+    ('digest','MODEL_CENSUS_CHAIN_DIGEST_MISMATCH'),('missing_previous','MODEL_CENSUS_CHAIN_GAP'),
+    ('count','MODEL_CENSUS_CHAIN_GAP'),('duplicate','MODEL_CENSUS_CHAIN_DUPLICATE_FIELD'),
+    ('foreign','MODEL_CENSUS_CHAIN_FOREIGN_ROW'),('format','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),
+    ('inherited_after_genesis','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),
+    ('non_advancing_middle','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),('legacy_invalid','MODEL_CENSUS_LEGACY_STATE_INVALID')])
+def test_corrupted_census_chain_fails_closed(gefs,monkeypatch,case,code):
+    from polymarket_scanner.v11.model_census import _chain_digest
+    r=gefs;q,gw,stage,barrier,p=_staged(r,monkeypatch,2);before=stage.fields(p);assert len(before)==2
+    c=stage._head(p['event_id'])['body']['details']['census']
+    if case=='digest':_forge(r,stage,p,'f',field_id='forged-field',count=c['count']+1,digest='0'*64)
+    elif case=='missing_previous':_forge(r,stage,p,'f',chain_previous_id='model-census-missing-row')
+    elif case=='count':_forge(r,stage,p,'f',count=c['count']+1)
+    elif case=='duplicate':_forge(r,stage,p,'f',field_id=before[0],count=c['count']+1,digest=_chain_digest(c['digest'],before[0]))
+    elif case=='foreign':_forge(r,stage,p,'f',chain_previous_id=barrier['id'])
+    elif case=='format':_forge(r,stage,p,'f',format='alpha_v11_model_census_chain_v1')
+    elif case=='inherited_after_genesis':_forge(r,stage,p,'f',inherited_field_ids=[])
+    elif case=='non_advancing_middle':_forge(r,stage,p,'f1');_forge(r,stage,p,'f2')
+    else:
+        head=stage._head(p['event_id'])
+        r['store'].audit('legacy',event_id='model-census:'+p['event_id'],kind='RUNTIME_STATUS',
+            details=dict(version='legacy',preparation_id=p['id'],state=dict(field_ids='not-a-list',active=None),financial_authority=False),
+            evidence_ids=(p['id'],),expected_previous_seq=head['seq'])
+    with pytest.raises(EvidenceError,match=code) as caught:stage.fields(p)
+    assert str(caught.value)==code
+    with pytest.raises(EvidenceError) as caught:
+        asyncio.run(stage.step('after-'+case,preparation_id=barrier['id'],event_id=r['plan'].event_id))
+    assert str(caught.value)==code
+    asyncio.run(gw.scheduled.collector.client.aclose())
+
+
+def test_legacy_full_list_head_resumes_once_then_writes_deltas(gefs,monkeypatch):
+    r=gefs;q,gw,stage,barrier,p=_staged(r,monkeypatch,1);first=stage.fields(p);head=stage._head(p['event_id'])
+    r['store'].audit('legacy',event_id='model-census:'+p['event_id'],kind='RUNTIME_STATUS',
+        details=dict(version='alpha_v11_model_census_stage_v1',preparation_id=p['id'],
+                     state=dict(field_ids=list(first),active=None),financial_authority=False),
+        evidence_ids=(p['id'],),expected_previous_seq=head['seq'])
+    assert stage.fields(p)==first
+    async def run():
+        for index in range(2):
+            row=await stage.step('resume-'+str(index),preparation_id=barrier['id'],event_id=r['plan'].event_id)
+            assert row['body']['details']['outcome']=='MODEL_FIELD_STAGED';advance(r)
+        await gw.scheduled.collector.client.aclose()
+    asyncio.run(run())
+    fields=stage.fields(p);assert len(fields)==3 and fields[0]==first[0] and len(set(fields))==3
+    rows=r['store'].records(kind='RUNTIME_STATUS',event_id='model-census:'+p['event_id'],limit=100)
+    after=[row['body']['details']['census'] for row in rows if row['seq']>r['store'].get('legacy')['seq']]
+    assert [c['inherited_field_ids'] for c in after]==[list(first)]+[None]*(len(after)-1)
+
+
+def test_pending_rows_never_lengthen_the_replay_walk(gefs,monkeypatch):
+    r=gefs;q,gw,stage,barrier,p=_staged(r,monkeypatch,1);first=stage.fields(p)
+    async def pending(cid,requests):return dict(sources=[dict(state='PENDING')],omitted=[])
+    monkeypatch.setattr(gw.scheduled,'cycle',pending)
+    async def run():
+        for index in range(40):
+            row=await stage.step('pending-'+str(index),preparation_id=barrier['id'],event_id=r['plan'].event_id)
+            assert row['body']['details']['outcome']=='MODEL_FIELD_SOURCE_PENDING'
+    asyncio.run(run())
+    gets=[];real=stage.store.get
+    monkeypatch.setattr(stage.store,'get',lambda key:gets.append(key) or real(key))
+    assert stage.fields(p)==first and len(gets)<=2,len(gets)
+    monkeypatch.undo();asyncio.run(gw.scheduled.collector.client.aclose())
