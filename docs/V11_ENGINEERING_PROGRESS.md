@@ -1,3 +1,7 @@
+## 2026-10-08 02:55 UTC Gate-3 adverse verdict recycled
+
+Intook sealed independent Sol/high `CHANGES_REQUIRED` on frozen `268e008` / tree `eead9f0`. Its synthetic normal/optimized rename probe reproduced a private-directory custody race; current-executable binding failed 10/31 on the exact successor versus 31/31 on parent. Started a sole Sol/high repair in the original clean Gate-3 worktree with retained prompt, runner, output and terminal marker `/tmp/alpha-g3l-descriptor-custody-r2-268e008.terminal`. The repair must be retested and independently re-reviewed before integration. PAPER and Brain lanes continue separately; no provider, runtime, V10, financial or acceptance transition. Gate-3 **91/200**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 02:53 UTC Brain exact review recycled
 
 Intook clean `a42bfb6` / tree `1fafbf5` from the Brain reader R2 sole writer; author-side focused 62/62 and adjacent 296/296 tests passed in both Python modes. Launched a frozen different-model Astra/high exact review with terminal marker `/tmp/alpha-brain-official-reader-review-a42bfb6.terminal`. Gate-3 descriptor review and PAPER late-ancestor repair remain live in separate worktrees. No merge, qualification, provider or financial action; Gate-3 **91/200**, 77 unqualified identities, G3-L **NO-GO**, PAPER **9/11**, **READY_TO_FUND=false**.

@@ -1,3 +1,7 @@
+## 2026-10-08 02:55 UTC no acceptance crossing
+
+Gate-3 descriptor candidate `268e008` received independent `CHANGES_REQUIRED` for a reproduced object-directory custody rename race and exact executable-pin drift. A sole isolated repair is live; new bytes require different-model exact re-review and final-byte reconciliation. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A boundary crossed.
+
 ## 2026-10-08 02:53 UTC Brain reader successor remains under review
 
 Clean Brain reader repair `a42bfb6` is in independent frozen exact review after provisional author tests. This changes no Brain source/label acceptance, Gate-3 identity, PAPER R08/R09 requirement or C/J/E/A boundary. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
