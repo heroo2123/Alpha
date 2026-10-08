@@ -1,3 +1,7 @@
+## 2026-10-08 07:04 UTC reviewed selector findings routed to R2
+
+Intook clean independent `CHANGES_REQUIRED` verdict for offline G3-L selector `5ffb6f0`: late-year date overflow escapes typed denial, and `max_days_ahead=1` cannot select a future window. Launched one Codex Sol/medium R2 author in the original clean isolated selector worktree with preserved review report, bounded task, prompt, runner, output and terminal target at `/tmp/alpha-g3l-next-window-selector-r2-repair.*`. Different-model exact review and newer-main reconciliation remain required. No provider, runtime/root/V10, money/order/authority or acceptance action.
+
 ## 2026-10-08 07:02 UTC quota recovery and sole-writer continuation
 
 Recorded Claude's directly observed session reset at 09:50 UTC in `provider_cooldowns.json` after both Sonnet R2 workers exited 1 at 06:59. Preserved the coordinator-accounting partial candidate and its original bytes; no live install/restart or approval. Preserved the daily transition's 10-line uncommitted diff in its original worktree and launched one Codex Sol/high same-worktree recovery with prompt, runner, output and terminal target at `/tmp/alpha-daily-v2-transition-r2-codex-recovery.*`. The G3-L final-byte/N5, next-window selector and Brain Gamma R3 exact reviews remain active. V10 and financial execution masks were checked; no provider, root/runtime, account/order/funding or acceptance action occurred.
