@@ -1,3 +1,46 @@
+## 2026-10-08 17:28 UTC Round-5 Sonnet repair of R3-M1 independently verified and landed (`8fe407a`); round-5 independent Opus review launched
+
+Did not take the repair lane's hand-back on faith. Independently confirmed via `git log`/`git status`
+in `/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008` that commit `8fe407a`
+(on top of `dce1f95`, worktree clean, sole writer, no duplicate) is real, then read the full diff
+directly rather than the hand-back's description of it. The fix adds `_verify_fresh_head`: once
+`_replay_observation` confirms a row's claim is genuine as of its own insertion point, this second,
+independent check re-runs `observe()` over the complete real archive through the store's REAL
+CURRENT tip (`store.pin_read_view()`, confirmed by direct read of `evidence.py:450-464` to really
+return `{through_seq, tip_sha256, heads}` as used) at the real current time (`store.clock()`, not a
+caller-supplied value), and requires the diagnostic subset of that fresh recompute
+(`execution_status`, `reason`, `fill_count`, `diagnostic_adverse_fill_count`,
+`diagnostic_markout_collateral_per_share`) to still equal the row's claim; any drift returns
+`EXECUTION_HEALTH_OBSERVATION_HEAD_DRIFT` rather than a stale `PROMOTED`. The shared "page
+1..through_seq, never truncate early" loop was extracted into `_page_prefix`, reused by both the
+original replay check and the new one, preserving the R2-H1 completeness guarantee rather than
+duplicating or weakening it. Also added direct regression tests for R3-L1 (scan-bound truncation),
+R3-L2 (R2-L3/R2-L4 direct coverage, using `pytest.raises` + manual `str(exc)` comparison rather than
+`match=` to avoid this project's own known `-O`-mode blind spot), and R3-L3 (exact reason code).
+Independently re-ran the full target suite myself rather than trusting the reported count: 84/84
+passed in both normal and `python -O` mode (up from 78 before this round -- 6 new tests, nothing
+broken). Read the two new drift tests and the "nothing new, still promotes" companion test directly
+and traced the logic: each honestly builds a row right after a favourable event, lands a real later
+disqualifying event (an adverse fill, an unhealthy stream) afterward, and confirms the promotion now
+correctly refuses rather than returning stale numbers; the companion test confirms a row with
+nothing new since its insertion still promotes, guarding against over-correction/false demotion.
+
+Per this project's standing rule for every R08 contract candidate, did not merge. Created a fresh
+byte-pinned frozen clone (`alpha-r08-contract-opus-review-8fe407a-20261008`, 1540-file SHA256SUMS
+manifest) and launched a fifth independent Opus review (background agent, not yet returned as of
+this entry) with an adversarial brief specifically probing: whether the `_page_prefix` extraction is
+truly behavior-preserving for the original R2-H1 guarantee, whether excluding
+`frontier_tip_sha256`/`frontier_sha256` from the fresh-head comparison is genuinely safe, edge cases
+around `pin_read_view()`/`page_through()` sequencing and the `through_seq <= row['seq']` early
+return, and an explicit ask for a recommendation on whether this candidate is ready for merge-and-
+closure versus needing another round, since this project does not want endless review cycles without
+genuine cause.
+
+This is process, not evidence: no selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 17:12 UTC Read-only R08 wiring-integration map returned and persisted; confirms the EventMetrics blocker's exact code-only vs owner-gated split, and that wiring should wait on the R3-M1 repair
 
 The parallel read-only wiring-prep lane (Explore-type, no write access) finished its mapping and
