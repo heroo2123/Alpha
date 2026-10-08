@@ -1,3 +1,7 @@
+## 2026-10-08 03:51 UTC R6b recovered review and integration
+
+Independent Astra/high review of frozen Brain `211fa25` sealed `PASS_IN_SCOPE` after the first sandbox-startup `NO_VERDICT`; retained recovery report, verdict and terminal under `/tmp/alpha-brain-reader-r6b-review-211fa25.recovery-*`. Exact reviewed file blobs were cherry-picked in isolated integration, tested 163/163 in each Python mode, and fast-forwarded to main `537f2a5`; focused post-main tests passed 70/70 per mode. Read-only PAPER causal map sealed at `/tmp/alpha-paper-r89-causal-map-20261008.report.md`; separate nonpromoting diagnostic `3e403ae` sealed clean with 4 focused tests per mode and entered different-model exact review. Gate-3 and PAPER `5405add` exact candidates remain `NO_VERDICT` pending Claude cooldown. No acceptance or financial boundary changed.
+
 ## 2026-10-08 03:41 UTC R6b reviewer sandbox interruption preserved
 
 Frozen Astra/high reviewer of `211fa25` exited 0 after bwrap loopback failed for initial read-only commands. Explicit `/tmp/alpha-brain-reader-r6b-review-211fa25.verdict.json` is `NO_VERDICT`; checkout and artifacts are retained, with a Claude post-04:50 handoff. The earlier PAPER and Gate-3 review refusals likewise remain unapproved. Daily Shadow and forward observer remain nonfinancial; no integration or acceptance change.
