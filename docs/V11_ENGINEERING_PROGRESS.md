@@ -1,3 +1,7 @@
+## 2026-10-08 03:16 UTC Brain R3 repaired and reviewable
+
+Intook clean Brain reader `ffe7917` / tree `5cd2343` after 136 focused and 302 adjacent author tests per Python mode. Started one frozen different-model Astra/high exact reviewer with retained `/tmp/alpha-brain-official-reader-r3-review-ffe7917.{prompt,runner.sh,out,final,terminal}` and report/verdict targets. Separate PAPER FIFO repair and read-only Gate-3 pin map remain live; no duplicate writer was started. Gate-3 exact reviewer remains `NO_VERDICT` pending authorized alternate-provider review after cooldown. No merge or acceptance transition: Gate-3 **91/200**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 03:13 UTC read-only pin map fills safe slot
 
 Started a frozen read-only Sol/medium Gate-3 `3a7dd98` current-executable failure map with retained prompt, output, report and terminal targets at `/tmp/alpha-g3l-r2-pin-drift-map-20261008.*`. It is independent of the refused exact review and cannot grant PASS or edit candidate bytes. PAPER FIFO and Brain R3 sole writers continue; three Codex lanes are active and Claude remains on recorded cooldown. No merge or acceptance transition.
