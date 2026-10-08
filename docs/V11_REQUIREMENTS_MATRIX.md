@@ -5422,3 +5422,7 @@ Offline candidate `0a3b465` is under frozen independent exact review. Its V3/V4 
 ## 2026-10-08 00:33 UTC InventoryTransform reviewed guard integration
 
 Independent `PASS_IN_SCOPE` on `7dd1aa0` permitted exact-byte local integration as `d9d27a5`; 71/71 focused tests passed in both Python modes on main. The observer remains dormant and unqualified. Reviewer residual Python audit-tripwire bypasses are tracked for follow-up; no account/order/collateral or provider authority was added. Gate-3 **91/200 (formal 1/50)** with **77 unqualified identities**, **G3-L NO-GO**; PAPER **9/11**, **READY_TO_FUND=false**. No C/J/E/A boundary crossed.
+
+## 2026-10-08 00:35 UTC pending repairs and reviews
+
+Gate-3 binding `157968b` received independent `CHANGES_REQUIRED` for an ambient Git test failure; a sole test repair is active. Whole-closure and run-eligibility exact reviews, plus read-only final-byte repin planning, continue. Brain official-label reader `4fd8ed8` is under independent exact review and unqualified. InventoryTransform guard follow-up is separate and its observer stays dormant. No requirement row or C/J/E/A boundary crossed: Gate-3 **91/200 (formal 1/50)** with **77 unqualified identities**, **G3-L NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
