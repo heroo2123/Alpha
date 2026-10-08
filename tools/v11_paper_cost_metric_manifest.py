@@ -25,6 +25,24 @@ Callers must pass `required=ENTRY_RISKS` (the real, imported set) explicitly
 if they pass `required` at all; a forged/mismatched set (fewer or more than
 the seven real categories) is refused (`ENTRY_RISKS_SET_MISMATCH`) rather than
 silently truncated or padded.
+
+`_costs` reports declared coverage only: any numeric `CostComponent`, however
+constructed by the caller, flips its covered categories out of `missing`.
+That is correct for `_costs` (`DECLARED_ASSUMPTIONS_NOT_INDEPENDENT_ATTESTATION`,
+never this module's claim to make), but a manifest that echoed it as this
+module's own per-category `status` would let one caller-supplied component --
+including a single zero-value component spanning all seven categories -- make
+every category, including the six with no in-tree producer or reviewed
+reserve, look `KNOWN`/source-complete. This module never does that: a
+category only reaches `KNOWN` here when it is covered by a component that (a)
+declares a per-share value, (b) covers that category alone (never bundled
+with any other category), and (c) has a registered in-tree producer in
+`_COST_PRODUCER_REFERENCE`. Anything else that is declared-but-not-missing --
+including every multi-category declaration, zero or not -- is reported
+`DECLARED_UNVERIFIED`: visibly covered per `_costs`, never promoted to
+source-backed. `cost_summary` keeps `_costs`' own `complete` field verbatim
+(declared-coverage completeness); `source_backed_complete` is this module's
+separate, stricter field and is only true when every category is `KNOWN`.
 """
 from __future__ import annotations
 
@@ -66,23 +84,44 @@ def metric_manifest() -> tuple[dict, ...]:
     )
 
 
+def _category_status(name: str, *, missing: set, unknown: set, source_backed: set) -> str:
+    if name in unknown:
+        return 'UNKNOWN_PER_SHARE'
+    if name in missing:
+        return 'MISSING'
+    if name in source_backed:
+        return 'KNOWN'
+    return 'DECLARED_UNVERIFIED'
+
+
 def cost_manifest(costs: tuple[CostComponent, ...] = (), *, required: frozenset = ENTRY_RISKS) -> dict:
     """Per-`ENTRY_RISKS`-category producer/coverage inventory.
 
     `required` must equal the real, imported `ENTRY_RISKS` set exactly;
     anything else (a forged/mismatched category set) is refused.
+
+    A category is `KNOWN` only when a single-category, non-null-per-share
+    component covers it and that category has a registered in-tree
+    producer. Any other declared-but-not-missing category (bundled with
+    another category, or no registered producer) is `DECLARED_UNVERIFIED`:
+    `_costs` counts it as covered, this manifest does not call it known.
     """
     if frozenset(required) != ENTRY_RISKS:
         raise EvidenceError('ENTRY_RISKS_SET_MISMATCH')
     result = _costs(costs, horizon=PAYOUT, required=ENTRY_RISKS, already=frozenset())
     missing, unknown = set(result['missing']), set(result['unknown'])
+    source_backed = {
+        c.covers[0] for c in costs
+        if c.per_share is not None and len(c.covers) == 1 and c.covers[0] in _COST_PRODUCER_REFERENCE
+    }
     categories = tuple(
         dict(name=name, producer_in_tree=name in _COST_PRODUCER_REFERENCE,
              producer_reference=_COST_PRODUCER_REFERENCE.get(name),
-             status=('UNKNOWN_PER_SHARE' if name in unknown else 'MISSING' if name in missing else 'KNOWN'))
+             status=_category_status(name, missing=missing, unknown=unknown, source_backed=source_backed))
         for name in sorted(ENTRY_RISKS)
     )
-    return dict(categories=categories, cost_summary=result)
+    return dict(categories=categories, cost_summary=result,
+                source_backed_complete=all(c['status'] == 'KNOWN' for c in categories))
 
 
 def prerequisite_manifest(costs: tuple[CostComponent, ...] = (), *, required: frozenset = ENTRY_RISKS) -> dict:

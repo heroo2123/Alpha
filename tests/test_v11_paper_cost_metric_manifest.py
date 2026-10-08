@@ -31,6 +31,7 @@ def test_cost_manifest_marks_all_seven_missing_with_no_producer_registered():
         assert c['status'] == 'MISSING'
     assert set(manifest['cost_summary']['missing']) == set(ENTRY_RISKS)
     assert manifest['cost_summary']['complete'] is False
+    assert manifest['source_backed_complete'] is False
 
 
 def test_registering_acquisition_fee_cost_flips_only_that_one_category():
@@ -50,6 +51,33 @@ def test_registering_acquisition_fee_cost_flips_only_that_one_category():
     for name in ENTRY_RISKS - {'ACQUISITION_FEES'}:
         assert by_name[name]['status'] == 'MISSING'
     assert manifest['cost_summary']['missing'] == sorted(ENTRY_RISKS - {'ACQUISITION_FEES'})
+    assert manifest['source_backed_complete'] is False
+
+
+def test_single_component_covering_two_categories_stays_declared_unverified_not_known():
+    bundled = CostComponent('bundled', PAYOUT, '0', ('ACQUISITION_FEES', 'SETTLEMENT_REVISION'), 'c'*64)
+    manifest = cost_manifest((bundled,))
+    by_name = {c['name']: c for c in manifest['categories']}
+    assert by_name['ACQUISITION_FEES']['status'] == 'DECLARED_UNVERIFIED'
+    assert by_name['SETTLEMENT_REVISION']['status'] == 'DECLARED_UNVERIFIED'
+    assert manifest['cost_summary']['missing'] == sorted(ENTRY_RISKS - {'ACQUISITION_FEES', 'SETTLEMENT_REVISION'})
+    assert manifest['source_backed_complete'] is False
+
+
+def test_single_zero_component_covering_all_seven_categories_is_declared_complete_not_source_complete():
+    all_seven = CostComponent('all', PAYOUT, '0', tuple(sorted(ENTRY_RISKS)), 'a'*64)
+    manifest = cost_manifest((all_seven,))
+    assert {c['status'] for c in manifest['categories']} == {'DECLARED_UNVERIFIED'}
+    assert manifest['cost_summary']['missing'] == []
+    assert manifest['cost_summary']['unknown'] == []
+    assert manifest['cost_summary']['known_total_per_share'] == '0'
+    # `_costs` own declared-coverage field stays True -- the zero-value component covers
+    # every required category -- but that is not this manifest's claim of source-backed knowledge.
+    assert manifest['cost_summary']['complete'] is True
+    assert manifest['source_backed_complete'] is False
+    for category in manifest['categories']:
+        if category['name'] != 'ACQUISITION_FEES':
+            assert category['producer_in_tree'] is False
 
 
 def test_duplicate_or_overlapping_cost_coverage_is_rejected_not_silently_merged():
