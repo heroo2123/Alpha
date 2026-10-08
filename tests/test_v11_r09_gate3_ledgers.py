@@ -10,6 +10,7 @@ is annotated with the exact S-id it covers and fails against the
 unrepaired 39b80fa module.
 """
 import base64
+import contextlib
 import hashlib
 import os
 
@@ -20,6 +21,19 @@ from tools.v11_r09_gate3_ledgers import (
     LEDGER_MAX_BYTES, LEDGER_MAX_EVENTS, LEDGER_RECORD_MAX_BYTES,
     REPORT_RESERVE_BYTES, SessionLedger, SharedLedger,
 )
+
+
+@contextlib.contextmanager
+def _raises_exactly(*codes):
+    """Like ``pytest.raises(LaunchContractError, match=...)``, but compares
+    the exact exception string rather than a regex. Under ``python -O``
+    this project's ``pytest.raises(..., match=...)`` only checks the
+    exception type (asserts are disabled, which is what ``match`` compiles
+    down to here), so it cannot actually tell two different refusal codes
+    apart; ``str(exc) == code`` behaves identically in both modes."""
+    with pytest.raises(LaunchContractError) as exc_info:
+        yield
+    assert str(exc_info.value) in codes
 
 MANIFEST = 'a' * 64
 BOOT = 'boot-A'
@@ -366,8 +380,7 @@ def test_shared_ledger_held_intent_cannot_be_closed_live_or_replayed(tmp_path):
     root = _root(tmp_path)
     with _new_shared(root) as ledger:
         _open_intent(ledger, 'req-1', max_reservation_bytes=10)
-        with pytest.raises(LaunchContractError,
-                            match='SHARED_LEDGER_CLOSE_OVERDELIVERED'):
+        with _raises_exactly('SHARED_LEDGER_CLOSE_OVERDELIVERED'):
             ledger.intent_closed('req-1', outcome='FAILED',
                                   accounting_head='c' * 64,
                                   total_delivered_bytes=11)
@@ -376,17 +389,15 @@ def test_shared_ledger_held_intent_cannot_be_closed_live_or_replayed(tmp_path):
         assert ledger.open_intent['held'] is True
         # N1: an ordinary close must not be able to paper over the hold on
         # the live path, no matter the outcome/byte count it claims.
-        with pytest.raises(LaunchContractError,
-                            match='SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+        with _raises_exactly('SHARED_LEDGER_CLOSE_ALREADY_HELD'):
             ledger.intent_closed('req-1', outcome='FAILED',
                                   accounting_head='e' * 64,
                                   total_delivered_bytes=3)
         # The already-correct overdelivery check must still fire first/still
         # work for a fresh overdelivered close attempt against the same
         # held intent (not weakened by the new guard).
-        with pytest.raises(LaunchContractError,
-                            match='SHARED_LEDGER_CLOSE_OVERDELIVERED|'
-                                  'SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+        with _raises_exactly('SHARED_LEDGER_CLOSE_OVERDELIVERED',
+                              'SHARED_LEDGER_CLOSE_ALREADY_HELD'):
             ledger.intent_closed('req-1', outcome='FAILED',
                                   accounting_head='e' * 64,
                                   total_delivered_bytes=11)
@@ -401,15 +412,13 @@ def test_shared_ledger_held_intent_cannot_be_closed_live_or_replayed(tmp_path):
         assert ledger2.open_intent['request_id'] == 'req-1'
         assert ledger2.open_intent['held'] is True
         assert ledger2.inherited_open_request_id == 'req-1'
-        with pytest.raises(LaunchContractError,
-                            match='SHARED_LEDGER_INHERITED_INTENT_HELD'):
+        with _raises_exactly('SHARED_LEDGER_INHERITED_INTENT_HELD'):
             ledger2.intent_closed('req-1', outcome='FAILED',
                                    accounting_head='e' * 64,
                                    total_delivered_bytes=3)
         # The token really stays held end-to-end: a fresh intent_open on
         # this same shared root must still refuse too.
-        with pytest.raises(LaunchContractError,
-                            match='SHARED_LEDGER_INTENT_OPEN_HELD'):
+        with _raises_exactly('SHARED_LEDGER_INTENT_OPEN_HELD'):
             _open_intent(ledger2, 'req-2')
 
 
@@ -440,13 +449,73 @@ def test_shared_ledger_replay_path_refuses_held_intent_closed_event(tmp_path):
         head = ledger.prev
         # The replay path itself -- not the live method -- must refuse to
         # let this forged event release the hold, right here in-process.
-        with pytest.raises(LaunchContractError,
-                            match='SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+        with _raises_exactly('SHARED_LEDGER_CLOSE_ALREADY_HELD'):
             ledger._state()
     # And identically on a completely fresh construction that replays this
     # same on-disk journal from scratch (the exact "replays cleanly on
     # reopen" scenario the reviewer flagged).
-    with pytest.raises(LaunchContractError, match='SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+    with _raises_exactly('SHARED_LEDGER_CLOSE_ALREADY_HELD'):
+        SharedLedger(root, boot_id=BOOT, expected_history_head=head)
+
+
+# ---------------------------------------------------------------------------
+# R1 (independent review of 0090c1f): the live ``intent_closed`` overdelivery
+# guard added for F3 has no replay-path counterpart, so a shared root a
+# pre-repair process (a9b8d06 and earlier) actually wrote -- genesis plus an
+# ordinary ``intent_closed`` recording more bytes than the reservation
+# allowed, with no ``held`` marker at all, since that op did not exist yet --
+# replays clean on the repaired code: ``open_intent`` goes back to ``None``
+# and a second job can dispatch straight to SUCCESS on the same shared root,
+# exactly the token-release F3 was meant to close.
+# ---------------------------------------------------------------------------
+
+def test_shared_ledger_replay_refuses_base_shaped_overdelivered_close(tmp_path):
+    """Base-shaped bytes: genesis, then exactly the single ``intent_closed``
+    event the unrepaired runtime wrote on overdelivery (outcome='FAILED',
+    ``total_delivered_bytes`` over the reservation, no ``intent_held``
+    event -- that op is new in this repair). Built by appending the raw
+    event directly, bypassing the live method's own (newly added) guard,
+    the same way a pre-existing on-disk journal from an older process
+    would present it to ``_state`` on reopen."""
+    root = _root(tmp_path)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=10)
+        ledger._append({'op': 'intent_closed', 'request_id': 'req-1',
+                         'outcome': 'FAILED', 'accounting_head': 'c' * 64,
+                         'total_delivered_bytes': 50,
+                         'denial_history_head': ledger.prev})
+        head = ledger.prev
+        # The replay path itself must refuse this base-shaped event, right
+        # here in-process -- it must not quietly clear ``open_intent``.
+        with _raises_exactly('SHARED_LEDGER_CLOSE_OVERDELIVERED'):
+            ledger._state()
+    # And identically on a completely fresh construction/reopen that
+    # replays this exact on-disk journal from scratch -- the token must
+    # never appear released to a brand-new process, let alone a second job.
+    with _raises_exactly('SHARED_LEDGER_CLOSE_OVERDELIVERED'):
+        SharedLedger(root, boot_id=BOOT, expected_history_head=head)
+
+
+def test_shared_ledger_replay_double_intent_held_refuses(tmp_path):
+    """R3 (advisory in the same review): the live ``intent_held`` method
+    refuses to re-hold an already-held intent (``SHARED_LEDGER_ALREADY_
+    HELD``); the replay path must refuse a forged/future-written ``open,
+    held, held`` journal identically, so it can never replay into a state
+    this process could never have reached live."""
+    root = _root(tmp_path)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=10)
+        ledger.intent_held('req-1', accounting_head='c' * 64,
+                            total_delivered_bytes=11)
+        assert ledger.open_intent['held'] is True
+        ledger._append({'op': 'intent_held', 'request_id': 'req-1',
+                         'accounting_head': 'e' * 64,
+                         'total_delivered_bytes': 11,
+                         'denial_history_head': ledger.prev})
+        head = ledger.prev
+        with _raises_exactly('SHARED_LEDGER_ALREADY_HELD'):
+            ledger._state()
+    with _raises_exactly('SHARED_LEDGER_ALREADY_HELD'):
         SharedLedger(root, boot_id=BOOT, expected_history_head=head)
 
 

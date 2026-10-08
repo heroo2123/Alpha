@@ -35,6 +35,19 @@ ETAG = '"obj-1"'
 ORIGIN = 'https://weather.example.invalid'
 
 
+@contextlib.contextmanager
+def _raises_exactly(*codes):
+    """Like ``pytest.raises(LaunchContractError, match=...)``, but compares
+    the exact exception string rather than a regex. Under ``python -O``
+    this project's ``pytest.raises(..., match=...)`` only checks the
+    exception type (asserts are disabled, which is what ``match`` compiles
+    down to here), so it cannot actually tell two different refusal codes
+    apart; ``str(exc) == code`` behaves identically in both modes."""
+    with pytest.raises(LaunchContractError) as exc_info:
+        yield
+    assert str(exc_info.value) in codes
+
+
 @pytest.fixture(autouse=True)
 def _deny_socket_connections(monkeypatch):
     def denied(*_args, **_kwargs):
@@ -1983,7 +1996,7 @@ def test_shared_genesis_boot_mismatch_refuses_composition_not_rows(tmp_path):
             assert shared._boot_ok is False
             rt = _runtime(shared, session, budget, store,
                 SyntheticExchange({'req-1': _ok_response(b'abcd')}))
-            with pytest.raises(LaunchContractError, match='RUNTIME_BOOT_CONTEXT_MISMATCH'):
+            with _raises_exactly('RUNTIME_BOOT_CONTEXT_MISMATCH'):
                 rt.run_attempt(_request(reservation_bytes=4))
             # Composition itself refused -- no plan row was ever burned.
             assert session.attempt is None
@@ -2023,6 +2036,35 @@ def test_overdelivery_holds_shared_root_token_not_released(tmp_path):
         result2 = rt2.run_attempt(_request(request_id='req-2', reservation_bytes=4))
         assert result2['outcome'] == 'REFUSED'
         assert result2['reason'] == 'SHARED_LEDGER_INTENT_OPEN_HELD'
+
+
+def test_second_job_never_dispatches_after_base_shaped_overdelivered_close(tmp_path):
+    """R1 (independent review of 0090c1f): the ``intent_held`` op above is
+    new in this repair; a shared root a pre-repair process actually wrote
+    (base-shaped bytes -- genesis, then the one ordinary ``intent_closed``
+    event an unrepaired runtime would record on overdelivery, no
+    ``intent_held`` at all) must still refuse to look released on replay --
+    composition on the same shared root must refuse up front, so a second
+    job can never dispatch to SUCCESS, exactly the failure F3 and this
+    guard are meant to close."""
+    tmp_path = _dirs(tmp_path)
+    crashed = SharedLedger(tmp_path / 'shared', boot_id=BOOT, genesis_review_digest=GENESIS)
+    crashed.intent_open('req-1', purpose='INDEX', endpoint_id='c' * 64,
+        control_domain_id='d' * 64, manifest_sha256=MANIFEST,
+        max_reservation_bytes=10, now_utc=10)
+    # Base-shaped bytes: the exact single event the unrepaired (pre-
+    # ``intent_held``) runtime wrote on overdelivery, appended directly to
+    # bypass the live method's own (newly added) guard, the same way a
+    # pre-existing on-disk journal from an older process presents it here.
+    crashed._append({'op': 'intent_closed', 'request_id': 'req-1',
+                      'outcome': 'FAILED', 'accounting_head': 'c' * 64,
+                      'total_delivered_bytes': 50,
+                      'denial_history_head': crashed.prev})
+    shared_head = crashed.prev
+    crashed.close()
+    with _raises_exactly('SHARED_LEDGER_CLOSE_OVERDELIVERED'):
+        with _second_job(tmp_path, shared_head):
+            pass
 
 
 def test_transport_receives_bound_attempt_request_not_bare_id(tmp_path):

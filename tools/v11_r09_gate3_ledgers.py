@@ -472,6 +472,19 @@ class SharedLedger(_HashChainJournal):
                 # ``intent_closed`` after an ``intent_held`` for the same
                 # request can never replay its way to a released token.
                 check(not self.open_intent['held'], 'SHARED_LEDGER_CLOSE_ALREADY_HELD')
+                # R1 (independent review of 0090c1f): the live
+                # ``intent_closed`` overdelivered-close guard below derives
+                # the violation from this root's own recorded
+                # ``max_reservation_bytes`` rather than trusting the
+                # caller's outcome label; replay must refuse exactly the
+                # same way, so a journal written by a process that never
+                # had this guard (e.g. an older version, before ``held``
+                # existed, that wrote an ordinary close for an
+                # overdelivered intent) can never replay its way to a
+                # released token either.
+                check(event['total_delivered_bytes'] <=
+                      self.open_intent['max_reservation_bytes'],
+                      'SHARED_LEDGER_CLOSE_OVERDELIVERED')
                 if event['outcome'] == 'DENIED':
                     check(self.open_intent['denial_recorded'],
                           'SHARED_LEDGER_DENIAL_NOT_OBSERVED')
@@ -489,6 +502,13 @@ class SharedLedger(_HashChainJournal):
                 check(self.open_intent is not None and
                       self.open_intent['request_id'] == event['request_id'],
                       'SHARED_LEDGER_HOLD_WITHOUT_OPEN')
+                # R3 (independent review of 0090c1f): the live ``intent_held``
+                # method below also refuses to re-hold an already-held
+                # intent; replay must refuse the same way, so a forged or
+                # future-written ``open, held, held`` journal can never
+                # replay into a state this process could never have reached
+                # live.
+                check(not self.open_intent['held'], 'SHARED_LEDGER_ALREADY_HELD')
                 self.open_intent['held'] = True
             else:
                 raise LaunchContractError('SHARED_LEDGER_UNKNOWN_EVENT')
