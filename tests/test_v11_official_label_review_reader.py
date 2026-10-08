@@ -19,7 +19,7 @@ import pytest
 from polymarket_scanner.v11 import learning_capture as capture
 from polymarket_scanner.v11 import official_label_review_reader as reader_module
 from polymarket_scanner.v11 import official_settlement_source
-from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, ReleaseBinding, digest, identity
+from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, ReleaseBinding, canonical, digest, identity
 from polymarket_scanner.v11.official_label_review_packet import build_review_packet
 from polymarket_scanner.v11.official_label_review_reader import (
     PERMANENT_HOLDS, ReviewInputs, read_review_inputs,
@@ -744,6 +744,7 @@ def test_decision_bound_to_never_admitted_rule_is_flagged(rig):
     assert result.rule.sha256 == rule_b.sha256
     assert result.rule_receipt["fingerprint"] == rule_a.sha256 != result.rule.sha256
     assert "RULE_RECEIPT_FINGERPRINT_MISMATCH" in result.holds
+    assert result.provenance["rule_receipt_join"] == "FINGERPRINT_MISMATCH"
     # RULE_STATE_NOT_ADMISSIBLE_AT_DECISION is a separate, orthogonal fact
     # about rule A's own state -- rule A is genuinely admissible on its own.
     assert "RULE_STATE_NOT_ADMISSIBLE_AT_DECISION" not in result.holds
@@ -900,6 +901,107 @@ def test_pre_decision_payout_from_any_gamma_provider_is_disclosed(rig, provider,
     packet = build_review_packet(rule=result.rule, rule_receipt=result.rule_receipt, decision=result.decision,
                                   capture=result.capture, disclosures=result.disclosures, source_claim=source_claim)
     assert "LOOKAHEAD_VIOLATION" in packet.violations
+
+
+@pytest.mark.parametrize("also_shallow", [False, True])
+def test_gamma_depth_limit_marks_disclosure_scan_incomplete(rig, also_shallow):
+    """A market beyond the walk bound cannot produce a complete-looking tuple.
+
+    The second case places a valid shallow payout first. Finding that payout
+    must not short-circuit inspection of the later, over-depth branch.
+    """
+    store, now = rig
+    rule, _ = _observe(store, event=_event(station="KATL", family="high"),
+                       label="deep-shallow" if also_shallow else "deep-only")
+    event_id = rule.payload["event_id"]
+    bucket = rule.payload["partition"][0]
+    market = _closed_market(bucket["market_id"], bucket["yes_token"], bucket["no_token"],
+                            condition_id=bucket["condition_id"])
+    deep = {"response": {"response": {"event": {"id": event_id, "markets": [market]}}}}
+    payload = {"markets": [market], "response": deep} if also_shallow else deep
+    early = store.capture("early-depth-payout", event_id=event_id, kind="RULES", provider="GAMMA_EVENT",
+                          source_identity="event:" + event_id, revision="r1",
+                          evidence_class="SYNTHETIC", payload=payload)
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id, record_id="depth-model")
+    request_sha256 = digest(["request", "depth"])
+    now[0] += 1.
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id,
+                            order=[b["market_id"] for b in threshold_partition(rule)],
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="depth")
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding,
+                               rows=rows, request_sha256=request_sha256, record_id="depth-capture")
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert early["seq"] < result.decision["seq"]
+    assert result.disclosures == ()
+    assert "DISCLOSURE_SCAN_INCOMPLETE" in result.holds
+    assert set(PERMANENT_HOLDS) <= set(result.holds)
+    assert result.packet is None and result.gamma_comparator is None
+    assert all(getattr(result, name) is False for name in (
+        "independent_label_attestation", "settlement_authority", "calibration_authority",
+        "financial_authority", "automatic_promotion", "qualified"))
+
+
+@pytest.mark.parametrize("location", ["window", "after"])
+@pytest.mark.parametrize("malformation", ["changed", "missing"])
+def test_malformed_consulted_rule_state_counts_as_drift(rig, location, malformation):
+    store, now = rig
+    label = "malformed-" + location + "-" + malformation
+    rule, _ = _observe(store, event=_event(station="KATL", family="high"), label=label)
+    event_id = rule.payload["event_id"]
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id, record_id=label + "-model")
+    request_sha256 = digest(["request", label])
+    now[0] += 1.
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id,
+                            order=[b["market_id"] for b in threshold_partition(rule)],
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix=label)
+    preimage = dict(rule.payload, station="KZZZ") if malformation == "changed" else None
+    details = {"version": GUARD_VERSION, "fingerprint": rule.sha256,
+               "state": "SEMANTICS_OBSERVED", "quarantined": False}
+    if preimage is not None:
+        details["preimage"] = preimage
+        assert digest(preimage) != rule.sha256
+    if location == "window":
+        now[0] += 1.
+        state = store.audit(label + "-state", event_id=event_id, kind="RULE_STATE",
+                            details=details, evidence_ids=())
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding,
+                               rows=rows, request_sha256=request_sha256, record_id=label + "-capture")
+    if location == "after":
+        now[0] += 1.
+        state = store.audit(label + "-state", event_id=event_id, kind="RULE_STATE",
+                            details=details, evidence_ids=())
+    assert (state["seq"] <= captured["seq"]) is (location == "window")
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    expected = "RULE_DRIFT_IN_DECISION_WINDOW" if location == "window" else "RULE_DRIFT_AFTER_CAPTURE"
+    assert expected in result.holds
+    assert "RULE_RECEIPT_FINGERPRINT_MISMATCH" not in result.holds
+    assert result.provenance["rule_receipt_join"] == "FINGERPRINT_EQUALITY"
+    assert set(PERMANENT_HOLDS) <= set(result.holds)
+    assert result.packet is None and result.gamma_comparator is None
+    assert result.qualified is False
+
+
+def test_digest_consistent_partition_without_market_id_has_typed_refusal(rig):
+    store, _ = rig
+    fixture = _build_simple_capture(store, label="missing-partition-market")
+    capture_id = fixture["capture"]["id"]
+
+    def forge(row):
+        details = row["body"]["details"]
+        payload = copy.deepcopy(fixture["rule"].payload)
+        del payload["partition"][0]["market_id"]
+        details["rule"] = dict(canonical_json=canonical(payload), sha256=digest(payload),
+                               source_event_sha256=fixture["rule"].source_event_sha256)
+        details["binding"]["rule_fingerprint"] = digest(payload)
+
+    with expect_refusal("LABEL_REVIEW_READER_RULE_PARTITION_INVALID"):
+        read_review_inputs(store=TamperedView(store, {capture_id: forge}), capture_id=capture_id)
 
 
 # ==========================================================================

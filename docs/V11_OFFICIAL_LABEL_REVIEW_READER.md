@@ -22,9 +22,9 @@ v2 `MEASUREMENT` record id. It:
    (including rows a concurrent writer appends mid-call).
 2. Verifies the capture's own retained lineage: version, `complete_event_vector`,
    `financial_authority is False`, `target`, `selection_scope`, the embedded
-   `RuleFingerprint`'s own digest integrity, that the embedded rule's own
-   `event_id` matches the capture's event, `binding.rule_fingerprint`, and
-   every child `DECISION` row's seq-vs-frontier, sha256/binding/
+   `RuleFingerprint`'s own digest integrity and partition bucket shape, the
+   embedded rule's own `event_id` against the capture's event,
+   `binding.rule_fingerprint`, and every child `DECISION` row's seq-vs-frontier, sha256/binding/
    `target_identity`/`side`/`request_sha256`/`financial_authority` against
    the capture's own stored references. Any violation here is a typed
    `EvidenceError` refusal (`LABEL_REVIEW_READER_<REASON>`), not a packet
@@ -48,7 +48,14 @@ v2 `MEASUREMENT` record id. It:
    decision actually committed to), and any quarantine/fingerprint drift
    -- measured against the decision's own committed `rule.sha256`, not
    against the selected receipt's fingerprint -- in the decision-to-capture
-   window or after the capture, up to the pinned frontier.
+   window or after the capture, up to the pinned frontier. A malformed or
+   preimage/fingerprint-inconsistent row in either drift window counts as
+   drift even if its declared fingerprint matches. An earlier row considered
+   while computing the first matching run cannot extend that run unless its
+   own preimage/fingerprint pair is consistent. The
+   `rule_receipt_join` provenance says `FINGERPRINT_EQUALITY` only when the
+   selected fingerprint actually equals the decision rule; otherwise it says
+   `FINGERPRINT_MISMATCH` or `NO_RECEIPT`.
 5. Scans every retained `RULES` payout receipt from any provider whose
    payload nests a market object under some combination of `event`/
    `market`/`response`/`markets` (bounded-depth walk, matching
@@ -56,8 +63,11 @@ v2 `MEASUREMENT` record id. It:
    a resolvable payout for one of the rule's own partition markets, and
    every `LABEL` record for the event, as disclosure candidates -- every
    one, not only a "selected" one -- bounded, never returning a truncated
-   tuple. Each disclosure's `recorded_at` is clamped to the earliest of the
-   archive's own `recorded_at` and any self-declared `observed_at`/
+   tuple. If any Gamma wrapper exceeds the depth bound, the scan returns an
+   empty tuple with `DISCLOSURE_SCAN_INCOMPLETE`; finding a payout in the
+   same receipt does not excuse an unexamined branch. Each disclosure's
+   `recorded_at` is clamped to the earliest of the archive's own
+   `recorded_at` and any self-declared `observed_at`/
    `issued_at`/`published_at`/(`LABEL`'s) `knowable_at` in the same row,
    per the architecture report's disclosure-time rule -- fail-closed, since
    an earlier declared time can only make lookahead easier to flag.
@@ -121,8 +131,8 @@ The rest are conditional on the mapped evidence:
   decision did not actually commit to. Orthogonal to, and independent of,
   `RULE_STATE_NOT_ADMISSIBLE_AT_DECISION`.
 - `RULE_DRIFT_IN_DECISION_WINDOW` / `RULE_DRIFT_AFTER_CAPTURE` -- a
-  quarantined `RULE_STATE`, or one whose fingerprint differs from the
-  decision's own committed `rule.sha256`, exists in `[min_child_seq,
+  quarantined or internally malformed `RULE_STATE`, or one whose fingerprint
+  differs from the decision's own committed `rule.sha256`, exists in `[min_child_seq,
   capture.seq]` or after `capture.seq` (through the pinned frontier),
   respectively.
 - `CHILD_DECISION_AFTER_CAPTURE` -- a child `DECISION`'s seq/time is not
@@ -135,8 +145,10 @@ The rest are conditional on the mapped evidence:
 - `MULTIPLE_CAPTURES_FOR_EVENT` -- another v2 `MEASUREMENT` exists for the
   same event; `provenance['other_capture_ids']` lists them.
 - `DISCLOSURE_SCAN_INCOMPLETE` -- a bounded `RULES`/`LABEL`/
-  `OFFICIAL_OBSERVATION` scan hit its row cap; `disclosures` is `()` in this
-  case, never a truncated tuple.
+  `OFFICIAL_OBSERVATION` scan hit its row cap, or a Gamma payload exceeded
+  the payout-walk depth bound. `RULES`/`LABEL` truncation and excess Gamma
+  depth return `disclosures=()`; proxy scan truncation retains the complete
+  `RULES`/`LABEL` tuple but still carries this hold.
 - `INTRADAY_PROXY_INFORMATION_PRESENT` -- at least one `NOAA_AWC`
   `OFFICIAL_OBSERVATION` record exists for the event; count reported under
   `provenance['proxy_receipts_target_day_before_decision']`. This is a
@@ -245,3 +257,13 @@ from a provider other than `NOAA_AWC` not counted as a proxy receipt; and
 a `LABEL` whose `target_identity.market_id` is outside the rule's
 partition, excluded from disclosures. All tests are deterministic and pass
 under both `python -m pytest` and `python -O -m pytest`.
+
+The next synthetic repair cases cover an early Gamma payout beyond the
+bounded walk, including a receipt with a shallow payout before the deep
+branch; changed and missing preimages in both the decision window and
+after-capture `RULE_STATE` history; a digest-consistent partition bucket
+missing `market_id`; and provenance for a selected receipt whose
+fingerprint disagrees with the decision's rule. The depth cases require an
+incomplete-disclosure hold with no partial tuple. The malformed later state
+cases require the appropriate drift hold. The partition case requires a
+namespaced typed refusal.

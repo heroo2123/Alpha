@@ -161,6 +161,10 @@ _GAMMA_WRAPPERS = ("event", "market", "response")
 _GAMMA_MAX_DEPTH = 4
 
 
+class _GammaTraversalIncomplete(Exception):
+    """A receipt has descendants beyond the bounded payout walk."""
+
+
 def _gamma_market_candidates(value, depth: int = 0):
     """Bounded-depth, provider-agnostic walk of a Gamma RULES payload.
 
@@ -173,7 +177,7 @@ def _gamma_market_candidates(value, depth: int = 0):
     malformed nesting rather than scanning without limit.
     """
     if depth > _GAMMA_MAX_DEPTH:
-        return
+        raise _GammaTraversalIncomplete
     if isinstance(value, list):
         for item in value:
             yield from _gamma_market_candidates(item, depth + 1)
@@ -193,6 +197,7 @@ def _d3_discloses(row: dict, partition_by_id: dict) -> bool:
     payload = body.get("payload")
     if not isinstance(payload, dict):
         return False
+    disclosed = False
     for market in _gamma_market_candidates(payload):
         if not isinstance(market, dict):
             continue
@@ -204,8 +209,8 @@ def _d3_discloses(row: dict, partition_by_id: dict) -> bool:
         except Exception:
             continue
         if payout is not None:
-            return True
-    return False
+            disclosed = True
+    return disclosed
 
 
 def _disclosure_entry(row: dict, *, recorded_at: float | None = None) -> dict:
@@ -240,7 +245,12 @@ def _scan_disclosures(store, *, event_id: str, through_seq: int,
 
     disclosures = []
     for row in rules_rows:
-        if _d3_discloses(row, partition_by_id):
+        try:
+            disclosed = _d3_discloses(row, partition_by_id)
+        except _GammaTraversalIncomplete:
+            holds.append("DISCLOSURE_SCAN_INCOMPLETE")
+            return (), provenance, holds
+        if disclosed:
             disclosures.append(_disclosure_entry(row))
     for row in label_rows:
         payload = row["body"].get("payload")
@@ -347,6 +357,9 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
 
     partition = rule_payload.get("partition")
     _require(isinstance(partition, list) and len(partition) >= 2, "RULE_PARTITION_INVALID")
+    _require(all(isinstance(b, dict) and all(isinstance(b.get(k), str) and b[k]
+                 for k in ("market_id", "condition_id", "yes_token", "no_token"))
+                 for b in partition), "RULE_PARTITION_INVALID")
     partition_by_id = {b["market_id"]: b for b in partition}
     _require(len(partition_by_id) == len(partition), "RULE_PARTITION_INVALID")
 
@@ -406,7 +419,6 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     provenance.update({
         "no_token_provenance": "CAPTURE_EMBEDDED_RULE_COMMITMENT",
         "decision_seq_policy": "MIN_CHILD",
-        "rule_receipt_join": "FINGERPRINT_EQUALITY",
         "inference_cutoff": details.get("inference_cutoff"),
     })
 
@@ -419,16 +431,22 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     rule_receipt_row = before[-1] if before else None
     rule_receipt = None
     receipt_fingerprint = None
+
+    def rule_state_integrity(row: dict) -> bool:
+        details = row["body"].get("details")
+        return (isinstance(details, dict) and isinstance(details.get("preimage"), dict)
+                and isinstance(details.get("fingerprint"), str)
+                and digest(details["preimage"]) == details["fingerprint"])
+
     if rule_receipt_row is not None:
         rb, rd = rule_receipt_row["body"], rule_receipt_row["body"].get("details", {})
-        receipt_fingerprint = rd.get("fingerprint")
         # The receipt's own internal consistency: its declared preimage must
         # actually digest to its declared fingerprint. Without this, a
         # dishonest store could rewrite only `preimage` and this reader would
         # never notice -- the admissibility and drift checks below trust
         # `fingerprint` alone.
-        _require(isinstance(rd.get("preimage"), dict) and digest(rd["preimage"]) == receipt_fingerprint,
-                  "RULE_RECEIPT_PREIMAGE_INTEGRITY")
+        _require(rule_state_integrity(rule_receipt_row), "RULE_RECEIPT_PREIMAGE_INTEGRITY")
+        receipt_fingerprint = rd["fingerprint"]
         rule_receipt = {"event_id": rule_receipt_row["event_id"], "seq": rule_receipt_row["seq"],
                          "recorded_at": rb.get("recorded_at"), "fingerprint": receipt_fingerprint}
         admissible = (rd.get("version") == RULE_GUARD_VERSION and rd.get("quarantined") is False
@@ -441,24 +459,30 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
         # embedded `rule.sha256`.
         if receipt_fingerprint != rule.sha256:
             hold("RULE_RECEIPT_FINGERPRINT_MISMATCH")
+        provenance["rule_receipt_join"] = ("FINGERPRINT_EQUALITY" if receipt_fingerprint == rule.sha256
+                                           else "FINGERPRINT_MISMATCH")
         run_seq = rule_receipt_row["seq"]
         for candidate in reversed(before[:-1]):
             cd = candidate["body"].get("details", {})
-            if cd.get("quarantined") is False and cd.get("fingerprint") == receipt_fingerprint:
+            if (rule_state_integrity(candidate) and cd.get("quarantined") is False
+                    and cd.get("fingerprint") == receipt_fingerprint):
                 run_seq = candidate["seq"]
             else:
                 break
         provenance["first_matching_rule_state_seq"] = run_seq
     else:
         hold("RULE_STATE_NOT_ADMISSIBLE_AT_DECISION")
+        provenance["rule_receipt_join"] = "NO_RECEIPT"
 
     def drifted(row: dict) -> bool:
         # Measured against the decision's own committed fingerprint
         # (`rule.sha256`), not the (possibly wrong) selected receipt's own
         # fingerprint -- otherwise a receipt bound to the wrong rule would
         # make every genuinely-drifted row look consistent with it.
-        d = row["body"].get("details", {})
-        return d.get("quarantined") is True or d.get("fingerprint") != rule.sha256
+        if not rule_state_integrity(row):
+            return True
+        d = row["body"]["details"]
+        return d.get("quarantined") is True or d["fingerprint"] != rule.sha256
 
     window_rows = [r for r in rule_state_rows if min_seq <= r["seq"] <= capture_row["seq"]]
     after_rows = [r for r in rule_state_rows if r["seq"] > capture_row["seq"]]
