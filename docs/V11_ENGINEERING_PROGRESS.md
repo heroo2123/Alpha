@@ -1,3 +1,7 @@
+## 2026-10-08 04:09 UTC sparse-seed adjudication and parallel preparation
+
+Read-only high-depth adjudication completed at `/tmp/alpha-daily-shadow-sparse-seed-20261008.report.md`: future genesis must be contiguous and provenance-bound; active/prepared originals must be retained, and same-day protected review reuse is invalid without explicit generation/frontier supersession. Started one isolated offline future-day seed repair writer and one independent read-only protected review generation plan. No live archive, preparer, root/runtime, audit gate or financial state was changed.
+
 ## 2026-10-08 04:04 UTC live Oct 8 rollover audit diagnosis
 
 Read-only live checks confirmed automatic Oct 8 daily Shadow rollover and an `AUDIT_PINNED_SEQUENCE_MISSING` degradation with zero decisions. Oct 8 active and Oct 9 prepared SQLite ledgers start at sequence 3 and skip 5; the deployed preparer preserves those sparse baseline sequence numbers. Existing audit code refuses the gap correctly. Original ledgers and runtime remain untouched; isolated Astra/high read-only adjudication is underway for a safe repair/commissioning contract. No acceptance change.
