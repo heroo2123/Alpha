@@ -1,3 +1,23 @@
+## 2026-10-08 10:14 UTC R89-1 scoped-hold repair sealed; independent Codex review launched
+
+Intook the independent Claude Sonnet-5-high exact review of real-input-capture candidate
+`1777335` (verdict `CHANGES_REQUIRED`, high-severity `R89-1` CONFIRMED: a single transport
+failure on any one of ~24 sources set a plan-wide, never-expiring `PROVIDER_HELD` latch under
+one global event id, blocking every later command — including fully healthy ones — forever).
+Authored a sole-writer repair `2c56551` in the original clean `alpha-r89-real-evidence-wiring-20261008`
+worktree: the hold now records `held_providers` and only latches shut when `NOAA_MADIS_CWOP`
+(the rights-ambiguous provider) is among them; `STARTED` crash-ambiguity and the MADIS
+no-auto-clear latch are unchanged, preserving the reviewer's explicit instruction not to weaken
+rights-sensitive protection. `R89-2` (MADIS entitlement) is untouched and remains UNKNOWN. Focused
+tests passed 21/21 (18 prior + 3 new) and the wide PWS/book family passed 104/104 (101 prior + 3
+new) in normal and optimized Python. Launched a separate frozen Codex Astra/high exact review of
+this exact commit/tree in `/tmp/alpha-r89-rights-scope-review-2c56551`; no verdict yet, no
+integration, no PAPER credit. The guarded release-suite retest continues past 65% with no verdict;
+the sole offline coordinator-accounting R4 writer continues; the guardian SIGSTOP test-race
+review remains queued, unlaunched. No provider, runtime/root/V10, financial or acceptance
+transition. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 09:14 UTC guardian test race repair sealed; independent review queued
 
 The release-family failure in `test_stopped_or_dead_guardian_closes_broker_lease` is attributable to an immediate assertion after asynchronous `SIGSTOP`; the adjacent guardian sibling test already waits for a kernel stop event. A one-file, test-only isolated candidate `d5ff0c3` / tree `f76b530` now waits for this child via bounded `waitpid(WUNTRACED|WNOHANG)` before asserting admission fails, with explicit checks active under optimized Python. Production lease logic, TTL, and safety gates are unchanged. The initial broker/guardian families passed 90/90 in each Python mode, and the final explicit-check targeted test passed five repeated runs per mode. A clean frozen Claude Sonnet/high exact-review checkout and unlaunched runner are prepared at `/tmp/alpha-guardian-sigstop-test-review-d5ff0c3`; respect Claude's recorded 09:50 UTC session cooldown. No independent verdict or integration exists yet. Automatic approval review rejected an additional Codex read-only diagnostic worker, citing unmet Codex-reset authorization; no such worker launched. Manual local diagnosis and the isolated test candidate proceeded without that worker.

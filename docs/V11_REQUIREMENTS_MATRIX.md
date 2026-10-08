@@ -1,3 +1,15 @@
+## 2026-10-08 10:14 UTC R89-1 scoped-hold repair carries no release credit
+
+Isolated real-input-capture repair `2c56551` (sole writer in `alpha-r89-real-evidence-wiring-20261008`)
+closes the reviewer-confirmed `R89-1` global-hold defect and has 21/21 focused plus 104/104 wide
+PWS/book-family author tests in both Python modes. It is not integrated and does not supply PAPER
+R08/R09 acceptance, selected-window identities, G3-L qualification, or a release-suite PASS. A
+separate Codex Astra/high exact review of this exact commit is live and unresolved. `R89-2`
+(MADIS entitlement) remains UNKNOWN and unaddressed. The guarded release retest remains live. No
+selected-window identities, provider-rights release, PAPER real reservation/PWS, Brain
+qualification, READY_TO_FUND or C/J/E/A boundary changed. Gate-3 **91/200 (formal 1/50)**, 77
+missing, G3-L **NO-GO**; PAPER **9/11**, **READY_TO_FUND=false**.
+
 ## 2026-10-08 09:14 UTC guardian test candidate carries no release credit
 
 Isolated test-only guardian SIGSTOP synchronization candidate `d5ff0c3` has author tests and a queued, unlaunched independent review after the recorded Claude cooldown. It is not integrated and does not supply a full release-suite PASS. The guarded release retest remains live. No selected-window identities, provider-rights release, PAPER real reservation/PWS, Brain qualification, READY_TO_FUND or C/J/E/A boundary changed. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**, **READY_TO_FUND=false**.

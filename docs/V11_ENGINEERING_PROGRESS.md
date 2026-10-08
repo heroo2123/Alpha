@@ -1,3 +1,25 @@
+## 2026-10-08 10:14 UTC PAPER R89-1 global-hold defect repaired; independent review launched
+
+Intook the independent Claude Sonnet-5-high exact review of `1777335` (`CHANGES_REQUIRED`;
+`R89-1` high/CONFIRMED: one failing source among ~24 set a never-expiring, plan-wide
+`PROVIDER_HELD` latch blocking every later command forever, reproduced with a +10000s clock
+advance and zero network calls on retry; `R89-2` MADIS entitlement UNKNOWN/blocking
+precondition, not a code defect; `R89-3` low/CONFIRMED corollary). Authored sole-writer repair
+`2c56551` in the original clean worktree: `_step` now records which providers actually failed
+(`held_providers`) and only treats `PROVIDER_HELD` as a no-retry latch when `NOAA_MADIS_CWOP` is
+among them; `STARTED` crash-ambiguity and the MADIS latch itself are unchanged, per the
+reviewer's explicit instruction not to weaken rights-sensitive protection. `R89-2` was left
+untouched. New tests reproduce the reviewer's own adversarial scenarios against the fix: an
+unrelated book-leg failure no longer blocks a later healthy cycle (even near the review-window
+ceiling), while a MADIS 429 still blocks indefinitely. Focused 21/21, wide family 104/104, both
+Python modes. Created a frozen detached worktree and launched an independent Codex Astra/high
+exact review of commit `2c56551` at `/tmp/alpha-r89-rights-scope-review-2c56551`; no verdict yet.
+The guarded full release suite continues past 65% with no verdict; the sole offline
+coordinator-accounting R4 writer continues; the guardian SIGSTOP test-race review remains sealed
+and unlaunched (lower priority than this FIRST-PRIORITY PAPER repair). Three specialist lanes
+now occupy the safe target. No release, provider, runtime/root/V10, financial or acceptance
+transition; Gate-3 91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 09:14 UTC isolated guardian test race repair awaits independent review
 
 Mapped the observed immediate-SIGSTOP broker lease test failure to asynchronous Linux signal delivery; existing production `process_identity` already rejects stopped states, and an adjacent sibling guardian test waits for the kernel event. Sealed one-file test-only `d5ff0c3` in an isolated worktree, with 90 broker/guardian family passes per Python mode before a final assertion-strengthening edit and five targeted final-byte repeats per mode. Prepared a frozen, clean Claude Sonnet exact-review checkout and unlaunched terminal-marked runner for after the recorded 09:50 UTC cooldown. Auto-review rejected an additional Codex diagnostic worker over the Codex reset condition; none was launched. The guarded full release suite and sole offline coordinator R4 writer continue. No release, provider, runtime/root/V10, financial or acceptance transition; Gate-3 91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
