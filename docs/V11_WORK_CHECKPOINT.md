@@ -1,3 +1,37 @@
+## 2026-10-08 16:28 UTC R08 contract-repair test suite finished and independently re-verified by this session; second-round independent Opus review launched before any merge
+
+The scoped Sonnet finish lane launched this cycle landed commit `0e13fa6` in
+`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008` (parent `fa8b5ef`). Did not
+take its handback report on faith: independently confirmed `git diff fa8b5ef..0e13fa6` touches only
+`polymarket_scanner/v11/paper_execution_health_promotion.py` (145/-41 lines) and
+`tests/test_v11_paper_execution_health_promotion.py` (new test file content), and that the module-file
+diff is byte-identical (same insertion/deletion counts) to the pre-existing uncommitted F1-F6 repair
+this session had already read earlier this cycle -- confirming the lane's claim of "no further code
+changes, only tests" rather than trusting it. Independently re-ran
+`pytest tests/test_v11_paper_execution_health_promotion.py tests/test_v11_paper_risk_observation.py -q`
+myself: **75 passed, 0 failed** (54 + 21), matching the lane's reported count exactly. Read the two
+safety-critical new tests directly --
+`test_fabricated_row_with_a_real_frontier_tip_is_rejected_not_promoted` and
+`test_tampered_diagnostic_numbers_in_an_otherwise_genuine_observation_is_rejected` -- and traced the
+logic myself: the first anchors a hand-fabricated row to one real archive row's genuine sha256 (so
+the F1 lineage scan finds a tip) but the minimal fixture has no real `RULE_STATE`/`COORDINATOR_EVENT`
+lineage behind it, so the real `observe()` replay must disagree and the row is correctly rejected
+`EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH`, not `PROMOTED` -- this is a direct, working regression
+test for the original HIGH forgery hole, not a cosmetic rename.
+
+Not merged. Per this project's own standing rule for any R08 contract candidate, launched a second,
+more adversarial independent Claude Opus/high review in a fresh git worktree
+(`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-opus-review-0e13fa6-20261008`, detached HEAD
+pinned to `0e13fa6`, never shared with the finish lane's own worktree) rather than trusting this
+session's own non-adversarial read as sufficient -- explicitly tasked with writing real probe code
+against specific forgery/truncation/collision scenarios this session named, not a rubber-stamp. Not
+yet returned as of this entry.
+
+No selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes -- this is still an unmerged, unreviewed-by-independent-
+adversary candidate. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L
+**NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 16:05 UTC THIRD-priority INVENTORYTRANSFORM already materially advanced (verified, not launched by this cycle); FIRST-priority R08 contract repair resumed and handed to a scoped Sonnet finish lane
 
 Read actual host state before acting, not any prior claim: `tmux list-sessions` showed only the
