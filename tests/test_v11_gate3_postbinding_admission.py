@@ -87,7 +87,7 @@ def _project(byte_result, terminal_result, audit_result, inventory, object_root)
     hold = {"status": "HOLD", "qualification_credit": 0, "launchable": False}
     if byte_result != {
         "source_commit": binding.SOURCE_COMMIT, "source_tree": binding.SOURCE_TREE,
-        "verified_files": 92, "launchable": False, "qualification_credit": 0,
+        "verified_files": 93, "launchable": False, "qualification_credit": 0,
     }:
         return {**hold, "reason": "binding result refused"}
     if (type(terminal_result) is not dict or set(terminal_result) !=
@@ -102,8 +102,8 @@ def _project(byte_result, terminal_result, audit_result, inventory, object_root)
         audit_result["qualification_credit"] != 0 or
         audit_result.get("g3l") != "NO-GO" or
         audit_result.get("category_counts") != {
-            audit_module.RETAINED_SCOPED: 6, audit_module.OFFLINE: 1,
-            audit_module.FUTURE: 70, audit_module.INVALID: 0,
+            audit_module.RETAINED_SCOPED: 5, audit_module.OFFLINE: 1,
+            audit_module.FUTURE: 71, audit_module.INVALID: 0,
         } or audit_result.get("final_only_unassembled") != list(prep.FINAL_ONLY_IDS) or
         type(audit_result.get("identities")) is not dict or
         set(audit_result["identities"]) != set(prep.PRE_REVIEW_IDS) or

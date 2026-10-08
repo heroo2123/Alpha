@@ -24,8 +24,8 @@ def test_retained_evidence_counts_and_current_runtime_drift():
     assert result["screen"]["missing_after"] == 77
     assert result["screen"]["other_findings"] == []
     assert result["category_counts"] == {
-        subject.RETAINED_SCOPED: 6, subject.OFFLINE: 1,
-        subject.FUTURE: 70, subject.INVALID: 0,
+        subject.RETAINED_SCOPED: 5, subject.OFFLINE: 1,
+        subject.FUTURE: 71, subject.INVALID: 0,
     }
     assert len(result["identities"]) == 77
     assert all(row["qualified_entry"] is None for row in result["identities"].values())
@@ -33,9 +33,11 @@ def test_retained_evidence_counts_and_current_runtime_drift():
                if not ref["current_matches_reviewed_bytes"]]
     assert changed == [
         "tools/v11_r09_gate3_collector.py",
+        "tools/v11_r09_gate3_launch_v4.py",
         "tools/v11_r09_gate3_ledgers.py",
         "tools/v11_r09_gate3_runtime.py",
     ]
+    assert result["identities"]["code.mapping_exact_commit_review"]["category"] == subject.FUTURE
     assert result["identities"][subject.SLICE3_ID]["category"] == subject.FUTURE
     original = result["identities"][subject.ORIGINAL_ID]
     assert original["category"] == subject.OFFLINE
@@ -105,7 +107,26 @@ def test_launch_validator_drift_downgrades_mapping_row_without_hardcoding(monkey
     # never lists tools/v11_r09_gate3_launch_v4.py -- only its review report
     # and terminal. Before the fix, drift in that validator file was invisible
     # to this row. The independent review's probe confirmed this exact gap.
-    _drift_live_bytes(monkeypatch, "tools/v11_r09_gate3_launch_v4.py")
+    # The current validator already differs from that historical review. First
+    # model the reviewed bytes, then flip one live digest to make the downgrade
+    # a discriminating control on this repinned candidate.
+    path = "tools/v11_r09_gate3_launch_v4.py"
+    reviewed = subject._git_bytes(REPO, subject.MAPPING_COMMIT, path)
+    actual = subject._repo_ref
+    drift = False
+
+    def observed(repo, rel_path, commit=None):
+        result = actual(repo, rel_path, commit)
+        if commit is None and rel_path == path:
+            result = dict(result)
+            result["sha256"] = "1" * 64 if drift else hashlib.sha256(reviewed).hexdigest()
+            result["byte_length"] = len(reviewed)
+        return result
+
+    monkeypatch.setattr(subject, "_repo_ref", observed)
+    baseline = subject.audit(REPO, **ARGS)
+    assert baseline["identities"]["code.mapping_exact_commit_review"]["category"] == subject.RETAINED_SCOPED
+    drift = True
     result = subject.audit(REPO, **ARGS)
     row = result["identities"]["code.mapping_exact_commit_review"]
     assert row["category"] == subject.FUTURE
@@ -372,13 +393,14 @@ def test_artifact_rebound_to_newer_commit_does_not_mask_observation_drift(monkey
         subject.audit(REPO, **ARGS)
 
 
-def test_valid_unchanged_observations_retain_mapping_row():
+def test_valid_historical_observation_keeps_current_mapping_row_future():
     source = json.loads((REPO / subject.RECONCILIATION).read_bytes())
     validator_commit = source["code_byte_observations"]["launch_validator"]["commit_oid"]
     result = subject.audit(REPO, **ARGS)
     row = result["identities"]["code.mapping_exact_commit_review"]
-    assert row["category"] == subject.RETAINED_SCOPED
+    assert row["category"] == subject.FUTURE
     validator_ref = next(ref for ref in row["source_refs"]
                           if ref["path"] == "tools/v11_r09_gate3_launch_v4.py")
     assert validator_ref["git_commit"] == validator_commit
-    assert validator_ref["current_matches_reviewed_bytes"] is True
+    assert validator_ref["historical_git_bytes_verified"] is True
+    assert validator_ref["current_matches_reviewed_bytes"] is False
