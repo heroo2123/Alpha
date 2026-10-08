@@ -1,11 +1,18 @@
 """Bounded archived market/model inputs for the nonfinancial event-risk engine.
 
-Settlement timing remains UNKNOWN (no settlement-finality provider is
-authorized). Own-execution adverse fills/markout stay UNKNOWN unless the caller
-explicitly configures an `ObservationPolicy`, in which case they are taken only
-from a `PROMOTED` result of `observe_and_promote_execution_health` over this
-store's genuine PAPER archive -- any other status leaves them UNKNOWN. A point REST
-book never proves websocket continuity. This is a data adapter, not a reviewed
+Settlement timing (`time_to_settlement_seconds`) stays UNKNOWN unless the
+caller explicitly configures a `SettlementWindowPolicy`, in which case it is
+taken only from a `DERIVED` result of `settlement_window.
+derive_time_to_observation_close` over this event's reviewed, bound
+`RuleFingerprint` -- any other status leaves it UNKNOWN. That derived number
+is a conservative upper bound on remaining tradeable-information time (the
+local target date's observation-window close), never settlement/resolution
+finality; no settlement-finality provider is authorized here. Own-execution
+adverse fills/markout stay UNKNOWN unless the caller explicitly configures an
+`ObservationPolicy`, in which case they are taken only from a `PROMOTED`
+result of `observe_and_promote_execution_health` over this store's genuine
+PAPER archive -- any other status leaves them UNKNOWN. A point REST book
+never proves websocket continuity. This is a data adapter, not a reviewed
 first-canary execution baseline, calibration, or independently running guardian.
 """
 from dataclasses import asdict, dataclass
@@ -28,6 +35,7 @@ from .probability import FINAL_EXTREME, UNRESOLVED_EXTREME
 from .request_assembly import RequestAssembler, TargetPlan, _single
 from .runtime_health import KEY as HEALTH_KEY, admission_heads
 from .scenario_risk import number
+from .settlement_window import SettlementWindowPolicy, derive_time_to_observation_close
 from .strategy_pipeline import _model_inputs, _condition
 
 
@@ -51,15 +59,17 @@ class RiskInputPolicy:
 
 
 class EventRiskInputs:
-    def __init__(self, assembler, coordinator, policy, execution_health_policy=None):
+    def __init__(self, assembler, coordinator, policy, execution_health_policy=None, settlement_window_policy=None):
         if (not isinstance(assembler,RequestAssembler) or not isinstance(policy,RiskInputPolicy)
                 or (execution_health_policy is not None and type(execution_health_policy) is not ObservationPolicy)
+                or (settlement_window_policy is not None and type(settlement_window_policy) is not SettlementWindowPolicy)
                 or assembler.store is not coordinator.store
                 or assembler.inputs.context.account_id != coordinator.policy.account_id
                 or policy.microstructure.collateral_asset != assembler.valuation_policy.collateral_asset):
             raise EvidenceError('RISK_INPUT_COMPONENT_SCOPE')
         self.assembler, self.coordinator, self.store, self.policy = assembler, coordinator, assembler.store, policy
         self.execution_health_policy = execution_health_policy
+        self.settlement_window_policy = settlement_window_policy
         self.targets = tuple(TargetPlan(b['market_id'],side,'1','1',())
             for b in assembler.inputs.rule.payload['partition'] for side in ('YES','NO'))
         if len(self.targets) > policy.maximum_tokens: raise EvidenceError('RISK_INPUT_WHOLE_EVENT_TOKEN_BOUND')
@@ -71,6 +81,8 @@ class EventRiskInputs:
         # Only present when configured, so every existing configuration digest is unchanged.
         if self.execution_health_policy is not None:
             result['execution_health_policy'] = asdict(self.execution_health_policy)
+        if self.settlement_window_policy is not None:
+            result['settlement_window_policy'] = asdict(self.settlement_window_policy)
         return result
 
     def _execution_health(self, event):
@@ -88,6 +100,18 @@ class EventRiskInputs:
         if promotion.status != 'PROMOTED' or record_id is None:
             return None, None, None, summary
         return promotion.adverse_fills, promotion.recent_markout_per_share, record_id, summary
+
+    def _settlement_window(self, event):
+        """(seconds, evidence_ids, summary); seconds only when DERIVED."""
+        if self.settlement_window_policy is None:
+            return None, (), dict(status='UNKNOWN', reason='SETTLEMENT_WINDOW_POLICY_NOT_CONFIGURED', basis=None)
+        result = derive_time_to_observation_close(self.store, event_id=event,
+            rule_fingerprint=self.assembler.inputs.rule.sha256, at=finite(self.store.clock()),
+            policy=self.settlement_window_policy)
+        summary = dict(status=result.status, reason=result.reason, basis=result.basis)
+        if result.status != 'DERIVED':
+            return None, result.evidence_ids, summary
+        return result.seconds, result.evidence_ids, summary
 
     def _model(self, claim):
         a = self.assembler; pin, leases = a.pin(claim); now = finite(self.store.clock())
@@ -218,8 +242,11 @@ class EventRiskInputs:
             revision |= row['kind'] in {'MODEL','OFFICIAL_OBSERVATION'} and right==left and prior['body']['payload']!=b['payload']
         adverse_fills, markout, health_record, execution_health = self._execution_health(event)
         if health_record is not None: refs.append(health_record)
+        settlement_seconds, settlement_evidence_ids, settlement_window = self._settlement_window(event)
+        refs.extend(settlement_evidence_ids)
         metrics = EventMetrics(now,dispersion,model_age,velocity,spread,depth_loss,motion,utilization,
-            None,adverse_fills,markout,sources_ok,sequence,clock,new_model_run=new_model,routine_observation=routine,source_revision=revision)
+            settlement_seconds,adverse_fills,markout,sources_ok,sequence,clock,
+            new_model_run=new_model,routine_observation=routine,source_revision=revision)
         # Save a coherent source/account cut before publishing a state. Existing
         # queue completion and common-account CAS still reject subsequent races.
         measured = self.store.audit(key,event_id=event,kind='MEASUREMENT',details=dict(
@@ -229,8 +256,10 @@ class EventRiskInputs:
                 price_velocity='ABSOLUTE_PROBABILITY_PRICE_PER_SECOND',spread='PROBABILITY_PRICE',
                 depth_loss='FRACTION_OF_PREVIOUS_VISIBLE_DEPTH',cross_bucket_motion='MAXIMUM_ABSOLUTE_BUCKET_PRICE_CHANGE',
                 loss_utilization='COMMON_ACCOUNT_DAILY_LOSS_PLUS_OPEN_DOWNSIDE_OVER_FIXED_LIMIT'),
-            unknown_inputs=['SETTLEMENT_TIMING']+(['OWN_EXECUTION_ADVERSE_FILLS','OWN_EXECUTION_MARKOUT'] if adverse_fills is None else []),
+            unknown_inputs=(['SETTLEMENT_TIMING'] if settlement_seconds is None else [])
+                +(['OWN_EXECUTION_ADVERSE_FILLS','OWN_EXECUTION_MARKOUT'] if adverse_fills is None else []),
             **({} if self.execution_health_policy is None else dict(execution_health=execution_health)),
+            **({} if self.settlement_window_policy is None else dict(settlement_window=settlement_window)),
             declared_sequence_is_not_transport_commissioning=True,calibration_status='NOT_ATTESTED',
             settlement_finality=False,financial_authority=False),evidence_ids=tuple(dict.fromkeys(refs)),expected_heads=tuple(heads))
         state = EventRiskEngine(self.store).step(key+':state',context=a.inputs.context,policy=self.policy.event,binding=a.inputs.binding,
