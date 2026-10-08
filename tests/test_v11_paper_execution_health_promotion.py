@@ -11,7 +11,7 @@ built with the same `rig`/`sequenced_fill`/`sample`/`policy` fixtures
 `test_v11_paper_risk_observation.py` already uses for exactly this purpose.
 """
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, fields
 
 import pytest
 
@@ -22,7 +22,9 @@ from polymarket_scanner.v11.paper_execution_health_promotion import (
     SETTLEMENT_FINALITY_VERSION, SettlementFinalityObservation,
     promote_execution_health, promote_settlement_timing,
 )
-from polymarket_scanner.v11.paper_risk_observation import VERSION as OBSERVATION_VERSION, observe
+from polymarket_scanner.v11.paper_risk_observation import (
+    ObservationPolicy, VERSION as OBSERVATION_VERSION, observe,
+)
 
 # Reused, not reinvented: this is the same genuine-archive fixture machinery
 # `test_v11_paper_risk_observation.py` already uses to build a real pinned
@@ -334,8 +336,177 @@ def test_observed_at_cannot_self_extend_past_the_rows_own_real_append_time(baske
     promoted = promote_execution_health(store, 'future-obs', account_id='account', event_id=claimed['event_id'],
                                         rule_fingerprint=basket_rig['rule'].sha256,
                                         collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
-    assert promoted.status == 'UNKNOWN', promoted
+    # R3-L3: tightened from a bare status=='UNKNOWN' check. The self-declared
+    # `observed_at` (future_at) is greater than the row's own real
+    # `recorded_at` (stamped at `ex_a + 2.`, before `now` was advanced to
+    # future_at), so the `tip_recorded_at <= observed_at <= row_recorded_at`
+    # binding check in `_replay_observation` fails and the row's lineage can
+    # never be replayed at all -- never reaching, e.g., a REPLAY_MISMATCH.
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_LINEAGE_UNKNOWN', promoted
     assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
+
+
+# -- R3-M1 regression: the store's real history moving AFTER a row's own --
+# -- genuine insertion point must also prevent a stale PROMOTED claim ------
+
+def test_fresh_head_drift_from_a_later_adverse_fill_prevents_a_stale_promoted_claim(basket_rig, monkeypatch):
+    """R3-M1 (MEDIUM), the P4 case the round-4 reviewer reproduced: a
+    MEASUREMENT row honestly recorded right after a FAVOURABLE fill (leg 0),
+    but before a later ADVERSE fill (leg 1) lands, is a 100% genuine replay
+    of history up to its own insertion point -- `_replay_observation` alone
+    would still match it exactly. `_verify_fresh_head` closes the gap: it
+    independently re-observes the complete real archive through the store's
+    real CURRENT tip (which now includes leg 1's later adverse fill) and
+    refuses the row's now-stale claim (0 adverse, favourable markout) rather
+    than return a stale `PROMOTED`.
+    """
+    _sequenced_books(monkeypatch)
+    reserve(basket_rig)
+    store = basket_rig['store']
+    ex_a = _fill(basket_rig, 0, 'fill-a')
+    basket_rig['now'][0] = ex_a + 2.
+    _horizon(basket_rig, 'horizon-a', 0, ex_a, bid='.5', ask='.6')
+
+    # The honest claim: genuinely observe()'d right after fill A, before
+    # fill B exists anywhere in the store -- never cherry-picked.
+    honest = sample(basket_rig)
+    assert honest['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', honest['reason']
+    assert honest['diagnostic_adverse_fill_count'] == 0, 'fixture no longer starts favourable-only'
+    store.audit('honest-obs', event_id=honest['event_id'], kind='MEASUREMENT', details=honest,
+               evidence_ids=tuple(dict.fromkeys(honest['evidence_ids'])))
+
+    # Fill B lands for real afterwards, marking out adversely.
+    ex_b = _fill(basket_rig, 1, 'fill-b')
+    basket_rig['now'][0] = ex_b + 2.
+    _horizon(basket_rig, 'horizon-b', 1, ex_b, bid='.1', ask='.2')
+
+    truth = sample(basket_rig)
+    assert truth['diagnostic_adverse_fill_count'] >= 1, 'fixture no longer lands a real later adverse fill'
+
+    promoted = promote_execution_health(store, 'honest-obs', account_id='account', event_id=honest['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_HEAD_DRIFT', promoted
+    assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
+
+
+def test_fresh_head_drift_from_a_later_unhealthy_stream_prevents_a_stale_promoted_claim(basket_rig, monkeypatch):
+    """R3-M1 (MEDIUM), the P5 case: the same stream later reports itself
+    `stream_healthy: false` AFTER a row's genuine, honest insertion point.
+    `_verify_fresh_head`'s re-observe over the real current tip must hit
+    `_touch`'s health refusal and force `UNKNOWN`, never let the row's
+    earlier-healthy claim stand as `PROMOTED`.
+    """
+    _sequenced_books(monkeypatch)
+    reserve(basket_rig)
+    store = basket_rig['store']
+    ex_a = _fill(basket_rig, 0, 'fill-a')
+    basket_rig['now'][0] = ex_a + 2.
+    _horizon(basket_rig, 'horizon-a', 0, ex_a, bid='.1', ask='.2')
+
+    honest = sample(basket_rig)
+    assert honest['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', honest['reason']
+    store.audit('honest-obs', event_id=honest['event_id'], kind='MEASUREMENT', details=honest,
+               evidence_ids=tuple(dict.fromkeys(honest['evidence_ids'])))
+
+    basket_rig['now'][0] += 1.
+    _horizon(basket_rig, 'unhealthy', 0, ex_a + 1., bid='.1', ask='.2', sequence=3, previous=2, healthy=False)
+
+    truth = sample(basket_rig)
+    assert truth['execution_status'] == 'UNKNOWN', 'fixture no longer lands a real later unhealthy stream'
+
+    promoted = promote_execution_health(store, 'honest-obs', account_id='account', event_id=honest['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_HEAD_DRIFT', promoted
+    assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
+
+
+def test_nothing_new_since_a_genuine_insertion_point_still_promotes(basket_rig, monkeypatch):
+    """Companion to the two drift tests above: when the store's real current
+    head IS still the row's own insertion point (nothing happened since),
+    `_verify_fresh_head` must be a no-op and the genuine claim must still
+    promote -- the new R3-M1 check must never demote a claim that has
+    nothing to drift against.
+    """
+    sequenced_fill(basket_rig, monkeypatch)
+    result = sample(basket_rig)
+    assert result['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', result['reason']
+    store = basket_rig['store']
+    store.audit('still-fresh-obs', event_id=result['event_id'], kind='MEASUREMENT', details=result,
+               evidence_ids=tuple(result['evidence_ids']))
+    promoted = promote_execution_health(store, 'still-fresh-obs', account_id='account', event_id=result['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'PROMOTED', promoted
+
+
+# -- R3-L1 regression: the scan-bound completeness guard must actually be ---
+# -- exercised, not merely present and untested -----------------------------
+
+def test_scan_bound_truncation_before_reaching_the_real_predecessor_stays_unknown(rig):
+    """R3-L1: `_page_prefix`'s `collected[-1]['seq'] != through_seq` guard
+    had no dedicated test -- removing it left every existing test green.
+    Force a real truncation: two real rows exist before 'obs' (seq 1, 2),
+    so replaying through `row['seq'] - 1 == 2` needs both, but a caller
+    `ObservationPolicy` with `complete_history_scan_bound=1` can only ever
+    collect the first. Without the guard this would silently treat that
+    single-row truncated scan as a complete prefix; with it, the row's
+    claim stays `UNKNOWN`, never a truncated-but-matching `PROMOTED`.
+    """
+    store, now = rig
+    store.capture('anchor2', event_id=EVENT_ID, kind='BOOK', provider='clob', source_identity='token2',
+                  revision='1', observed_at=now[0], evidence_class='SYNTHETIC', payload={'stream_healthy': True})
+    real_tip = store.get('anchor2')['sha256']
+    small_policy = observation_policy(complete_history_scan_bound=1)
+    record(store, 'obs', details(frontier_tip_sha256=real_tip, observed_at=now[0],
+                                 policy_sha256=small_policy.policy_sha256,
+                                 policy_config_sha256=digest(asdict(small_policy))))
+    result = promote_execution_health(store, 'obs', account_id=ACCOUNT_ID, event_id=EVENT_ID,
+                                      rule_fingerprint=RULE_FINGERPRINT, collateral_asset=COLLATERAL_ASSET,
+                                      policy=small_policy)
+    assert result.status == 'UNKNOWN' and result.reason == 'EXECUTION_HEALTH_OBSERVATION_LINEAGE_UNKNOWN', result
+    assert result.adverse_fills is None and result.recent_markout_per_share is None
+
+
+# -- R3-L2 regression: direct coverage for the R2-L3/R2-L4 fixes ------------
+
+def test_policy_subclass_is_rejected_not_merely_hash_matched(rig):
+    """R2-L3 direct coverage: `type(policy) is not ObservationPolicy` must
+    reject an exact subclass instance too, even one built from identical
+    field values (so its `policy_sha256`/`asdict()` digest are identical to
+    the real `ObservationPolicy` the row's claim is pinned to) -- only an
+    exact-type match keeps the policy binding meaningful against a subclass
+    that could otherwise override behaviour while still hashing the same.
+    """
+    store, now = rig
+
+    class SubclassPolicy(ObservationPolicy):
+        pass
+
+    values = {f.name: getattr(POLICY, f.name) for f in fields(POLICY)}
+    sub = SubclassPolicy(**values)
+    assert asdict(sub) == asdict(POLICY) and sub.policy_sha256 == POLICY.policy_sha256
+    with pytest.raises(EvidenceError) as excinfo:
+        promote_execution_health(store, 'does-not-exist', account_id=ACCOUNT_ID, event_id=EVENT_ID,
+                                 rule_fingerprint=RULE_FINGERPRINT, collateral_asset=COLLATERAL_ASSET,
+                                 policy=sub)
+    assert str(excinfo.value) == 'EXECUTION_HEALTH_POLICY_REQUIRED'
+
+
+def test_absurdly_large_integer_age_bound_is_rejected_not_an_uncaught_overflowerror(rig):
+    """R2-L4 direct coverage: a Python int far too large to convert to float
+    (e.g. `10**400`) makes `math.isfinite` raise `OverflowError` rather than
+    return `False`. This must still fail through the module's own typed
+    `EvidenceError`, never propagate an uncaught `OverflowError` to the
+    caller.
+    """
+    store, now = rig
+    with pytest.raises(EvidenceError) as excinfo:
+        promote_execution_health(store, 'does-not-exist', account_id=ACCOUNT_ID, event_id=EVENT_ID,
+                                 rule_fingerprint=RULE_FINGERPRINT, collateral_asset=COLLATERAL_ASSET,
+                                 policy=POLICY, maximum_observation_age_seconds=10 ** 400)
+    assert str(excinfo.value) == 'EXECUTION_HEALTH_AGE_BOUND_INVALID'
 
 
 def test_missing_record_is_unknown(rig):

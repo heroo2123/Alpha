@@ -43,6 +43,23 @@ rejects any row whose stored body does not hash-match its own digest; this
 module's lineage re-derivation is in addition to that, never a substitute
 for it.
 
+That lineage re-derivation (`_replay_observation`) only ever proves the
+row's claim was genuine AS OF its own insertion point (`row['seq'] - 1`): it
+says nothing about anything disqualifying that happened in the store's real
+history SINCE. A row honestly recorded right after a favourable fill but
+before a later adverse fill (or a later `stream_healthy: false` update)
+lands would still pass that check -- and used to be PROMOTED with a stale,
+now-wrong number (R3-M1). `_verify_fresh_head` closes that second gap: once
+the lineage replay matches, it independently re-runs `observe()` a SECOND
+time over the complete real archive through the store's REAL current tip
+(not the row's own insertion point), at the real current time, and requires
+that fresh result's diagnostic subset (`execution_status`, `reason`,
+`fill_count`, `diagnostic_adverse_fill_count`,
+`diagnostic_markout_collateral_per_share`) to still equal the row's claim.
+Any drift -- a newly-landed adverse fill, a newly-unhealthy stream, anything
+that changes the honest answer -- keeps the result `UNKNOWN`, never a stale
+`PROMOTED`.
+
 Settlement finality (`time_to_settlement_seconds`) is a *different* and, as
 of this patch, entirely unauthorized concern. It is never the same thing as
 the event-risk engine's existing "new-risk research cutoff"
@@ -150,8 +167,9 @@ def promote_execution_health(store, record_id, *, account_id, event_id, rule_fin
     store's own archive history (see module docstring). Returns an
     `ExecutionHealthPromotion`; every failure mode -- missing, wrong kind,
     cross-scope, stale, future-dated, malformed, a lineage that cannot be
-    found or replayed to an exact match, or simply no genuine recent fills --
-    returns `UNKNOWN`, never a guessed number.
+    found or replayed to an exact match, the real store history having since
+    moved against the claim (R3-M1; see `_verify_fresh_head`), or simply no
+    genuine recent fills -- returns `UNKNOWN`, never a guessed number.
     """
     identity(account_id); identity(event_id); identity(collateral_asset); sha(rule_fingerprint)
     # R2-L3: exact type, not isinstance -- a subclass overriding reason()
@@ -286,6 +304,14 @@ def promote_execution_health(store, record_id, *, account_id, event_id, rule_fin
             return _unknown('EXECUTION_HEALTH_OBSERVATION_LINEAGE_UNKNOWN')
         if recomputed != details:
             return _unknown('EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH')
+        # R3-M1: the replay above only proves the claim was genuine as of the
+        # row's own insertion point. Independently check whether the store's
+        # real history has moved against it since.
+        drift_reason = _verify_fresh_head(store, row, details, policy=policy, account_id=account_id,
+                                          event_id=event_id, rule_fingerprint=rule_fingerprint,
+                                          collateral_asset=collateral_asset, now=now)
+        if drift_reason is not None:
+            return _unknown(drift_reason)
         return ExecutionHealthPromotion(adverse_fills, recent_markout_per_share, 'PROMOTED', None,
                                         tuple(refs))
     except EvidenceError as exc:
@@ -332,12 +358,41 @@ def _replay_observation(store, row, details, *, policy, account_id, event_id, ru
     scan_bound = policy.complete_history_scan_bound
     if type(scan_bound) is not int or not 1 <= scan_bound <= MAX_ROWS:
         return None
-    tip_target = details.get('frontier_tip_sha256')
     through_seq = row['seq'] - 1
+    collected = _page_prefix(store, through_seq, scan_bound)
+    if collected is None:
+        return None
+    # The claimed tip must genuinely exist somewhere in real history (R3-L1:
+    # `_page_prefix` already refuses a prefix truncated early by a
+    # scan-bound/byte-bound cutoff, so a non-`None` `collected` here is
+    # always complete through `through_seq`).
+    tip_target = details.get('frontier_tip_sha256')
+    if not any(item['sha256'] == tip_target for item in collected):
+        return None
+    tip_row = collected[-1]
+    tip_recorded_at = finite(tip_row['body']['recorded_at'])
+    row_recorded_at = finite(row['body']['recorded_at'])
+    if not tip_recorded_at <= observed_at <= row_recorded_at:
+        return None
+    return observe(collected, tip_sha256=tip_row['sha256'], at=observed_at, policy=policy,
+                   account_id=account_id, event_id=event_id,
+                   rule_fingerprint=rule_fingerprint, collateral_asset=collateral_asset)
+
+
+def _page_prefix(store, through_seq, scan_bound):
+    """Page the complete real history `1..through_seq`, never truncating early.
+
+    Shared by `_replay_observation` (bound at a row's own `seq - 1`) and
+    `_verify_fresh_head` (R3-M1; bound at the store's real current tip):
+    both need the identical "collect everything in real append order, never
+    stop early at a self-chosen or merely convenient point" behaviour the
+    R2-H1 fix established for this module. Returns the complete tuple of
+    rows in order, or `None` if the scan-bound/byte-bound ceiling truncates
+    before genuinely reaching `through_seq` (R3-L1).
+    """
     collected = []
     total_bytes = 0
     after = 0
-    found = False
     while after < through_seq and len(collected) < scan_bound and total_bytes <= MAX_ARCHIVE_BYTES:
         page = store.page_through(after_seq=after, through_seq=through_seq, limit=64)
         if not page:
@@ -346,23 +401,60 @@ def _replay_observation(store, row, details, *, policy, account_id, event_id, ru
             collected.append(item)
             total_bytes += len(canonical(item['body']).encode())
             after = item['seq']
-            if item['sha256'] == tip_target:
-                found = True
             if len(collected) >= scan_bound or total_bytes > MAX_ARCHIVE_BYTES:
                 break
-    # The claimed tip must genuinely exist somewhere in real history, AND
-    # the real prefix must be complete through this row's own immediate
-    # predecessor (never truncated early by a scan-bound/byte-bound cutoff).
-    if not found or not collected or collected[-1]['seq'] != through_seq:
+    if not collected or collected[-1]['seq'] != through_seq:
         return None
-    tip_row = collected[-1]
-    tip_recorded_at = finite(tip_row['body']['recorded_at'])
-    row_recorded_at = finite(row['body']['recorded_at'])
-    if not tip_recorded_at <= observed_at <= row_recorded_at:
+    return tuple(collected)
+
+
+def _verify_fresh_head(store, row, details, *, policy, account_id, event_id, rule_fingerprint,
+                       collateral_asset, now):
+    """R3-M1 fix: refuse a claim whose diagnostic numbers have gone stale.
+
+    `_replay_observation` only ever proves a row's claim was a genuine
+    replay of history up to the row's own insertion point
+    (`row['seq'] - 1`). It is silent about anything disqualifying that has
+    happened in the store's real history SINCE: a MEASUREMENT row honestly
+    recorded right after a favourable fill, but before a later adverse fill
+    or a later `stream_healthy: false` update lands, still passes that
+    check -- its own claim was 100% genuine as of its own insertion point.
+
+    This closes that second gap by independently re-running `observe()` a
+    SECOND time, now over the complete real archive through the store's
+    real current tip (`store.pin_read_view()`, never a self-chosen earlier
+    cutoff), at the real current time (`now`), and requiring the diagnostic
+    subset of that fresh result (`execution_status`, `reason`, `fill_count`,
+    `diagnostic_adverse_fill_count`, `diagnostic_markout_collateral_per_share`)
+    to still equal what the row claims. `frontier_tip_sha256`/
+    `frontier_sha256` are deliberately excluded from this comparison: the
+    fresh window always covers strictly more real history than the row's own
+    claim ever could (it necessarily includes the row's own MEASUREMENT slot,
+    a kind `observe()` itself ignores, plus everything appended since), so
+    those two fields can never genuinely match the row's claim here and are
+    not a sign of forgery the way they are in `_replay_observation`'s own
+    check.
+
+    Returns `None` when there is nothing new to check (the row's own
+    insertion point already IS the real current head) or the fresh recompute
+    still agrees with the claim. Otherwise returns the reason to refuse
+    promotion -- never a stale, now-wrong `PROMOTED`.
+    """
+    view = store.pin_read_view()
+    through_seq = view['through_seq']
+    if through_seq <= row['seq']:
         return None
-    return observe(tuple(collected), tip_sha256=tip_row['sha256'], at=observed_at, policy=policy,
-                   account_id=account_id, event_id=event_id,
-                   rule_fingerprint=rule_fingerprint, collateral_asset=collateral_asset)
+    collected = _page_prefix(store, through_seq, policy.complete_history_scan_bound)
+    if collected is None:
+        return 'EXECUTION_HEALTH_OBSERVATION_HEAD_SCAN_INCOMPLETE'
+    fresh = observe(collected, tip_sha256=view['tip_sha256'], at=now, policy=policy,
+                    account_id=account_id, event_id=event_id, rule_fingerprint=rule_fingerprint,
+                    collateral_asset=collateral_asset)
+    drift_fields = ('execution_status', 'reason', 'fill_count', 'diagnostic_adverse_fill_count',
+                    'diagnostic_markout_collateral_per_share')
+    if any(fresh.get(key) != details.get(key) for key in drift_fields):
+        return 'EXECUTION_HEALTH_OBSERVATION_HEAD_DRIFT'
+    return None
 
 
 @dataclass(frozen=True)
