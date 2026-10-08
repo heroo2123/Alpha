@@ -1,3 +1,53 @@
+## 2026-10-08 16:05 UTC THIRD-priority INVENTORYTRANSFORM already materially advanced (verified, not launched by this cycle); FIRST-priority R08 contract repair resumed and handed to a scoped Sonnet finish lane
+
+Read actual host state before acting, not any prior claim: `tmux list-sessions` showed only the
+two long-lived infra sessions (`alpha-daily-shadow`, `alpha-forward-observer`); `ps aux` showed no
+specialist repair/review process alive and no `alpha-*-20261008` tmux session from any prior
+handoff entry (R3 Opus review, R08 real-evidence lane, R08 contract-candidate author, R3 Sonnet
+repair) -- all had already finished and exited cleanly, consistent with the checkpoint entries
+already recording their outcomes. This is a genuinely idle cycle, not a stall.
+
+**INVENTORYTRANSFORM (THIRD priority): already done, undiscovered until this read.** The
+`inventory_supervisor.py` loop (PID 1003, iteration 1725) is no longer looping on only the single
+Singapore fixture the handoff described -- a second genuine input,
+`/home/alphaadmin/AlphaV11_InventoryShadow/intake/tokyo_20261002_api_observed.json`, is already
+present with a provenance note and is processing cleanly (`inputs_seen=2`, `errors=[]`, both
+`rc=0`). Independently verified, not taken on the provenance note's own word: `sha256sum` of
+`/home/alphaadmin/donthackme-research-20261001/activity_v2_page0.json` matches the
+`dec9803a...` hash the note and the existing accepted Singapore fixture both already declare as
+`source.raw_sha256`; and a direct field-by-field diff confirms all 70
+`highest-temperature-in-tokyo-on-october-2-2026` rows in the intake file are an exact subset of
+that same raw file, not fabricated or re-dated. This is a genuine second retained local
+observation integrated with no network call and no account, exactly per the THIRD-priority
+instruction -- it just hadn't been checkpointed yet. No PAPER/Gate-3/READY_TO_FUND credit changes:
+this is nonfinancial offline-diagnostics intake, explicitly separate from qualification.
+
+**FIRST priority (PAPER R08): resumed, not duplicated.** The R08 execution-health contract repair
+(F1-F6, Opus-diagnosed, Sonnet-implemented) sitting uncommitted in
+`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008` (HEAD `fa8b5ef`, no process
+attached) was independently re-read line-by-line before trusting it: the F1 replay-reconstruction
+fix genuinely calls the store's real `page_through` and `paper_risk_observation.observe()` (both
+APIs confirmed to exist with matching signatures via direct grep), not a stub. Running its test
+suite directly surfaced the real gap: 47/55 tests fail on
+`TypeError: promote_execution_health() got an unexpected keyword argument 'policy_sha256'` -- a
+stale test suite (signature changed `policy_sha256` to `policy` as part of the genuine F1 fix),
+not a logic defect. The deeper issue: most of the old "promotes" tests build a hand-fabricated
+row via `store.audit(...)` with evidence_ids no real `observe()` ever produced -- exactly the F1
+hole this repair closes, so those tests now need to assert UNKNOWN, not PROMOTED. Launched a
+scoped Sonnet finish lane (same sole-writer worktree, no duplicate) with the exact brief: reuse
+`tests/test_v11_paper_risk_observation.py`'s existing genuine-fixture machinery (`rig`,
+`sequenced_fill`, `sample`, `policy`) to build one real promoted row and one real caught-forgery
+row, update the rest to the new signature, get honestly green, commit (no merge/push). Not yet
+landed as of this entry.
+
+No selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes this cycle. `R89-2` remains UNKNOWN. Gate-3 **91/200
+(formal 1/50)**, 77 missing, G3-L **NO-GO** -- genuinely owner/rights-blocked this cycle (NOAA MADIS
+continuous access requires a real applicant/organization/contact submission only the owner can
+make; no compliant code-only path found, consistent with the handoff's own "hard blocker may not be
+solved with code" warning, so no lane was spent manufacturing noncredit G3-L activity). PAPER
+**9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 15:34 UTC Writer-inventory fixture repin verified and merged to main (f7c4782); closes the one known FOURTH-priority full-regression failure
 
 Did not take the repair lane's claim on faith. Read `/tmp/alpha-writer-inventory-fixture-fix-20261008.terminal`
