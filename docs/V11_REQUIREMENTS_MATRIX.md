@@ -1,3 +1,7 @@
+## 2026-10-08 05:39 UTC reviewed Gate-3 bytes remain nonqualifying
+
+Gate-3 `da29ff1` has independent `PASS_IN_SCOPE` for offline final-byte repin, with a pre-existing Git object-integrity gap requiring reconciliation with separately reviewed N5 before reliance on the binding verifier. A sole offline reconciliation writer is active; it has no qualification or launch authority. Historical daily six-record repair `b0c6ced` entered frozen exact review; neither author tests nor pending review repair the active sparse ledger or protected daily review. Gate-3 **91/200 (formal 1/50)**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A or requirement row crosses.
+
 ## 2026-10-08 05:30 UTC post-main suite passes without requirement crossing
 
 PAPER `09ab391` post-main suite passed 366 normal and 366 optimized adjacent tests; `/tmp/alpha-paper-r89-integration-20261008.md` binds review, blobs, logs and limits. R08/R09 still lack genuine engine/cost/reservation evidence, so PAPER **9/11**, R08/R09 PARTIAL and **READY_TO_FUND=false**. Nonfinancial daily manager recovered after disk headroom returned, but its known sparse audit prefix remains gated. Brain label/source requirements and daily v2 migration are still open. Gate-3 **91/200 (formal 1/50)**, 77 identities unqualified, G3-L **NO-GO**; no C/J/E/A or requirement crossing.
