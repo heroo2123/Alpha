@@ -1,3 +1,14 @@
+## 2026-10-08 13:08 UTC R2-M1/R2-M2 repair-candidate result and new Astra review add no new C/J/E/A credit
+
+The R2-M1/R2-M2 repair candidate (101/101 relevant tests passing both Python modes, two genuine
+pre-existing implementation bugs found and fixed) is a credible offline result but still awaits
+independent different-model review (launched this pass, no verdict yet) and, even if PASS, still
+requires separate root-operator commissioning of the proposed/root/* layer before it affects the
+live DEGRADED Shadow state. No selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 12:58 UTC pytest-collection fix and relaunched repair/retest lanes add no new C/J/E/A credit
 
 Fixing a verified release-blocking pytest collection crash (`norecursedirs` now excludes `docs/`,

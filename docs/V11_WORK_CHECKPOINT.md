@@ -1,3 +1,36 @@
+## 2026-10-08 13:08 UTC R2-M1/R2-M2 repair candidate finished (101 passed both Python modes); independent Astra review launched
+
+The Sonnet repair agent launched last pass finished in `/tmp/alpha-shadow-seed-r2-20261008`
+(sole writer throughout, no other directory touched). It found that a prior, apparently-
+interrupted session had already partially implemented the R2-M1/R2-M2 approach (exact dev/ino+
+hash identity checks, `revalidate_recovery()` precondition rechecks on every resume/rollback,
+unjournaled-rename recovery) but had never verified it end-to-end -- running it surfaced two real
+bugs, both now fixed: (1) `move_state()` required the vacated side of a move to be empty before
+trusting a match, which broke the two-move preparer-install chain and raised a spurious
+`MOVE_PRECONDITION_FAILED` on an already-finished valid state -- fixed by making exact dev/ino+
+hash destination-identity alone authoritative; (2) a test (`test_resume_refuses_when_lock_inode_changed`)
+simulated "different inode, same path" via unlink+write, which on this host's ext4 reliably
+**reuses the freed inode number** (independently reconfirmed this session via direct `stat`),
+so it silently passed for the wrong reason -- fixed by forcing genuine inode distinctness via a
+sibling-path write + rename. Both original crash windows plus 5 more targeted regression tests
+(7 new total) reproduce and pass in both normal and `-O` Python: **101 passed, 6 skipped, 4
+deselected, identical in both modes** (up from 84 F1/F2/F3 + 10 pre-existing migration tests).
+Wrote `R2-M1-M2-HANDOFF.md`; explicitly marked not-for-merge/push/install pending independent
+different-model review, consistent with the standing F1/F2/F3 protections (not touched/weakened).
+Verified scope directly (`sha256sum` diff against the prior-round manifest): exactly
+`migration/retire_prospective_days.py`, `tests/test_r2_migration.py`, and the new handoff file
+changed; nothing under `original/`/`proposed/root/` or any live/root path touched. Regenerated
+`SHA256SUMS` to pin this new candidate state (the repair made the old pin stale, as expected),
+verified the new pin is self-consistent, then launched a NEW independent Codex Astra/high review
+(different model from the Sonnet implementer, matching project convention; detached tmux
+`alpha-seed-r2fix-astra-review-20261008`, prompt references the prior CHANGES_REQUIRED verdict
+verbatim and requires Astra to independently reproduce/confirm both claimed bug fixes rather than
+trust the handoff, plus its own adversarial crash-window variant not in the supplied tests) --
+no verdict yet. This is a real, verified repair-candidate result but still pre-review: no
+integration, no commissioning, no change to the live DEGRADED/AUDIT_PINNED_SEQUENCE_MISSING
+Shadow state, no C/J/E/A transition. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L
+**NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 12:58 UTC Release-collection bug fixed; R2-M1/R2-M2 repair actually launched (prior checkpoint overclaimed it)
 
 Host-state read found both lanes the 12:26Z checkpoint entry claimed to have launched had exited
