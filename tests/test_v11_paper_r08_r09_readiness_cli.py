@@ -6,14 +6,19 @@ EvidenceStore file: every store path exercised here either already exists
 (built by the reused R08/R09 test fixtures) before the CLI runs, or is
 deliberately left absent to prove the CLI refuses rather than creating one.
 """
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
+import os
+import shutil
+import sqlite3
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 import pytest
 
-from polymarket_scanner.v11.evidence import EvidenceError
+from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore
 from polymarket_scanner.v11.paper_coordinator import ACCOUNT_KEY, VERSION as COORDINATOR_VERSION
 from test_v11_certification_rules import setup
 from test_v11_model_artifacts import bundle
@@ -21,6 +26,7 @@ from test_v11_pws_admission import coordinator as pws_coordinator, joined, synth
 from test_v11_r08_scenario_reservation_readiness import coordinator as r08_coordinator, genuine_proposal
 from test_v11_strategy_pipeline import factory
 
+import tools.v11_paper_r08_r09_readiness_cli as cli_module
 from tools.v11_paper_r08_r09_readiness_cli import SCHEMA, evaluate, main
 from tools.v11_r08_scenario_reservation_readiness import (
     OUTCOME_DEMONSTRATED as R08_DEMONSTRATED,
@@ -33,6 +39,12 @@ from tools.v11_r09_pws_lead_readiness import (
 )
 
 CLI_PATH = __import__('tools.v11_paper_r08_r09_readiness_cli', fromlist=['x']).__file__
+
+
+def _sidecar_listing(path):
+    """The store's own file plus any -wal/-shm/-journal sidecars next to it,
+    ignoring unrelated files the shared fixture directory may also contain."""
+    return sorted(p.name for p in path.parent.glob(path.name + '*'))
 
 
 def _membership_dict(m):
@@ -355,3 +367,251 @@ def test_standalone_script_entrypoint_end_to_end(tmp_path, interpreter_flags):
     assert payload['financial_authority'] is False
     assert payload['r08']['outcome'] == R08_NO_RESERVATION
     assert payload['r09_status'] == 'R09_NOT_REQUESTED'
+
+
+# -- Adversarial file-layer regression tests (independent review F1/F2) -----
+#
+# These prove the CLI never changes the caller's own evidence-store bytes,
+# sidecars, or directory listing -- on success *and* on refusal -- and never
+# creates a store via a TOCTOU race, by actually inspecting the file system
+# before and after a real `main()`/`evaluate()` run, rather than trusting the
+# module's own claims.
+
+def test_rollback_journal_store_success_is_byte_and_mtime_identical(factory, tmp_path):
+    rig = factory()
+    c = r08_coordinator(rig)
+    con = sqlite3.connect(c.store.path)
+    con.execute('PRAGMA journal_mode=DELETE')
+    con.close()
+    assert sqlite3.connect(c.store.path).execute('PRAGMA journal_mode').fetchone() == ('delete',)
+    before_bytes = c.store.path.read_bytes()
+    before_mtime = c.store.path.stat().st_mtime_ns
+    before_listing = _sidecar_listing(c.store.path)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_config(c)))
+    assert main([str(cfg_path)]) == 0
+    assert c.store.path.read_bytes() == before_bytes
+    assert c.store.path.stat().st_mtime_ns == before_mtime
+    assert _sidecar_listing(c.store.path) == before_listing
+
+
+def test_rollback_journal_store_refusal_is_byte_and_mtime_identical(factory, tmp_path):
+    # Mirrors the review's P5: a rollback-journal store plus a config whose
+    # account policy no longer matches the one already bound into the
+    # account's persisted head must refuse (PAPER_ACCOUNT_POLICY_OR_IDENTITY_
+    # CHANGED) -- and must do so without ever converting the store to WAL.
+    rig = factory()
+    c = r08_coordinator(rig)
+    c.coordinate('batch', (genuine_proposal(rig),))
+    con = sqlite3.connect(c.store.path)
+    con.execute('PRAGMA journal_mode=DELETE')
+    con.close()
+    before_bytes = c.store.path.read_bytes()
+    before_mtime = c.store.path.stat().st_mtime_ns
+    before_listing = _sidecar_listing(c.store.path)
+    cfg = _config(c)
+    cfg['account_policy'] = asdict(replace(c.policy, capital_limit='999'))
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(cfg))
+    assert main([str(cfg_path)]) == 1
+    assert c.store.path.read_bytes() == before_bytes
+    assert c.store.path.stat().st_mtime_ns == before_mtime
+    assert _sidecar_listing(c.store.path) == before_listing
+
+
+def test_wal_store_without_sidecars_gains_none_on_refusal(factory, tmp_path):
+    # Mirrors the review's P13: a plain WAL-mode store (no existing -wal/-shm)
+    # refused for a namespace mismatch must not leave new sidecar files
+    # behind even though inspecting it necessarily opens it briefly.
+    rig = factory()
+    c = r08_coordinator(rig)
+    assert not Path(str(c.store.path) + '-wal').exists()
+    before_bytes = c.store.path.read_bytes()
+    before_listing = _sidecar_listing(c.store.path)
+    cfg = _config(c)
+    cfg['store']['namespace'] = 'CHALLENGER:wrong'
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(cfg))
+    assert main([str(cfg_path)]) == 1
+    assert c.store.path.read_bytes() == before_bytes
+    assert _sidecar_listing(c.store.path) == before_listing
+
+
+def test_wal_store_without_sidecars_gains_none_on_success(factory, tmp_path):
+    rig = factory()
+    c = r08_coordinator(rig)
+    assert not Path(str(c.store.path) + '-wal').exists()
+    before_bytes = c.store.path.read_bytes()
+    before_listing = _sidecar_listing(c.store.path)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_config(c)))
+    assert main([str(cfg_path)]) == 0
+    assert c.store.path.read_bytes() == before_bytes
+    assert _sidecar_listing(c.store.path) == before_listing
+
+
+def test_live_uncheckpointed_wal_sidecars_are_neither_checkpointed_nor_deleted(factory, tmp_path, capsys):
+    # Mirrors the review's P3b: a byte-level retained copy of a *live*
+    # ledger -- main file plus an uncheckpointed -wal/-shm pair, taken while
+    # a writer still holds the database open -- must be readable correctly
+    # (the genuine reservation is still visible) without the CLI merging the
+    # WAL into the main file or deleting either sidecar.
+    rig = factory()
+    c = r08_coordinator(rig)
+    # An idle second connection keeps WAL frames from being auto-checkpointed
+    # away when the coordinator's own connection closes, the same way a real
+    # live writer process would.
+    idle = sqlite3.connect(c.store.path)
+    idle.execute('PRAGMA journal_mode=WAL')
+    p = genuine_proposal(rig)
+    outcome = c.coordinate('batch', (p,))['body']['details']
+    assert outcome['reserved_intent_ids'] == [p.proposal_id]
+    wal_path = Path(str(c.store.path) + '-wal')
+    assert wal_path.exists() and wal_path.stat().st_size > 0
+    retained = tmp_path / 'retained'
+    retained.mkdir(mode=0o700)
+    for suffix in ('', '-wal', '-shm'):
+        src = Path(str(c.store.path) + suffix)
+        if src.exists():
+            shutil.copy2(src, retained / src.name)
+    idle.close()  # only now does the original, non-retained copy get checkpointed
+    retained_store = retained / c.store.path.name
+    before = {q.name: q.read_bytes() for q in retained.iterdir()}
+    before_listing = sorted(before)
+    cfg = _config(c)
+    cfg['store']['path'] = str(retained_store)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(cfg))
+    capsys.readouterr()
+    assert main([str(cfg_path)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload['r08']['outcome'] == R08_DEMONSTRATED  # correctly saw the live WAL's data
+    after = {q.name: q.read_bytes() for q in retained.iterdir()}
+    assert sorted(after) == before_listing  # no file added, removed, or renamed
+    assert after[retained_store.name] == before[retained_store.name]  # main bytes untouched
+    assert after[retained_store.name + '-wal'] == before[retained_store.name + '-wal']  # WAL untouched
+
+
+def test_read_only_media_fails_closed_without_mutation(factory, tmp_path):
+    # Mirrors the review's P4: a store on genuinely read-only media (no
+    # pre-existing sidecars to reuse) cannot be opened at all -- SQLite
+    # itself cannot attach a WAL-mode database without creating a wal-index
+    # -- but that must fail closed, never partially mutate the source.
+    rig = factory()
+    c = r08_coordinator(rig)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_config(c)))
+    before_bytes = c.store.path.read_bytes()
+    parent = c.store.path.parent
+    os.chmod(c.store.path, 0o400)
+    os.chmod(parent, 0o500)
+    try:
+        assert main([str(cfg_path)]) == 1
+    finally:
+        os.chmod(parent, 0o700)
+        os.chmod(c.store.path, 0o600)
+    assert c.store.path.read_bytes() == before_bytes
+
+
+def test_store_removed_between_identity_check_and_backup_does_not_create_one(factory, tmp_path, monkeypatch):
+    # Mirrors the review's P12/F2: even if the caller's path vanishes in the
+    # narrow window after this CLI has confirmed it exists, the CLI must
+    # never fall through to a code path that creates a brand-new ledger
+    # there. Since evaluation now only ever opens a private snapshot copy,
+    # not the original path, there is no `EvidenceStore()` call against the
+    # original left to race.
+    rig = factory()
+    c = r08_coordinator(rig)
+    store_path = c.store.path
+    original_check = cli_module._check_source_identity
+
+    def racing_check(path):
+        original_check(path)
+        path.unlink()  # simulate concurrent removal right after our own check
+
+    monkeypatch.setattr(cli_module, '_check_source_identity', racing_check)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_config(c)))
+    assert main([str(cfg_path)]) == 1
+    assert not store_path.exists()
+
+
+def test_store_replaced_between_identity_check_and_backup_is_refused(factory, tmp_path, monkeypatch):
+    # The window this guards is between `_anchored_snapshot`'s own pre-backup
+    # `stat()` and its post-backup `stat()`: swap in a different, but still
+    # valid, V11 store with the same name right as the backup connection is
+    # about to be opened, and confirm the dev/ino mismatch is caught rather
+    # than silently evaluating the swapped-in file.
+    rig = factory()
+    c = r08_coordinator(rig)
+    store_path = c.store.path
+    replacement_dir = tmp_path / 'replacement'
+    replacement_dir.mkdir(mode=0o700)
+    replacement_path = replacement_dir / 'other.sqlite'
+    EvidenceStore(replacement_path, 'V11_PAPER')
+    original_connect = cli_module.sqlite3.connect
+    swapped = []
+
+    def racing_connect(*args, **kwargs):
+        if not swapped:
+            swapped.append(True)
+            os.replace(replacement_path, store_path)  # same name, new inode
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(cli_module.sqlite3, 'connect', racing_connect)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_config(c)))
+    assert main([str(cfg_path)]) == 1
+
+
+def test_scratch_snapshot_directories_are_always_removed(factory, tmp_path):
+    rig = factory()
+    c = r08_coordinator(rig)
+    scratch_glob = '.v11-paper-readiness-snapshot-*'
+    before = set(Path(tempfile.gettempdir()).glob(scratch_glob))
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_config(c)))
+    assert main([str(cfg_path)]) == 0  # success path
+    cfg = _config(c)
+    cfg['store']['namespace'] = 'CHALLENGER:wrong'
+    bad_cfg_path = tmp_path / 'bad_cfg.json'
+    bad_cfg_path.write_text(json.dumps(cfg))
+    assert main([str(bad_cfg_path)]) == 1  # refusal path
+    after = set(Path(tempfile.gettempdir()).glob(scratch_glob))
+    assert after == before
+
+
+@pytest.mark.parametrize('interpreter_flags', [(), ('-O',)])
+def test_rollback_journal_store_byte_identical_under_subprocess(tmp_path, interpreter_flags):
+    store_path = tmp_path / 'evidence.sqlite'
+    tmp_path.chmod(0o700)
+    EvidenceStore(store_path, 'V11_PAPER')
+    con = sqlite3.connect(store_path)
+    con.execute('PRAGMA journal_mode=DELETE')
+    con.close()
+    before_bytes = store_path.read_bytes()
+    before_mtime = store_path.stat().st_mtime_ns
+    before_listing = _sidecar_listing(store_path)
+    cfg = {
+        "store": {"path": str(store_path), "namespace": "V11_PAPER"},
+        "account_policy": {"policy_version": "p", "account_id": "a", "collateral_asset": "C",
+                           "initial_hypothetical_cash": "10", "capital_limit": "10",
+                           "per_intent_cash_limit": "10", "daily_loss_limit": "10",
+                           "minimum_ev_per_share": ".01", "retained_cash": "0",
+                           "maximum_intent_lifetime_seconds": 60.0, "max_active_intents": 10},
+        "correlation": {"version": "v", "evidence_sha256": "a" * 64, "memberships": [
+            {"station": "KATL", "city": "Atlanta", "region": "SE", "weather_groups": ["W"],
+             "source_groups": ["S"], "model_groups": ["M"], "metadata_fingerprint": "b" * 64},
+        ]},
+        "scenario_limits": {"policy_version": "p", "per_event": "10", "per_city": "20", "per_region": "30",
+                           "per_weather_group": "30", "per_source_group": "30", "per_model_group": "30",
+                           "portfolio": "50", "max_position_units": "100"},
+    }
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(cfg))
+    proc = subprocess.run([sys.executable, *interpreter_flags, CLI_PATH, str(cfg_path)],
+                         capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 0
+    assert store_path.read_bytes() == before_bytes
+    assert store_path.stat().st_mtime_ns == before_mtime
+    assert _sidecar_listing(store_path) == before_listing

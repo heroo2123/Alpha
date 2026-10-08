@@ -32,6 +32,30 @@ This module checks the path's existence itself, before ever constructing an
 `EvidenceStore`, and refuses (`STORE_PATH_MUST_PREEXIST`) rather than letting
 that constructor run.
 
+This CLI never opens the caller's own store file for anything other than an
+anchored `mode=ro` SQLite backup into a private, bounded, 0700 scratch copy
+(the same technique `tools/v11_snapshot.py` already uses): every real read
+-- including the identity/foreign-database/namespace checks inside
+`EvidenceStore.__init__` itself -- runs only against that disposable copy,
+which is deleted when this process exits the evaluation, win or lose.
+`EvidenceStore._connect()` always opens its target read-write (it sets
+`PRAGMA journal_mode=WAL`, may checkpoint an existing WAL, etc., even for a
+pure read), so pointing it at the caller's own path even once -- on a
+success path, a refusal path, or merely to inspect it -- would have changed
+that file's bytes or left new `-wal`/`-shm` sidecars behind. Routing every
+read through a private copy instead keeps the caller's own store file and
+directory listing byte- and mtime-identical on every outcome, including
+refusal, with one narrow documented exception: if the caller's file already
+has live, uncheckpointed `-wal`/`-shm` sidecars when this CLI runs, the
+anchored snapshot's own read-only connection may update bytes *inside* the
+pre-existing `-shm` file (standard SQLite reader bookkeeping; its size does
+not change and no file is added, removed, or renamed) without touching the
+main file or the `-wal` file. A store directory that forbids creating new
+files (e.g. read-only media) still cannot be read if the store has no
+pre-existing sidecars to reuse, because SQLite itself cannot open a
+WAL-mode database for any purpose without being able to create its
+wal-index; this CLI fails closed in that case rather than guessing.
+
 A result of `GENUINE_ZERO_AUTHORITY_SCENARIO_RESERVATION_DEMONSTRATED` or
 `PWS_OBSERVED_AND_NETTED_AS_LEAD_ONLY_DEMONSTRATED` confers no execution,
 order, model, promotion, or funding authority -- see the two reused modules'
@@ -69,9 +93,13 @@ Configuration file shape (a single local JSON object, UTF-8, <= 65536 bytes):
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 import sqlite3
 import sys
+import tempfile
 import time
+from contextlib import closing, contextmanager
 from dataclasses import asdict, fields
 from pathlib import Path
 
@@ -88,6 +116,9 @@ from tools.v11_r09_pws_lead_readiness import evaluate_pws_lead_readiness
 
 SCHEMA = "PAPER_R08_R09_READINESS_CLI_V1"
 MAX_CONFIG_BYTES = 65536
+MAX_STORE_SNAPSHOT_BYTES = 256 * 1024 * 1024
+STORE_SNAPSHOT_MINIMUM_FREE_BYTES = 64 * 1024 * 1024
+STORE_SNAPSHOT_DEADLINE_SECONDS = 30.0
 TOP_LEVEL_REQUIRED = frozenset({"store", "account_policy", "correlation", "scenario_limits"})
 TOP_LEVEL_ALL = TOP_LEVEL_REQUIRED | {"r09"}
 _MEMBERSHIP_KEYS = frozenset({
@@ -98,6 +129,7 @@ _CORRELATION_KEYS = frozenset({"version", "evidence_sha256", "memberships"})
 _STORE_KEYS = frozenset({"path", "namespace"})
 _R09_KEYS = frozenset({"preconfirmation_id", "context", "rule", "binding", "payout_admission_ids"})
 _FAIL_CLOSED_ERRORS = (EvidenceError, sqlite3.Error, OSError)
+_SIDECAR_SUFFIXES = ("-wal", "-shm")
 
 
 def _closed(value: object, keys: frozenset, label: str) -> dict:
@@ -132,7 +164,101 @@ def _build_correlation(value: object) -> CorrelationMap:
                           memberships=tuple(_build_membership(m) for m in memberships))
 
 
-def _build_store(value: object, *, clock) -> EvidenceStore:
+def _sidecar_paths(path: Path) -> tuple[Path, Path]:
+    return tuple(Path(str(path) + suffix) for suffix in _SIDECAR_SUFFIXES)
+
+
+def _check_source_identity(path: Path) -> None:
+    """Reject an unsafe or absent source path without ever opening it as a
+    database. Mirrors `EvidenceStore.__init__`'s own path-safety checks (same
+    outcomes, same order) so callers see identical refusal reasons, but using
+    only `stat`/`lstat`, which cannot mutate the file being inspected.
+    """
+    # Checked before any database connection is ever opened against this
+    # path: EvidenceStore's constructor creates a brand-new, empty ledger
+    # file when the path does not yet exist, which this read-only checker
+    # must never trigger (see module docstring).
+    if not path.exists() or not path.is_file():
+        raise EvidenceError("STORE_PATH_MUST_PREEXIST")
+    if ".." in path.parts:
+        raise EvidenceError("ABSOLUTE_PATH_REQUIRED")
+    for p in (path, *path.parents):
+        if p.is_symlink():
+            raise EvidenceError("SYMLINK_PATH_REFUSED")
+    if not path.parent.is_dir() or path.parent.stat().st_mode & 0o077:
+        raise EvidenceError("PRIVATE_PARENT_REQUIRED")
+    if path.stat().st_mode & 0o077:
+        raise EvidenceError("PRIVATE_REGULAR_DATABASE_REQUIRED")
+
+
+@contextmanager
+def _anchored_snapshot(path: Path):
+    """Yield a private, disposable copy of ``path`` instead of ever handing
+    the real evaluators the caller's own file.
+
+    `EvidenceStore._connect()` always opens read-write (WAL pragma, possible
+    checkpoint) even for a pure read, so the only way to guarantee the
+    caller's own store is byte- and sidecar-identical afterwards -- on
+    success *and* on refusal -- is to never let any evaluator touch it.
+    This pins a consistent read with a `mode=ro` connection and a held
+    transaction, copies it via the SQLite backup API (as
+    `tools/v11_snapshot.py` already does for V10 control snapshots) into a
+    fresh 0700 temporary directory, and removes that directory again on
+    every exit path. Any `-wal`/`-shm` sidecar this inspection itself causes
+    SQLite to create next to the caller's file (it does, when none already
+    exist) is removed again before returning; sidecars that already existed
+    are left exactly as found, since this CLI does not own them.
+    """
+    _check_source_identity(path)
+    before_stat = path.stat()
+    sidecars = _sidecar_paths(path)
+    sidecars_existed = [p.exists() for p in sidecars]
+    scratch = Path(tempfile.mkdtemp(prefix=".v11-paper-readiness-snapshot-"))
+    os.chmod(scratch, 0o700)
+    try:
+        copy_path = scratch / "store.sqlite"
+        deadline = time.monotonic() + STORE_SNAPSHOT_DEADLINE_SECONDS
+        try:
+            with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as src:
+                src.execute("PRAGMA query_only=ON")
+                src.execute("BEGIN")
+                src.execute("SELECT COUNT(*) FROM sqlite_schema").fetchone()
+                page_count = src.execute("PRAGMA page_count").fetchone()[0]
+                page_size = src.execute("PRAGMA page_size").fetchone()[0]
+                if page_count * page_size > MAX_STORE_SNAPSHOT_BYTES:
+                    raise EvidenceError("STORE_SNAPSHOT_BYTES_LIMIT")
+                if shutil.disk_usage(scratch).free < page_count * page_size + STORE_SNAPSHOT_MINIMUM_FREE_BYTES:
+                    raise EvidenceError("STORE_SNAPSHOT_DISK_HEADROOM")
+
+                def progress(status: int, remaining: int, total: int) -> None:
+                    if time.monotonic() > deadline:
+                        raise EvidenceError("STORE_SNAPSHOT_DEADLINE")
+                    if total * page_size > MAX_STORE_SNAPSHOT_BYTES:
+                        raise EvidenceError("STORE_SNAPSHOT_BYTES_LIMIT")
+
+                fd = os.open(copy_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                os.close(fd)
+                with closing(sqlite3.connect(copy_path, timeout=1.0)) as dst:
+                    src.backup(dst, pages=64, progress=progress, sleep=0.01)
+                src.rollback()
+        finally:
+            # Only ever remove a sidecar our own inspection just created;
+            # one that was already there before we ever opened the file is
+            # left completely alone (see function docstring).
+            for sidecar, existed in zip(sidecars, sidecars_existed):
+                if not existed:
+                    sidecar.unlink(missing_ok=True)
+        after_stat = path.stat()
+        if (before_stat.st_dev, before_stat.st_ino) != (after_stat.st_dev, after_stat.st_ino):
+            raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
+        os.chmod(copy_path, 0o600)
+        yield copy_path
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+@contextmanager
+def _build_store(value: object, *, clock):
     _closed(value, _STORE_KEYS, "STORE")
     path_value, namespace = value["path"], value["namespace"]
     if type(path_value) is not str or not path_value:
@@ -142,12 +268,8 @@ def _build_store(value: object, *, clock) -> EvidenceStore:
     path = Path(path_value)
     if not path.is_absolute():
         raise EvidenceError("STORE_PATH_MUST_BE_ABSOLUTE")
-    # Checked before EvidenceStore() ever runs: its constructor creates a
-    # brand-new, empty ledger file when the path does not yet exist, which
-    # this read-only checker must never trigger (see module docstring).
-    if not path.exists() or not path.is_file():
-        raise EvidenceError("STORE_PATH_MUST_PREEXIST")
-    return EvidenceStore(path, namespace, clock=clock)
+    with _anchored_snapshot(path) as snapshot_path:
+        yield EvidenceStore(snapshot_path, namespace, clock=clock)
 
 
 def _build_binding(value: object) -> dict:
@@ -192,29 +314,30 @@ def evaluate(config: dict, *, clock=time.time) -> dict:
     """
     if type(config) is not dict or not TOP_LEVEL_REQUIRED <= set(config) <= TOP_LEVEL_ALL:
         raise EvidenceError("CONFIG_TOP_LEVEL_SCHEMA")
-    store = _build_store(config["store"], clock=clock)
-    policy = _typed(PaperAccountPolicy, config["account_policy"], "ACCOUNT_POLICY")
-    correlation = _build_correlation(config["correlation"])
-    limits = _typed(ScenarioLimits, config["scenario_limits"], "SCENARIO_LIMITS")
-    coordinator = PaperCoordinator(store, policy=policy, correlation=correlation, limits=limits)
+    with _build_store(config["store"], clock=clock) as store:
+        policy = _typed(PaperAccountPolicy, config["account_policy"], "ACCOUNT_POLICY")
+        correlation = _build_correlation(config["correlation"])
+        limits = _typed(ScenarioLimits, config["scenario_limits"], "SCENARIO_LIMITS")
+        coordinator = PaperCoordinator(store, policy=policy, correlation=correlation, limits=limits)
 
-    r08 = evaluate_scenario_reservation_readiness(coordinator)
+        r08 = evaluate_scenario_reservation_readiness(coordinator)
 
-    r09_config = config.get("r09")
-    if r09_config is None:
-        r09_status, r09 = "R09_NOT_REQUESTED", None
-    else:
-        built = _build_r09(r09_config)
-        r09_status, r09 = "R09_EVALUATED", evaluate_pws_lead_readiness(coordinator, **built)
+        r09_config = config.get("r09")
+        if r09_config is None:
+            r09_status, r09 = "R09_NOT_REQUESTED", None
+        else:
+            built = _build_r09(r09_config)
+            r09_status, r09 = "R09_EVALUATED", evaluate_pws_lead_readiness(coordinator, **built)
 
-    return {
-        "schema": SCHEMA,
-        "generated_at": store.clock(),
-        "financial_authority": False,
-        "r08": r08.to_dict(),
-        "r09_status": r09_status,
-        "r09": r09.to_dict() if r09 is not None else None,
-    }
+        result = {
+            "schema": SCHEMA,
+            "generated_at": store.clock(),
+            "financial_authority": False,
+            "r08": r08.to_dict(),
+            "r09_status": r09_status,
+            "r09": r09.to_dict() if r09 is not None else None,
+        }
+    return result
 
 
 def main(argv: list | None = None) -> int:
