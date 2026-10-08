@@ -44,16 +44,46 @@ def _refuses(want, repo, manifest=None):
     pytest.fail(f"accepted; expected refusal {want!r}")
 
 
+def _has_object(c, oid):
+    return subprocess.run(["git", "--no-replace-objects", "cat-file", "-e", oid],
+                          cwd=c, env=ENV, capture_output=True).returncode == 0
+
+
+def _evict_from_every_pack(c, oid):
+    """Rebuild every pack in `c` without `oid` and drop any loose copy, so the
+    object becomes unresolvable regardless of whether it started out packed
+    or loose. This makes a subsequently-written forged loose object the sole
+    source for `oid`, instead of silently losing to a surviving packed copy
+    (git always prefers a packed object over a same-OID loose one)."""
+    keep = b"".join(line + b"\n" for line in _git(c, "rev-list", "--objects", "--all").splitlines()
+                     if not line.startswith(oid.encode()))
+    pack_dir = c / ".git/objects/pack"
+    pack_dir.mkdir(parents=True, exist_ok=True)
+    before = set(pack_dir.glob("*"))
+    _git(c, "pack-objects", "--quiet", str(pack_dir / "excl"), inp=keep)
+    for stale in before:
+        stale.unlink()
+    loose = c / ".git/objects" / oid[:2] / oid[2:]
+    if loose.exists():
+        loose.unlink()
+    if _has_object(c, oid):
+        pytest.fail(f"pinned blob {oid} still resolvable after evicting every pack and loose "
+                    "copy; loose-substitution setup is not reaching the adversarial condition")
+    return loose
+
+
 def test_substituted_loose_blob_refuses_even_with_forged_manifest_and_live_bytes(tmp_path):
-    c = _clone(tmp_path)
+    c = tmp_path / "checkout"
+    _git(tmp_path, "clone", "--no-hardlinks", "--quiet", str(REPO), str(c))
+    (c / binding.MANIFEST).write_bytes((REPO / binding.MANIFEST).read_bytes())
     path = "tools/v11_r09_gate3_runtime.py"
     oid, original = binding._blob(c, binding.SOURCE_COMMIT, path)
     bad = original + b"\n# substituted loose object\n"
-    loose = c / ".git/objects" / oid[:2] / oid[2:]
+    loose = _evict_from_every_pack(c, oid)
     loose.parent.mkdir(parents=True, exist_ok=True)
     loose.write_bytes(zlib.compress(b"blob %d\0" % len(bad) + bad))
     if _git(c, "--no-replace-objects", "cat-file", "blob", oid) != bad:
-        pytest.skip("pinned blob is packed; loose substitution not reachable here")
+        pytest.fail("forged loose object did not take effect even after evicting the packed copy")
     (c / path).write_bytes(bad)
     m = json.loads((REPO / binding.MANIFEST).read_bytes())
     m["files"][path].update(sha256=hashlib.sha256(bad).hexdigest(), byte_length=len(bad))
