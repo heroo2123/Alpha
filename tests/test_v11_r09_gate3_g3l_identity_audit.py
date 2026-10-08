@@ -33,6 +33,7 @@ def test_retained_evidence_counts_and_current_runtime_drift():
                if not ref["current_matches_reviewed_bytes"]]
     assert changed == [
         "tools/v11_r09_gate3_collector.py",
+        "tools/v11_r09_gate3_g3l_prep.py",
         "tools/v11_r09_gate3_launch_v4.py",
         "tools/v11_r09_gate3_ledgers.py",
         "tools/v11_r09_gate3_runtime.py",

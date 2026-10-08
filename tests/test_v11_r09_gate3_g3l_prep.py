@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 import pytest
 
 from tools.v11_r09_gate3_g3l_prep import (
-    ALL_IDS, FINAL_ONLY_IDS, MEMORY_FLOOR, PRE_REVIEW_IDS, RUN_SPECIFIC,
-    SCHEMA, WINDOW_SPECIFIC, _parse_json, check_inventory, freeze_checklist,
-    plan, private_v4_null_template, slot_inventory,
+    ALL_IDS, FINAL_ONLY_IDS, MAX_WINDOW_SEARCH_DAYS, MEMORY_FLOOR,
+    PRE_REVIEW_IDS, RUN_SPECIFIC, SCHEMA, WINDOW_SPECIFIC, _parse_json,
+    check_inventory, freeze_checklist, next_window_candidate, plan,
+    private_v4_null_template, slot_inventory,
 )
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_launch import LaunchContractError
@@ -260,6 +261,147 @@ def test_committed_report_matches_fixed_generator_and_denominator_unchanged():
     assert {f["id"] for f in report["missing_evidence"]}.isdisjoint(FINAL_ONLY_IDS)
     assert report["stage"] == "PRE_REVIEW"
     assert report["launchable"] is False
+
+
+def test_next_window_candidate_just_before_todays_1400_picks_tomorrow():
+    # now is one second before 2026-10-01 14:00 UTC (== START - 1, since
+    # START is window_start_utc for the 2026-10-02 target used throughout
+    # this file). The earliest date whose frozen window has not started is
+    # still 2026-10-02 (window_start_utc == START, strictly in the future).
+    now = START - 1
+    result = next_window_candidate(now)
+    assert result["schema"] == SCHEMA
+    assert result["launchable"] is False
+    assert result["status"] == "CANDIDATE_TARGET_DATE_SUGGESTED"
+    assert result["target_date"] == TARGET_DATE
+    assert result["freeze_checklist"] == freeze_checklist(TARGET_DATE)
+    assert result["freeze_checklist"]["window_start_utc"] == START
+    assert result["days_from_now_searched"] == 1
+    assert len(result["missing_evidence"]) == len(PRE_REVIEW_IDS)
+
+
+def test_next_window_candidate_exactly_at_1400_rolls_to_next_day():
+    # At now == START, the 2026-10-02 window has itself already started
+    # (half-open: window_start_utc <= now is not "future"), so the next
+    # eligible candidate is the day after.
+    result = next_window_candidate(START)
+    assert result["target_date"] == "2026-10-03"
+    assert result["freeze_checklist"]["window_start_utc"] == START + 86400
+    assert result["freeze_checklist"]["window_start_utc"] > START
+    assert result["days_from_now_searched"] == 2
+
+
+def test_next_window_candidate_just_after_1700_and_1800_same_day_target():
+    # 17:00 (last_acquisition_utc) and 18:00 (decision_utc) of the *current*
+    # window do not change date selection: only window_start_utc gates
+    # eligibility, so every now in this range still rolls to 2026-10-03,
+    # whose own last_acquisition_utc/decision_utc are 3h/4h after its own
+    # (later) window_start_utc.
+    next_window_start = START + 86400
+    for now in (START + 3 * 3600 - 1, START + 3 * 3600, START + 4 * 3600 - 1, START + 4 * 3600):
+        result = next_window_candidate(now)
+        assert result["target_date"] == "2026-10-03"
+        checklist = result["freeze_checklist"]
+        assert checklist["window_start_utc"] == next_window_start
+        assert checklist["last_acquisition_utc"] == next_window_start + 3 * 3600
+        assert checklist["decision_utc"] == next_window_start + 4 * 3600
+
+
+def test_next_window_candidate_matches_manually_derived_report_example():
+    # Mirrors the handoff-report example: at 2026-10-02 21:44:05 UTC the
+    # earliest future window is Oct 3 14:00 UTC, proposing an Oct 4 target.
+    now = int(datetime(2026, 10, 2, 21, 44, 5, tzinfo=timezone.utc).timestamp())
+    result = next_window_candidate(now)
+    assert result["target_date"] == "2026-10-04"
+    assert result["freeze_checklist"]["window_start_utc"] == int(
+        datetime(2026, 10, 3, 14, tzinfo=timezone.utc).timestamp())
+
+
+def test_next_window_candidate_year_end_rollover():
+    # After the Dec 30 cutoff, the Dec 31 window has started, so the next
+    # target is Jan 1 and its window starts Dec 31 at 14:00 UTC.
+    now = int(datetime(2026, 12, 30, 15, tzinfo=timezone.utc).timestamp())
+    result = next_window_candidate(now)
+    assert result["target_date"] == "2027-01-01"
+    assert result["freeze_checklist"]["window_start_utc"] == int(
+        datetime(2026, 12, 31, 14, tzinfo=timezone.utc).timestamp())
+
+
+def test_next_window_candidate_never_grants_authority_or_mutates_schema():
+    result = next_window_candidate(START - 1)
+    assert result["launchable"] is False
+    assert result["status"] != "ASSEMBLED_FOR_INDEPENDENT_REVIEW"
+    assert "launch_authority" not in result
+    assert all(f["state"] == "MISSING" for f in result["missing_evidence"])
+    assert {f["id"] for f in result["missing_evidence"]} == set(PRE_REVIEW_IDS)
+
+
+def test_next_window_candidate_is_deterministic_and_pure():
+    first = next_window_candidate(START - 1)
+    second = next_window_candidate(START - 1)
+    assert first == second
+
+
+@pytest.mark.parametrize("bad_now", [
+    0, -1, 1.5, "1790867903", True, False, None,
+])
+def test_next_window_candidate_rejects_invalid_now(bad_now):
+    with pytest.raises(ValueError):
+        next_window_candidate(bad_now)
+
+
+def test_next_window_candidate_rejects_non_exact_or_unrepresentable_instant():
+    with pytest.raises(ValueError):
+        next_window_candidate(10**18)
+    with pytest.raises(ValueError):
+        next_window_candidate(-(10**18))
+
+
+@pytest.mark.parametrize("bad_bound", [0, -1, 31, 1000, 2.0, "30", None])
+def test_next_window_candidate_rejects_invalid_max_days_ahead(bad_bound):
+    with pytest.raises(ValueError):
+        next_window_candidate(START - 1, max_days_ahead=bad_bound)
+
+
+def test_next_window_candidate_touches_no_socket_or_filesystem(monkeypatch):
+    import socket as _socket
+
+    def _blocked(*a, **k):
+        raise AssertionError("next_window_candidate must not open a socket")
+    monkeypatch.setattr(_socket, "socket", _blocked)
+    result = next_window_candidate(START - 1)
+    assert result["target_date"] == TARGET_DATE
+
+
+@pytest.mark.parametrize("now, bound, target, offset", [
+    (START - 1, 1, "2026-10-02", 1),
+    (START, 2, "2026-10-03", 2),
+    (START + 1, 2, "2026-10-03", 2),
+    (START + 4 * 3600, 2, "2026-10-03", 2),
+])
+def test_next_window_candidate_future_day_bound_inclusive(now, bound, target, offset):
+    result = next_window_candidate(now, max_days_ahead=bound)
+    assert result["target_date"] == target
+    assert result["days_from_now_searched"] == offset
+    assert result["freeze_checklist"]["window_start_utc"] > now
+
+
+@pytest.mark.parametrize("now", [START, START + 1, START + 4 * 3600])
+def test_next_window_candidate_bound_one_exhausts_at_and_after_cutoff(now):
+    with pytest.raises(ValueError, match="bounded search"):
+        next_window_candidate(now, max_days_ahead=1)
+
+
+def test_next_window_candidate_year_9999_calendar_ceiling():
+    dec30_cutoff = int(datetime(9999, 12, 30, 14, tzinfo=timezone.utc).timestamp())
+    before = next_window_candidate(dec30_cutoff - 1, max_days_ahead=1)
+    assert before["target_date"] == "9999-12-31"
+    assert before["days_from_now_searched"] == 1
+    assert before["freeze_checklist"]["window_start_utc"] == dec30_cutoff
+    for now in (dec30_cutoff, dec30_cutoff + 1,
+                int(datetime(9999, 12, 31, 13, tzinfo=timezone.utc).timestamp())):
+        with pytest.raises(ValueError, match="representable calendar"):
+            next_window_candidate(now, max_days_ahead=MAX_WINDOW_SEARCH_DAYS)
 
 
 def test_cli_pre_review_then_final_stage_never_sets_launchable_true(tmp_path, capsys):

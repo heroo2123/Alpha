@@ -263,6 +263,60 @@ def freeze_checklist(target_date: str) -> dict:
     }
 
 
+MAX_WINDOW_SEARCH_DAYS = 30
+
+
+def next_window_candidate(now_utc: int, *, max_days_ahead: int = MAX_WINDOW_SEARCH_DAYS) -> dict:
+    """Suggest the earliest future target date whose frozen window has not
+    already started, as of an explicit UTC ``now_utc``.
+
+    Pure and offline: reads no clock, touches no file, and makes no
+    provider/network/runtime call. This only proposes a fresh
+    ``freeze_checklist`` skeleton and the existing PRE_REVIEW
+    missing-identity screen for the suggested date. It never inspects,
+    mutates, or re-dates any already reviewed/frozen package, never sets
+    ``launchable`` or any authority flag true, and never grants a
+    qualification credit. ``max_days_ahead`` counts future UTC target
+    dates, from tomorrow (offset 1) through the inclusive bound. Calendar
+    exhaustion raises ``ValueError`` so the call always terminates.
+    """
+    if type(now_utc) is not int or now_utc <= 0:
+        raise ValueError("now_utc must be a positive integer Unix timestamp")
+    if type(max_days_ahead) is not int or not (1 <= max_days_ahead <= MAX_WINDOW_SEARCH_DAYS):
+        raise ValueError(f"max_days_ahead must be an int in [1, {MAX_WINDOW_SEARCH_DAYS}]")
+    try:
+        now = datetime.fromtimestamp(now_utc, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise ValueError("now_utc is not a representable UTC instant") from exc
+    if int(now.timestamp()) != now_utc:
+        raise ValueError("now_utc must be exact whole UTC seconds")
+    anchor = now.date()
+    for offset in range(1, max_days_ahead + 1):
+        try:
+            target = anchor + timedelta(days=offset)
+        except OverflowError as exc:
+            raise ValueError("no eligible candidate date found within the representable calendar") from exc
+        target_date = target.isoformat()
+        checklist = freeze_checklist(target_date)
+        if checklist["window_start_utc"] > now_utc:
+            inventory = {"schema": SCHEMA, "launchable": False,
+                        "target_date": target_date, "evidence": {k: None for k in ALL_IDS}}
+            return {
+                "schema": SCHEMA, "launchable": False,
+                "status": "CANDIDATE_TARGET_DATE_SUGGESTED",
+                "now_utc": now_utc, "target_date": target_date,
+                "days_from_now_searched": offset,
+                "freeze_checklist": checklist,
+                "missing_evidence": check_inventory(inventory, target_date=target_date,
+                                                    now_utc=now_utc, stage="PRE_REVIEW"),
+                "handoff": ("Suggestion only. No date or cohort is selected, frozen, "
+                           "approved, or reviewed by this call; it never mutates an "
+                           "existing dated package and never rolls the date of an "
+                           "already-frozen window."),
+            }
+    raise ValueError("no eligible candidate date found within the bounded search window")
+
+
 def private_v4_null_template(target_date: str) -> dict:
     """Exact V4 key skeleton with no invented evidence or approval."""
     frozen = freeze_checklist(target_date)
