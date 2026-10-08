@@ -6,6 +6,7 @@ snapshot digest; supplying a different snapshot never changes the catalogue.
 from __future__ import annotations
 
 from contextlib import closing
+import copy
 from datetime import date
 import hashlib
 import math
@@ -67,6 +68,11 @@ EDGES = {2: (1,), 4: (3,), 5: (2,), 6: (4, 5, 2)}
 EXPECTED_MAPPING = [dict(source_seq=pin[0], local_seq=pin[0], record_id=pin[1],
                          kind=pin[2], event_id=pin[3], body_sha256=pin[4]) for pin in CATALOGUE]
 EXPECTED_GRAPH_EDGES = {str(k): list(v) for k, v in EDGES.items()}
+# Trust anchors for the verifier: fixed at import time, never the mutable
+# EXPECTED_MAPPING/EXPECTED_GRAPH_EDGES objects themselves, which are only
+# templates the planner copies from on every call.
+EXPECTED_MAPPING_SHA256 = digest(EXPECTED_MAPPING)
+EXPECTED_GRAPH_EDGES_SHA256 = digest(EXPECTED_GRAPH_EDGES)
 
 
 def _need(condition: bool, reason: str) -> None:
@@ -74,10 +80,11 @@ def _need(condition: bool, reason: str) -> None:
         raise SeedPlanError("HISTORICAL_SIX_" + reason)
 
 
-def _canonical_equal(actual: object, expected: object) -> bool:
-    """Type-exact structural equality: Python == treats 1==1.0==True."""
+def _canonical_digest_equal(actual: object, expected_sha256: str) -> bool:
+    """Type-exact structural equality against a fixed digest: Python == treats
+    1==1.0==True, but digest() over canonical() does not."""
     try:
-        return digest(actual) == digest(expected)
+        return digest(actual) == expected_sha256
     except EvidenceError:
         return False
 
@@ -278,7 +285,8 @@ def plan_historical_six_seed(snapshot: Path, expected_source_sha256: str, *,
                     barrier_reconciliation="UNPERFORMED", runtime_admission=False,
                     source_snapshot_sha256=source_sha, target_date=target_date,
                     target_event_id=target_event_id, target_generation=target_generation,
-                    mapping=EXPECTED_MAPPING, graph_edges=EXPECTED_GRAPH_EDGES,
+                    mapping=copy.deepcopy(EXPECTED_MAPPING),
+                    graph_edges=copy.deepcopy(EXPECTED_GRAPH_EDGES),
                     rule_receipt_seq=2, financial_authority=False)
     return SeedPlan(rows, manifest, digest(manifest))
 
@@ -299,8 +307,8 @@ def verify_existing_historical_six_daily(path: Path, plan: SeedPlan,
           manifest["historical_role"] == "HISTORICAL_EVIDENCE_ONLY" and
           manifest["barrier_reconciliation"] == "UNPERFORMED" and
           manifest["runtime_admission"] is False and
-          _canonical_equal(manifest["mapping"], EXPECTED_MAPPING) and
-          _canonical_equal(manifest["graph_edges"], EXPECTED_GRAPH_EDGES) and
+          _canonical_digest_equal(manifest["mapping"], EXPECTED_MAPPING_SHA256) and
+          _canonical_digest_equal(manifest["graph_edges"], EXPECTED_GRAPH_EDGES_SHA256) and
           type(manifest["rule_receipt_seq"]) is int and
           manifest["rule_receipt_seq"] == 2 and
           type(manifest["source_snapshot_sha256"]) is str and

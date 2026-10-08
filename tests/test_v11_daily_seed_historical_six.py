@@ -161,6 +161,111 @@ class HistoricalSixManifestForgeryTests(unittest.TestCase):
         edges = {key: [float(v) for v in value] for key, value in EXPECTED_GRAPH_EDGES.items()}
         self._assert_refused(self._plan(graph_edges=edges), "HISTORICAL_SIX_PLAN_PROFILE")
 
+    def test_verifier_trust_anchor_is_immune_to_manifest_mutation(self):
+        """Verifier-side guard: acceptance of a forged mapping/graph, or
+        refusal of a legitimate one, must not depend on whether some other
+        manifest object was mutated in place first. (This alone does not
+        discriminate R1, which was in the planner's aliasing, not the
+        verifier's comparison; see
+        HistoricalSixPlannerTrustAnchorTests below for that.)
+        """
+        legit_before = self._plan()
+        baseline_digest = legit_before.manifest_sha256
+
+        # A consumer corrupts its own returned/deep manifest in place: the
+        # exact forgery from the independent review's alias.py reproduction.
+        legit_before.manifest["mapping"][0]["local_seq"] = 1.0
+        legit_before.manifest["mapping"][2]["event_id"] = "forged"
+        legit_before.manifest["graph_edges"]["6"] = [1.0, 4.0, 5.0, 2.0]
+
+        # A separately built forgery with the identical values must still be
+        # refused: the mutation above must not have made it pass the profile.
+        forged_mapping = copy.deepcopy(EXPECTED_MAPPING)
+        forged_mapping[0]["local_seq"] = 1.0
+        forged_mapping[2]["event_id"] = "forged"
+        self._assert_refused(self._plan(mapping=forged_mapping),
+                              "HISTORICAL_SIX_PLAN_PROFILE")
+
+        # A later, identically-constructed legitimate manifest must reach the
+        # same digest as before the mutation, and must still clear the
+        # profile checks rather than being refused.
+        legit_after = self._plan()
+        self.assertEqual(legit_after.manifest_sha256, baseline_digest)
+        self._assert_refused(legit_after, "SNAPSHOT_MISSING")
+
+
+class HistoricalSixPlannerTrustAnchorTests(unittest.TestCase):
+    """Always-on: no private snapshot required.
+
+    R1 regression (planner side, the actual bug location):
+    plan_historical_six_seed must hand back fresh mapping/graph_edges
+    objects, never EXPECTED_MAPPING/EXPECTED_GRAPH_EDGES themselves. This
+    exercises the real planner — sealed-byte capture, schema and
+    PRAGMA integrity_check, per-record _row/_validate_row lookups, and
+    manifest construction — against a locally built, self-consistent six-row
+    image. Only `_validate_six`'s semantic shape checks are patched out: they
+    require the private retained provider-shaped fixture and are already
+    exercised, snapshot-gated, elsewhere in this file; they are orthogonal to
+    the aliasing bug under test here.
+    """
+
+    @staticmethod
+    def _build_sealed_image(root):
+        master = root / "master.sqlite"
+        EvidenceStore(master, NAMESPACE)
+        with sqlite3.connect(master) as db:
+            for seq, record_id, kind, event_id, _ in CATALOGUE:
+                body = dict(namespace=NAMESPACE, financial_authority=False,
+                            record_id=record_id, kind=kind, event_id=event_id,
+                            recorded_at=float(seq), available_at=float(seq),
+                            details={}, evidence=[])
+                db.execute("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)",
+                           (seq, record_id, kind, event_id, body["recorded_at"],
+                            body["available_at"], canonical(body), digest(body)))
+        sealed = root / "sealed.sqlite"
+        with sqlite3.connect(master) as src, sqlite3.connect(sealed) as dst:
+            src.backup(dst)
+        return sealed, hashlib.sha256(sealed.read_bytes()).hexdigest()
+
+    def test_planner_output_is_not_aliased_to_the_trust_anchor(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch("polymarket_scanner.v11.daily_seed_historical_six._validate_six"):
+            sealed, source_sha = self._build_sealed_image(Path(tmp))
+
+            def plan():
+                return plan_historical_six_seed(
+                    sealed, source_sha, target_date="2026-10-10",
+                    target_event_id="future:distinct", target_generation="g")
+
+            legit_before = plan()
+            self.assertIsNot(legit_before.manifest["mapping"], EXPECTED_MAPPING)
+            self.assertIsNot(legit_before.manifest["graph_edges"], EXPECTED_GRAPH_EDGES)
+            baseline_digest = legit_before.manifest_sha256
+            baseline_mapping_sha256 = digest(legit_before.manifest["mapping"])
+            baseline_graph_edges_sha256 = digest(legit_before.manifest["graph_edges"])
+
+            # A consumer corrupts its own returned manifest in place: the
+            # exact forgery from the independent review's alias.py
+            # reproduction (mutating the planner's own output, not a
+            # separately built forgery).
+            legit_before.manifest["mapping"][0]["local_seq"] = 1.0
+            legit_before.manifest["mapping"][2]["event_id"] = "forged"
+            legit_before.manifest["graph_edges"]["6"] = [1.0, 4.0, 5.0, 2.0]
+
+            # The module-level trust anchor must be untouched by that
+            # mutation (this is what R1 broke: it was the same object).
+            self.assertEqual(digest(EXPECTED_MAPPING), baseline_mapping_sha256)
+            self.assertEqual(digest(EXPECTED_GRAPH_EDGES), baseline_graph_edges_sha256)
+
+            # A fresh, identically-constructed plan must be unaffected: the
+            # same manifest digest as before the mutation, with mapping and
+            # graph_edges matching the trust anchor, not the forged values.
+            legit_after = plan()
+            self.assertEqual(legit_after.manifest_sha256, baseline_digest)
+            self.assertEqual(digest(legit_after.manifest["mapping"]), baseline_mapping_sha256)
+            self.assertEqual(digest(legit_after.manifest["graph_edges"]),
+                              baseline_graph_edges_sha256)
+
 
 @unittest.skipUnless(SNAPSHOT, "private sealed source snapshot not supplied")
 class HistoricalSixTests(unittest.TestCase):
@@ -253,6 +358,25 @@ class HistoricalSixTests(unittest.TestCase):
                 self.assertNotEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
             with self.assertRaisesRegex(SeedPlanError, "EXISTING_DAILY_INTEGRITY_FAILED"):
                 verify_existing_historical_six_daily(sealed, plan, plan.manifest_sha256)
+
+    def test_planner_output_is_not_aliased_to_the_trust_anchor(self):
+        """R1 regression against the real planner: its returned mapping/
+        graph_edges must be fresh objects, not EXPECTED_MAPPING/
+        EXPECTED_GRAPH_EDGES themselves, so mutating one plan's manifest
+        cannot change a later identical-input plan's digest.
+        """
+        plan = self.plan()
+        self.assertIsNot(plan.manifest["mapping"], EXPECTED_MAPPING)
+        self.assertIsNot(plan.manifest["graph_edges"], EXPECTED_GRAPH_EDGES)
+        baseline_digest = plan.manifest_sha256
+        plan.manifest["mapping"][0]["local_seq"] = 1.0
+        plan.manifest["graph_edges"]["6"] = [1.0, 4.0, 5.0, 2.0]
+        again = self.plan()
+        self.assertEqual(again.manifest_sha256, baseline_digest)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_MISSING"):
+                verify_existing_historical_six_daily(
+                    Path(tmp) / "absent.sqlite", again, again.manifest_sha256)
 
     def test_target_and_source_identity_refusals(self):
         for args in (dict(target_date="2026-10-04"), dict(target_date="2026-10-03"),
