@@ -1,3 +1,41 @@
+## 2026-10-08 13:56 UTC Full-regression confirmed clean (1 known pre-existing failure, not a regression); disk recovered; launched deferred round-3 repair
+
+Read actual host state: the FOURTH-priority full-regression retest of `27b4c71` (launched 12:59Z,
+mid-run at the 13:36Z checkpoint) finished at 13:46:26Z, `exit_code=1`, **9522 passed, 22 skipped,
+1 failed**. The single failure is `tests/test_v11_forward_writer_inventory.py::test_repository_writer_inventory`.
+Did not take this on the retest runner's claim: reran the exact same test directly on the live
+main worktree (not the disposable retest checkout) and it fails identically with the same
+assertion (`writer inventory changed: calls`) — confirming this is the already-known pre-existing
+`evidence.py` writer-inventory drift (tracked in prior session memory), not a regression
+introduced by the `27b4c71` pytest-collection fix or the `ac78da3` merge. This is a truthful
+confirmation, not evidence or credit: no C/J/E/A transition, and it closes out the FOURTH-priority
+item for this batch with no new blocker.
+
+Disk had recovered to **73% used / 11 GiB free** (from 90%/4178 MiB at the 13:36Z checkpoint) now
+that the retest's basetemp is no longer growing and its worktree is static — clearing this
+project's own `disk_guard.py` 83%-used new-work gate that explicitly deferred the round-3 repair
+last pass. Confirmed `/tmp/alpha-shadow-seed-r2-20261008` (the sole designated writer for this
+line of work across all three rounds) was still idle and untouched since 13:07Z, so launched the
+round-3 repair now, scoped EXACTLY to the five HIGH/blocking findings from the round-2 Astra
+review (R2-M1.1 destination-first destructive rollback, R2-M1.2 shallow non-recursive relocation,
+R2-M1.3 rollback with no durable pre-action intent record, R2-M2.1 crash barrier conditional on
+an unenforced optional argument, R2-M2.2 lock recovery checks fd inode but not live pathname) with
+each finding's own `required_change` guidance quoted into the task, plus the two non-blocking
+findings (R2-T1, R2-SCOPE) as optional cheap follow-ups. Detached tmux
+`alpha-seed-r3-sonnet-20261008`, Sonnet/high (implementer role; Astra already did the senior
+diagnosis, matching the project's own model-cost convention), writer confined to the existing
+candidate directory only, explicit instruction not to duplicate the writer, not touch
+live/root/main/git, and not self-review. No verdict yet — this is process, not evidence.
+
+Also confirmed collectors remain healthy and unchanged: AWC KATL cadence intact (latest capture
+13:50Z), `pws_pair.log` still `VERIFIED_EXISTING`/`pws:10`/`official:3`/`qualification_credit:0`
+(zero PWS lead acceptance, unchanged), InventoryTransform steady (`iteration` 1600, `inputs_seen:2`,
+no new genuine local observation available to add this pass — not stalled). G3-L's next window
+opens 14:00Z; checked at 13:56Z, four minutes early, so no action taken (not yet eligible). No
+selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L
+**NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 13:36 UTC Round-2 Astra R2fix review: CHANGES_REQUIRED again, new blocking findings; deferred round-3 repair for disk headroom, not idled
 
 Host-state read found the round-2 independent Astra re-review of the R2-M1/R2-M2 repair candidate

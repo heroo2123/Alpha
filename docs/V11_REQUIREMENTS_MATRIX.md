@@ -1,3 +1,19 @@
+## 2026-10-08 13:56 UTC Full-regression confirmation and round-3 repair launch add no new C/J/E/A credit
+
+The FOURTH-priority full-regression retest of `27b4c71` finished clean except for one failure
+(`test_repository_writer_inventory`, 9522 passed/22 skipped/1 failed), independently confirmed
+by reproducing the identical failure directly on live main rather than trusting the retest
+runner — this is the already-known pre-existing `evidence.py` writer-inventory drift, not a new
+regression, so it changes nothing about release status and supplies no credit either way.
+Launching the round-3 repair (scoped to Astra's five HIGH findings R2-M1.1/M1.2/M1.3/M2.1/M2.2 in
+`migration/retire_prospective_days.py`, same sole designated writer directory as rounds 1-2) is
+process, not evidence, until it lands with a result and passes independent different-model
+review — and even then still requires separate root-operator commissioning before it affects the
+live `AUDIT_PINNED_SEQUENCE_MISSING` Shadow state. No selected-window identity, provider-rights
+evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit
+changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 13:36 UTC Round-2 Astra R2fix CHANGES_REQUIRED and deferred round-3 add no new C/J/E/A credit
 
 The round-2 independent Astra re-review of the R2-M1/R2-M2 repair candidate is again

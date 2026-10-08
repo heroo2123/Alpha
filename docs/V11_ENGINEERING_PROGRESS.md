@@ -1,3 +1,26 @@
+## 2026-10-08 13:56 UTC full-regression result confirmed pre-existing; disk recovered; round-3 repair launched
+
+Read actual host state before acting: the full-regression retest of `27b4c71` (mid-run at the
+last checkpoint) had finished at 13:46:26Z with 9522 passed/22 skipped/1 failed. Did not take the
+single failure (`test_repository_writer_inventory`) on the runner's claim — reran it directly on
+live main and it fails identically, confirming the already-known pre-existing `evidence.py`
+writer-inventory drift rather than a regression from the `27b4c71` collection fix or `ac78da3`
+merge. Disk had recovered to 73% used/11 GiB free (from 90%/4178 MiB), clearing this project's own
+83%-used new-work gate that had explicitly deferred a round-3 repair at the prior checkpoint.
+Confirmed the designated sole writer directory (`/tmp/alpha-shadow-seed-r2-20261008`) was still
+idle and untouched, then launched the round-3 repair scoped exactly to the round-2 Astra review's
+five HIGH findings (destructive destination-first rollback, shallow non-recursive relocation,
+rollback with no durable pre-action intent record, an unenforced optional crash-barrier argument,
+and lock recovery that checks fd inode but not live pathname), quoting each finding's own
+required_change guidance into the task rather than re-diagnosing from scratch, matching the
+project's model-cost convention (senior model already diagnosed; Sonnet implements against that
+diagnosis). Detached tmux `alpha-seed-r3-sonnet-20261008`; no verdict yet. Also confirmed the real
+scheduled collectors remain healthy and unchanged (AWC KATL cadence intact to 13:50Z; PWS
+comparator still zero accepted leads; InventoryTransform steady at iteration 1600/inputs_seen 2,
+not stalled). G3-L's 14:00Z window had not yet opened at read time (13:56Z); no action taken. No
+provider, runtime/root/V10, financial or acceptance transition. Gate-3 91/200, G3-L NO-GO, PAPER
+9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 11:33 UTC G3-L confirmed HELD; InventoryShadow now fed a second genuine source
 
 Two background specialists filled the idle lanes identified in the prior entry, both reporting
