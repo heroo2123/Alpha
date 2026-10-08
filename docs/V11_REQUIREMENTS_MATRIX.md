@@ -1,3 +1,7 @@
+## 2026-10-08 07:55 UTC exact-review dispatch adds no requirement credit
+
+Clean Brain Gamma R5 `1b80369` and test-only A7 RSS repair `5287760` are under separate frozen different-model exact reviews; selector R3 `73d5e46` review remains active. Author tests and review dispatch do not establish Brain source/label qualification, Gate-3 selected-window identities, G3-L, PAPER R08/R09 evidence, a full release-suite PASS, or any C/J/E/A boundary. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 07:50 UTC selector R3 author tests carry no acceptance credit
 
 Offline selector R3 `73d5e46` is sealed and under different-model exact review after author tests. The one-line adjacent test repair does not change retained provider evidence, 77 missing selected-window identities, G3-L qualification, PAPER R08/R09, Brain or C/J/E/A boundaries. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
