@@ -1,3 +1,11 @@
+## 2026-10-08 05:01 UTC Gate-3 descriptor and daily generation map
+
+`3a7dd98` has independent `PASS_IN_SCOPE` for the F1 offline custody fix, while current-executable F2 pin drift remains a hard integration/qualification blocker. The daily v2 publisher/consumer map is read-only and identifies unresolved supersession schema and root commissioning work. Gate-3 **91/200 (formal 1/50)**, 77 unqualified identities, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A or requirement crossing.
+
+## 2026-10-08 05:00 UTC offline six-record candidate under exact review
+
+Clean `b4078f9` is a historical-evidence seed candidate with only provisional author tests; frozen different-model exact review is live at `/tmp/alpha-future-daily-six-record-review-b4078f9.*`. It does not establish current-day rule/source proof, invalidating-history clearance, protected generation review, root commissioning or active daily audit. Oct 8/9 originals remain gapped. Gate-3 **91/200 (formal 1/50)** with 77 unqualified identities and G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No requirement or C/J/E/A credit changes.
+
 ## 2026-10-08 04:47 UTC R3 refusal-only exact review
 
 Independent Astra/high exact review sealed `PASS_IN_SCOPE` for `c9270eb` / tree `55937d1` only as an offline synthetic refusal planner. It does not qualify the real six-record MASTER baseline, protected generation, active daily audit or commissioning. The separate six-record candidate remains under sole-writer implementation and will require its own exact review; Gate-3, PAPER and READY_TO_FUND values below do not change.
@@ -5630,9 +5638,3 @@ Frozen PAPER FIFO `5405add` and Gate-3 descriptor-custody `3a7dd98` entered sepa
 ## 2026-10-08 04:54 UTC final-byte review has no credit
 
 Frozen Gate-3 final-byte `da29ff1` entered a fresh independent Claude exact review after an earlier Codex tool refusal. PAPER FIFO and descriptor reviews remain live; no PASS, G3-L qualification, PAPER R08/R09 completion, READY_TO_FUND decision or C/J/E/A crossing follows from launch.
-## 2026-10-08 05:00 UTC offline six-record candidate under exact review
-
-Clean `b4078f9` is a historical-evidence seed candidate with only provisional author tests; frozen different-model exact review is live at `/tmp/alpha-future-daily-six-record-review-b4078f9.*`. It does not establish current-day rule/source proof, invalidating-history clearance, protected generation review, root commissioning or active daily audit. Oct 8/9 originals remain gapped. Gate-3 **91/200 (formal 1/50)** with 77 unqualified identities and G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No requirement or C/J/E/A credit changes.
-## 2026-10-08 05:01 UTC Gate-3 descriptor and daily generation map
-
-`3a7dd98` has independent `PASS_IN_SCOPE` for the F1 offline custody fix, while current-executable F2 pin drift remains a hard integration/qualification blocker. The daily v2 publisher/consumer map is read-only and identifies unresolved supersession schema and root commissioning work. Gate-3 **91/200 (formal 1/50)**, 77 unqualified identities, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A or requirement crossing.

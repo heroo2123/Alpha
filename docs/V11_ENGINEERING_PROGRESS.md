@@ -1,3 +1,11 @@
+## 2026-10-08 05:01 UTC descriptor exact review and daily map intook
+
+Intook independent `PASS_IN_SCOPE` for frozen Gate-3 descriptor R2 `3a7dd98` / tree `395e057`; reviewer retained parent/successor race probes and 393 adjacent tests per mode. F2 executable pin drift still blocks integration, and the separate final-byte exact review remains active. The read-only daily-generation map completed and found a v2 reader/publisher supersession schema divergence; offline design and consumer inventory are next, with no root/runtime change. No acceptance credit.
+
+## 2026-10-08 05:00 UTC six-record review and resource recovery
+
+Intook clean offline `b4078f9` / tree `566150e`, author-reported 124 focused tests in each Python mode and 20 optimized guards, with source image and manifest pinned in its private handoff. Launched one frozen different-model Opus/high exact review with `/tmp/alpha-future-daily-six-record-review-b4078f9.{prompt,out,report.md,verdict.json,terminal}` targets. Reclaimed inactive `/tmp/review_0090c1f_scratch/runs` and two old `/tmp/alpha-g3l-exact-da29ff1-evidence/pytest-*` basetemps after no-handle checks, retaining review scripts/logs/verdicts. Disk recovered from gateway refusal to 82% at check; V10 remains disabled and execution masked. No merge, provider, root/runtime, financial or acceptance transition.
+
 ## 2026-10-08 04:47 UTC R3 refusal-only review passed
 
 Intook different-model `PASS_IN_SCOPE` for `c9270eb` / tree `55937d1`, with socket-blocked normal/optimized author, independent and adjacent tests retained. Its real-baseline, protected review and runtime exclusions remain explicit. The six-record writer continues from that branch; no merge, deployment or acceptance credit followed.
@@ -8442,9 +8450,3 @@ Started separate persistent Opus/high review of clean Gate-3 final-byte `da29ff1
 ## 2026-10-08 04:55 UTC daily protected-generation map dispatched
 
 Started one clean isolated read-only Sonnet/high lane to map v2 protected daily review publication and commissioning prerequisites from current main, with a required terminal marker. The three frozen exact reviews and sole six-record writer continue independently. No runtime, root, provider, V10, financial or acceptance transition.
-## 2026-10-08 05:00 UTC six-record review and resource recovery
-
-Intook clean offline `b4078f9` / tree `566150e`, author-reported 124 focused tests in each Python mode and 20 optimized guards, with source image and manifest pinned in its private handoff. Launched one frozen different-model Opus/high exact review with `/tmp/alpha-future-daily-six-record-review-b4078f9.{prompt,out,report.md,verdict.json,terminal}` targets. Reclaimed inactive `/tmp/review_0090c1f_scratch/runs` and two old `/tmp/alpha-g3l-exact-da29ff1-evidence/pytest-*` basetemps after no-handle checks, retaining review scripts/logs/verdicts. Disk recovered from gateway refusal to 82% at check; V10 remains disabled and execution masked. No merge, provider, root/runtime, financial or acceptance transition.
-## 2026-10-08 05:01 UTC descriptor exact review and daily map intook
-
-Intook independent `PASS_IN_SCOPE` for frozen Gate-3 descriptor R2 `3a7dd98` / tree `395e057`; reviewer retained parent/successor race probes and 393 adjacent tests per mode. F2 executable pin drift still blocks integration, and the separate final-byte exact review remains active. The read-only daily-generation map completed and found a v2 reader/publisher supersession schema divergence; offline design and consumer inventory are next, with no root/runtime change. No acceptance credit.
