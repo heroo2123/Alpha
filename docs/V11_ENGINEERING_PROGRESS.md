@@ -1,3 +1,7 @@
+## 2026-10-08 04:38 UTC seed review intake and baseline conflict
+
+Recovered independent `CHANGES_REQUIRED` for `95aceb5` with retained exact verdict. Read-only current MASTER row-shape and reference checks identify a real three-ID closure conflict requiring high-depth adjudication before another seed writer proceeds. No live bytes were edited. The independent v2 reader review's bounded-object finding was repaired offline in clean `e3cb7ab`; author tests passed 88 per mode and a fresh exact review remains pending. No qualification, deployment, provider or financial action occurred.
+
 ## 2026-10-08 04:26 UTC future seed R2 and v2 reader in exact review
 
 Sole writer sealed clean future-seed successor `95aceb5` with 12 offline socket-blocked tests per mode and launched fresh Astra/high exact re-review. Separate pure v2 review-selection reader `21e7e66` sealed with 86 synthetic tests per mode and is under independent Astra/high exact review. Both are provisional; no integration or runtime/root action occurred.
