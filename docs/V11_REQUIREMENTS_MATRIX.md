@@ -1,3 +1,7 @@
+## 2026-10-08 04:45 UTC daily Shadow genesis dependency
+
+Read-only closure and consumer reports support a conditional six-record historical prefix, with source positions 1..6 preserved, but do not constitute a sealed source snapshot, current-event proof, protected review, or commissioning. Offline exact-profile implementation is active in a single isolated worktree. The R3 three-row planner remains refusal-only and awaits independent exact review. Oct 8/9 originals retain sequence gaps; a new generation requires complete invalidating-history assessment, fresh generation-bound review/frontier, and an authorized daily commissioning path. Gate-3 remains **91/200 (formal 1/50)** with 77 unqualified identities and G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
 ## 2026-10-08 04:38 UTC offline v2 reader integrated without qualification
 
 Exact-reviewed v2 reader `e3cb7ab` was reconciled to local main `c936ee0`; 88 adjacent tests per mode passed before merge and 44 focused tests per mode passed on main. It is unconnected to root-custodied authority or live Shadow. Real baseline closure and commissioning remain open. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No C/J/E/A or requirement crossing.
