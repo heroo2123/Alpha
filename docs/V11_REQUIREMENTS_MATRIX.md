@@ -1,3 +1,19 @@
+## 2026-10-08 15:26 UTC R08 contract candidate CHANGES_REQUIRED (adversarially proven) and its repair launch add no new C/J/E/A credit
+
+The independent Opus review of the R08 execution-health/settlement-finality contract candidate
+(`fa8b5ef8`) is genuinely `CHANGES_REQUIRED`, not a formality: adversarial probes (preserved at
+`/home/alphaadmin/AlphaV11_Reviews/r08-opus-probe/`) reproduce one HIGH finding (a fabricated
+MEASUREMENT row with nonexistent evidence ids is returned `PROMOTED`) and five MEDIUM/LOW findings
+(freshness-bound NaN/inf bypass, namespace self-declaration trust, an uncaught exception path, a
+false-negative on legitimate duplicate evidence ids, and non-canonical numeric-string acceptance).
+The settlement-finality half and the "not wired into the live gate" claim were both independently
+confirmed correct. This negative result and the scoped Sonnet repair it unblocked are both process,
+not evidence -- the candidate still supplies no execution-health/settlement-finality data to any real
+PAPER cycle regardless of outcome. No selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 15:16 UTC R08 contract candidate launch and writer-inventory fixture fix launch add no new C/J/E/A credit
 
 The PAPER R08 execution-health/settlement-finality promotion-contract candidate (`fa8b5ef8`, fail-closed

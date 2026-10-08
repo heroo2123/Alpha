@@ -1,3 +1,49 @@
+## 2026-10-08 15:26 UTC Independent Opus review of R08 contract candidate returns CHANGES_REQUIRED with adversarially-proven findings; scoped Sonnet repair launched
+
+Read actual host state before acting, not the subagent's claim alone: opened
+`/tmp/alpha-paper-r08-contract-opus-review-20261008.verdict.json` and `.terminal` directly
+(`exit_code=0`, `ended_utc=2026-10-08T15:24:00Z`), and independently inspected the reviewer's own
+adversarial probe script and its output at `/home/alphaadmin/AlphaV11_Reviews/r08-opus-probe/probe.{py,out}`
+to confirm the findings are reproduced, not asserted. `byte_drift=false` (frozen snapshot intake and
+final SHA-256 manifests match); `candidate_installed=false`, `root_action_performed=false`,
+`network_requests_made=false`, `repo_modified=false`.
+
+The reviewer confirmed the settlement-finality half of the candidate (`fa8b5ef8`) is correct and
+genuinely fails closed (`AUTHORIZED_SETTLEMENT_PROVIDERS = frozenset()` literally at line 65;
+`promote_settlement_timing` returns `(None, reason)` on every probed path, even after monkeypatching
+a provider in) and that nothing is wired into the live PAPER gate (`risk_inputs.py` unchanged,
+no other file imports the module). But the execution-health half is **CHANGES_REQUIRED**, with one
+HIGH and several MEDIUM/LOW findings reproduced by the reviewer's own probe script:
+- **F1 (HIGH)**: a hand-built `MEASUREMENT` row with fabricated fill counts, a fabricated markout, and
+  evidence_ids that don't exist in the store comes back `PROMOTED` with those fake ids returned as
+  provenance (probe `P1`). The module's "replay hash" only re-hashes fields the row declares about
+  itself and never covers the diagnostic numbers or re-checks the store's real evidence/frontier —
+  it catches accidental edits, not forgery, despite a `FORGED_OR_DUPLICATED` reason name implying
+  otherwise. Reviewer's suggested fix (reader-side re-derivation via `paper_risk_observation.observe()`
+  replay, bounded and policy-matched) given to the repair agent verbatim.
+- **F2 (MEDIUM)**: the freshness bound check accepts `NaN`/`inf`/absurdly large values, silently
+  disabling the "never loosens" staleness guarantee (probe `P2`).
+- **F3 (MEDIUM)**: the namespace scope check reads the row's self-declared field, never the store's
+  real namespace, so a `CHALLENGER:`-namespace store holding a row claiming `V11_PAPER` is promoted
+  (probe `P4`).
+- **F4/F5/F6 (LOW)**: an uncaught `TypeError` on malformed evidence-id input instead of `UNKNOWN`
+  (probe `P3`); a false-negative that would wrongly reject genuine multi-fill observations sharing a
+  duplicate evidence id; and a markout-string parser that accepts non-canonical numeric strings
+  (`'1_0'`, `'1E-400'` underflowing to `0.0`) a real `str(Decimal(...))` output would never produce
+  (probes `P5`/`P6`).
+
+This is a genuine negative result from a credible independent review, not evidence either way — no
+credit change. Launched a scoped Claude Sonnet repair (senior model already diagnosed the specific
+bugs; smaller model implements against that exact brief, per this project's own model-tiering rule)
+in a new isolated worktree `/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008`
+(off commit `fa8b5ef8`, not /tmp — the disk guard reclaims clean /tmp worktrees), scoped to F1-F6 only;
+F7/F8 need no code change. Not merged pending its own independent review once it lands. The
+writer-inventory fixture-fix lane launched the same cycle is still running, untouched/not duplicated.
+
+No selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal
+1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 15:16 UTC PAPER R08 contract lane finished clean (unreviewed); independent Opus review and a scoped writer-inventory fixture fix launched in parallel
 
 Read actual host state before acting: `tmux list-sessions` showed only `alpha-daily-shadow`/`alpha-forward-observer`
