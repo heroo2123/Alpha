@@ -426,6 +426,9 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
                     existing["review_id"], existing["review_sha256"]):
                 _deny("SUPERSEDE_REQUIRES_CHANGE")
             if reason == "SPARSE_SEED_NEW_GENERATION":
+                if (new_selection["review_id"] not in by_id
+                        or by_id[new_selection["review_id"]][0] != new_selection["review_sha256"]):
+                    _deny("NEW_SELECTION_NOT_PUBLISHED")
                 existing_review = predecessor_by_id[existing["review_id"]][1]
                 new_review_obj = by_id[new_selection["review_id"]][1]
                 if (new_selection["generation_id"] == existing["generation_id"]
@@ -526,6 +529,7 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
     cutover_at = reader._int(transition["cutover_at"])
 
     selection_review_id = selection_review_sha256 = selection_commission_sha256 = None
+    selection_candidate_approval_sha256 = None
     if new_selection is not None:
         new_review_for_cutover = by_id[new_selection["review_id"]][1]
         new_commission_for_cutover = reader._object(object_bytes, new_selection["commission_sha256"])
@@ -535,6 +539,10 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
         selection_review_id = new_selection["review_id"]
         selection_review_sha256 = new_selection["review_sha256"]
         selection_commission_sha256 = new_selection["commission_sha256"]
+        # candidate_approval_sha256 only pins when it is bound to this edge's
+        # new selection; GATE has none, even if a candidate_approval_sha256
+        # happened to be supplied and resolved (it binds to nothing).
+        selection_candidate_approval_sha256 = candidate_approval_digest
 
     commissioning_subject_sha256 = reader.sha256(reader.canonical_bytes(
         {key: value for key, value in transition.items() if key != "commissioning_approval_sha256"}))
@@ -552,5 +560,5 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
         operation=operation, reason=reason, semantic_key=semantic_key_tuple,
         cutover_at=cutover_at, review_id=selection_review_id,
         review_sha256=selection_review_sha256, commission_sha256=selection_commission_sha256,
-        candidate_approval_sha256=candidate_approval_digest,
+        candidate_approval_sha256=selection_candidate_approval_sha256,
         commissioning_subject_sha256=commissioning_subject_sha256)

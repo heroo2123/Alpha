@@ -676,6 +676,19 @@ def test_gate_accepts_null_approvals():
     assert result.operation == "GATE"
 
 
+def test_gate_supplied_candidate_approval_is_not_a_selection_pin():
+    scenario = gate_scenario()
+    objects = dict(scenario["objects"])
+    approval_hash = put(objects, dict(kind="unbound-gate-candidate-approval"))
+    transition_obj = dict(scenario["transition_obj"], candidate_approval_sha256=approval_hash)
+    index_bytes = rebuilt(scenario, transition_obj=transition_obj, objects=objects)
+    result = call(scenario, index_bytes=index_bytes, object_bytes=objects)
+    assert result.operation == "GATE"
+    assert result.review_id is None
+    assert result.candidate_approval_sha256 is None
+    assert result.transition_sha256 == reader.sha256(reader.canonical_bytes(transition_obj))
+
+
 def test_candidate_approval_binding_mismatch():
     scenario = activate_scenario()
     objects = dict(scenario["objects"])
@@ -1322,6 +1335,22 @@ def test_cutover_before_approval_and_commission():
     refused("CUTOVER_TIME_ORDER", scenario, index_bytes=index_bytes)
 
 
+def test_cutover_after_approval_but_before_commission_refuses():
+    scenario = migrate_scenario()
+    assert scenario["review"]["approved_at"] == 100
+    assert reader._object(scenario["objects"], scenario["commission_hash"])["commissioned_at"] == 110
+    transition_obj = dict(scenario["transition_obj"], cutover_at=109)
+    index_bytes = rebuilt(scenario, transition_obj=transition_obj)
+    refused("CUTOVER_TIME_ORDER", scenario, index_bytes=index_bytes)
+
+
+def test_cutover_at_commission_boundary_pins():
+    scenario = migrate_scenario()
+    transition_obj = dict(scenario["transition_obj"], cutover_at=110)
+    index_bytes = rebuilt(scenario, transition_obj=transition_obj)
+    assert call(scenario, index_bytes=index_bytes).cutover_at == 110
+
+
 def test_cutover_at_or_after_expiry():
     scenario = migrate_scenario()
     transition_obj = dict(scenario["transition_obj"], cutover_at=500)
@@ -1351,15 +1380,38 @@ def test_sparse_seed_requires_new_generation_same_generation_id():
     ca = sup["transition_obj"]["candidate_approval_sha256"]
     rc = make_review_commission(objects, generation_id=sup["base"]["selection"]["generation_id"],
                                 review_id="new-review-3b", scope_key=sup["selection"]["scope_key"],
-                                candidate_approval_sha256=ca)
+                                candidate_approval_sha256=ca,
+                                generation_descriptor_sha256="9" * 64)
+    assert rc["review"]["generation_descriptor_sha256"] != sup["base"]["review"]["generation_descriptor_sha256"]
+    provenance_hash = provenance_for(
+        objects, predecessor_evidence_sha256=sup["transition_obj"]["predecessor_evidence_sha256"],
+        review=rc["review"])
     core = deepcopy(sup["core"])
     core["review_objects"][-1] = dict(review_id="new-review-3b", review_sha256=rc["review_hash"])
     core["active_selections"][-1] = rc["selection"]
     transition_obj = dict(sup["transition_obj"], reason="SPARSE_SEED_NEW_GENERATION",
-                          new_selection=rc["selection"],
+                          new_selection=rc["selection"], successor_provenance_sha256=provenance_hash,
                           next_state_sha256=reader.sha256(reader.canonical_bytes(core)))
     index_bytes = rebuilt(sup, core=core, transition_obj=transition_obj, objects=objects)
     refused("SPARSE_SEED_REQUIRES_NEW_GENERATION", sup, index_bytes=index_bytes, object_bytes=objects)
+
+
+def test_sparse_seed_unpublished_ghost_review_refuses_typed():
+    sup = supersede_scenario()
+    ghost_selection = dict(sup["selection"], review_id="ghost-review")
+    transition_obj = dict(sup["transition_obj"], reason="SPARSE_SEED_NEW_GENERATION",
+                          new_selection=ghost_selection)
+    index_bytes = rebuilt(sup, transition_obj=transition_obj)
+    refused("NEW_SELECTION_NOT_PUBLISHED", sup, index_bytes=index_bytes)
+
+
+def test_sparse_seed_unpublished_review_digest_refuses_typed():
+    sup = supersede_scenario()
+    unpublished_selection = dict(sup["selection"], review_sha256="f" * 64)
+    transition_obj = dict(sup["transition_obj"], reason="SPARSE_SEED_NEW_GENERATION",
+                          new_selection=unpublished_selection)
+    index_bytes = rebuilt(sup, transition_obj=transition_obj)
+    refused("NEW_SELECTION_NOT_PUBLISHED", sup, index_bytes=index_bytes)
 
 
 def test_sparse_seed_with_new_generation_and_descriptor_accepted():
