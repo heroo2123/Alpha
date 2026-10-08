@@ -280,3 +280,51 @@ def test_settlement_window_end_to_end_removes_the_unknown_or_closed_reason(hourl
     assert d['execution_health'] == {'status': 'PROMOTED', 'reason': None}
     assert 'SETTLEMENT_WINDOW_UNKNOWN_OR_CLOSED' not in state['reasons']
     assert not d['settlement_finality'] and state['financial_authority'] is False
+
+
+# -- review repair: pin the fail-closed paths the original suite left unpinned --
+
+def test_payload_digest_mismatch_stays_unknown_even_if_revalidate_passes(setup, monkeypatch):
+    # Defense in depth beyond RuleGuard.revalidate: a payload that does not
+    # hash to the caller's fingerprint is never trusted for a close instant.
+    store, registry, scope, metadata, now = setup
+    guard = RuleGuard(store)
+    f = observe_rule(store, guard, _hourly_event(target=date(2026, 9, 14), station='KATL'), metadata, 'digest')
+    monkeypatch.setattr(RuleGuard, 'revalidate', lambda self, *a, **k: dict(passed=True, reason=None))
+    policy = SettlementWindowPolicy(SW_VERSION, 86400.)
+    result = derive_time_to_observation_close(store, event_id=f.payload['event_id'], rule_fingerprint='0'*64,
+                                               at=now[0], policy=policy)
+    assert result.status == 'UNKNOWN'
+    assert result.reason == 'SETTLEMENT_WINDOW_RULE_PAYLOAD_UNVERIFIED'
+    assert result.seconds is None and result.close_utc is None
+
+
+def test_wrh_population_with_other_finality_policy_stays_unknown(setup, monkeypatch):
+    # Both the observation population and the finality/deadline policy must
+    # match the one reviewed family; the population alone is not enough.
+    import polymarket_scanner.v11.settlement_window as settlement_window
+    store, registry, scope, metadata, now = setup
+    guard = RuleGuard(store)
+    f = observe_rule(store, guard, _hourly_event(target=date(2026, 9, 14), station='KATL'), metadata, 'finality')
+    assert f.payload['observation_population'] == ACCEPTED_OBSERVATION_POPULATION
+    monkeypatch.setattr(settlement_window, 'ACCEPTED_FINALITY_AND_DEADLINE_POLICY', 'SOME_OTHER_FINALITY_POLICY')
+    policy = SettlementWindowPolicy(SW_VERSION, 86400.)
+    result = derive_time_to_observation_close(store, event_id=f.payload['event_id'], rule_fingerprint=f.sha256,
+                                               at=now[0], policy=policy)
+    assert result.status == 'UNKNOWN'
+    assert result.reason == 'SETTLEMENT_WINDOW_RULE_FAMILY_UNSUPPORTED'
+
+
+def test_configured_policy_with_unknown_window_keeps_metric_unknown_and_cites_rule(rig, monkeypatch):
+    rt, worker, _ = components(rig, monkeypatch)
+    assert rig['rule'].payload['observation_population'] != ACCEPTED_OBSERVATION_POPULATION
+    worker = EventRiskInputs(worker.assembler, rt.coordinator, worker.policy, None,
+                              SettlementWindowPolicy(SW_VERSION, 10.**10))
+    d, state = evaluate(rig, rt, worker, books(rig, 'sw-unknown'))
+    assert d['settlement_window'] == dict(status='UNKNOWN', reason='SETTLEMENT_WINDOW_RULE_FAMILY_UNSUPPORTED', basis=BASIS)
+    assert d['metrics']['time_to_settlement_seconds'] is None
+    assert 'SETTLEMENT_TIMING' in d['unknown_inputs']
+    assert 'SETTLEMENT_WINDOW_UNKNOWN_OR_CLOSED' in state['reasons']
+    measured = rig['store'].latest(kind='MEASUREMENT', event_id=rig['context'].event_id)
+    rule_row = rig['store'].latest(kind='RULE_STATE', event_id=rig['context'].event_id)
+    assert dict(id=rule_row['id'], sha256=rule_row['sha256']) in measured['body']['evidence']
