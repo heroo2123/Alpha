@@ -147,6 +147,18 @@ def test_madis_hold_still_blocks_subsequent_attempts_after_any_delay(capture_rig
         run(r,cycle='much-later')
 
 
+def test_legacy_parent_format_madis_hold_without_held_providers_field_still_blocks(capture_rig):
+    r=capture_rig
+    r['store'].audit('real-input:legacy-madis-hold', event_id='v11-real-input-capture', kind='RUNTIME_STATUS',
+        details=dict(config_sha256=digest(asdict(r['plan'])), outcome='PROVIDER_HELD',
+            collection=dict(sources=[dict(provider='NOAA_MADIS_CWOP', state='PROVIDER_HELD')], omitted=[]),
+            errors=['REAL_INPUT_SOURCE_HELD'], raw_ids=[], normalized_ids=[], book_ids=[], qc_id=None,
+            financial_authority=False, real_orders_sent=False, settlement_authority=False, acceptance_granted=False))
+    r['now'][0]+=1000
+    with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r,cycle='after-legacy-hold')
+
+
 def test_interrupted_request_cannot_be_retried_unattended(capture_rig):
     with pytest.raises(RuntimeError,match='interrupted'):
         run(capture_rig,crash=True)
