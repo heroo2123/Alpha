@@ -12,6 +12,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import stat
 
@@ -23,6 +24,23 @@ BASE_IDS = (
     "decision-shadow:station:KATL:metadata",
     "decision-shadow:technical-readiness:0dd809ea4b42",
 )
+ENVELOPE_KEYS = frozenset({"namespace", "financial_authority", "record_id", "kind",
+                           "event_id", "recorded_at", "available_at"})
+CAPTURE_KEYS = ENVELOPE_KEYS | {"provider", "source_identity", "revision", "payload",
+                                "observed_at", "issued_at", "published_at", "received_at",
+                                "evidence_class", "source_kind"}
+AUDIT_KEYS = ENVELOPE_KEYS | {"details", "evidence"}
+BASELINE_KINDS = dict(zip(BASE_IDS, ("STATION_METADATA", "REGISTRY", "MEASUREMENT")))
+METADATA_DETAIL_KEYS = frozenset({"action", "metadata", "metadata_fingerprint",
+                                  "material_changed", "state", "reason"})
+STATION_METADATA_KEYS = frozenset({"station", "city", "country", "latitude", "longitude",
+                                   "elevation_m", "timezone", "settlement_source",
+                                   "observation_providers", "forecast_providers",
+                                   "source_payload_sha256", "retrieved_at"})
+READINESS_DETAIL_KEYS = frozenset({"financial_authority", "real_orders",
+                                   "release_git_sha", "release_tree_sha"})
+HEX40 = re.compile(r"[0-9a-f]{40}\Z")
+HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 MAX_SNAPSHOT_BYTES = 256 * 1024 * 1024
 MAX_RECORD_BYTES = 1024 * 1024
 COLUMNS = ("seq", "record_id", "kind", "event_id", "recorded_at", "available_at", "body", "body_sha256")
@@ -179,12 +197,67 @@ def _validate_row(row: sqlite3.Row) -> dict:
 
 
 def _refs(body: dict) -> tuple[tuple[str, str], ...]:
+    """Only the reviewed producer shapes can declare baseline dependencies."""
+    record_id = body["record_id"]
+    kind = BASELINE_KINDS[record_id]
+    expected_keys = CAPTURE_KEYS if kind == "STATION_METADATA" else AUDIT_KEYS
+    if body["kind"] != kind or body["event_id"] != "station:KATL" or set(body) != expected_keys:
+        raise SeedPlanError("BASELINE_BODY_UNREVIEWED:" + record_id)
+    if kind == "STATION_METADATA":
+        if (body["source_kind"] != kind or body["evidence_class"] not in
+                {"PUBLIC_OBSERVED", "SYNTHETIC"}
+                or any(type(body[key]) is not str or not body[key]
+                       for key in ("provider", "source_identity", "revision"))
+                or any(value is not None and (type(value) not in (int, float)
+                       or not math.isfinite(value)) for value in
+                       (body[key] for key in ("observed_at", "issued_at", "published_at")))
+                or type(body["received_at"]) not in (int, float)
+                or not math.isfinite(body["received_at"])):
+            raise SeedPlanError("BASELINE_BODY_UNREVIEWED:" + record_id)
+    else:
+        details = body["details"]
+        if type(details) is not dict:
+            raise SeedPlanError("BASELINE_BODY_UNREVIEWED:" + record_id)
+        if kind == "REGISTRY":
+            metadata = details.get("metadata")
+            if (set(details) != METADATA_DETAIL_KEYS or details["action"] != "METADATA"
+                    or type(details["metadata_fingerprint"]) is not str
+                    or not HEX64.fullmatch(details["metadata_fingerprint"])
+                    or type(details["material_changed"]) is not bool
+                    or type(details["state"]) is not str or type(details["reason"]) is not str
+                    or type(metadata) is not dict or set(metadata) != STATION_METADATA_KEYS):
+                raise SeedPlanError("BASELINE_BODY_UNREVIEWED:" + record_id)
+            if (metadata["station"] != "KATL"
+                    or any(type(metadata[key]) is not str or not metadata[key]
+                           for key in ("city", "timezone", "settlement_source"))
+                    or (metadata["country"] is not None and type(metadata["country"]) is not str)
+                    or any(type(metadata[key]) not in (int, float) or not math.isfinite(metadata[key])
+                           for key in ("latitude", "longitude", "retrieved_at"))
+                    or (metadata["elevation_m"] is not None and
+                        (type(metadata["elevation_m"]) not in (int, float)
+                         or not math.isfinite(metadata["elevation_m"])))
+                    or any(type(metadata[key]) is not list or
+                           any(type(item) is not str for item in metadata[key])
+                           for key in ("observation_providers", "forecast_providers"))
+                    or type(metadata["source_payload_sha256"]) is not str
+                    or not HEX64.fullmatch(metadata["source_payload_sha256"])):
+                raise SeedPlanError("BASELINE_BODY_UNREVIEWED:" + record_id)
+        elif (set(details) != READINESS_DETAIL_KEYS
+              or details["financial_authority"] is not False
+              or details["real_orders"] is not False
+              or type(details["release_git_sha"]) is not str
+              or not HEX40.fullmatch(details["release_git_sha"])
+              or type(details["release_tree_sha"]) is not str
+              or not HEX40.fullmatch(details["release_tree_sha"])):
+            raise SeedPlanError("BASELINE_BODY_UNREVIEWED:" + record_id)
     refs = body.get("evidence", [])
     if type(refs) is not list:
         raise SeedPlanError("BASELINE_REFERENCES_INVALID")
     result = []
     for ref in refs:
-        if type(ref) is not dict or type(ref.get("id")) is not str or type(ref.get("sha256")) is not str:
+        if (type(ref) is not dict or set(ref) != {"id", "sha256"}
+                or type(ref.get("id")) is not str or not ref["id"]
+                or type(ref.get("sha256")) is not str or not HEX64.fullmatch(ref["sha256"])):
             raise SeedPlanError("BASELINE_REFERENCES_INVALID")
         result.append((ref["id"], ref["sha256"]))
     payload = body.get("payload", {})
@@ -197,7 +270,8 @@ def _refs(body: dict) -> tuple[tuple[str, str], ...]:
         id_key, hash_key = stem + "_id", stem + "_sha256"
         if id_key in payload or hash_key in payload:
             if (type(payload.get(id_key)) is not str or not payload[id_key]
-                    or type(payload.get(hash_key)) is not str):
+                    or type(payload.get(hash_key)) is not str
+                    or not HEX64.fullmatch(payload[hash_key])):
                 raise SeedPlanError("BASELINE_REFERENCES_INVALID")
             result.append((payload[id_key], payload[hash_key]))
     return tuple(result)

@@ -57,26 +57,46 @@ class DailySeedPlanTests(unittest.TestCase):
 
     @staticmethod
     def _body(rid, seq, refs):
-        return dict(namespace=NAMESPACE, financial_authority=False, record_id=rid,
-                    kind="STATION_METADATA" if seq == 3 else "REGISTRY",
-                    event_id="station:KATL", recorded_at=float(seq),
-                    available_at=float(seq), details={"sample": seq}, evidence=refs)
+        body = dict(namespace=NAMESPACE, financial_authority=False, record_id=rid,
+                    kind="STATION_METADATA" if rid == BASE_IDS[0] else
+                         "MEASUREMENT" if rid == BASE_IDS[2] else "REGISTRY",
+                    event_id="station:KATL", recorded_at=float(seq), available_at=float(seq))
+        if rid == BASE_IDS[0]:
+            body.update(provider="synthetic", source_identity="KATL", revision="fixture",
+                        payload={}, observed_at=None, issued_at=None, published_at=None,
+                        received_at=float(seq), evidence_class="SYNTHETIC",
+                        source_kind="STATION_METADATA")
+        elif rid == BASE_IDS[1]:
+            metadata = dict(station="KATL", city="Atlanta", country="US", latitude=33.0,
+                            longitude=-84.0, elevation_m=300.0, timezone="America/New_York",
+                            settlement_source="fixture", observation_providers=["fixture"],
+                            forecast_providers=["fixture"], source_payload_sha256="a" * 64,
+                            retrieved_at=float(seq))
+            body.update(details=dict(action="METADATA", metadata=metadata,
+                                     metadata_fingerprint="b" * 64, material_changed=False,
+                                     state="DISCOVERED", reason="OBSERVED_NOT_CERTIFIED"),
+                        evidence=refs)
+        else:
+            body.update(details=dict(financial_authority=False, real_orders=False,
+                                     release_git_sha="a" * 40, release_tree_sha="b" * 40),
+                        evidence=refs)
+        return body
 
     def plan(self):
         return plan_daily_seed(self.snapshot, file_sha(self.snapshot))
 
-    def altered_snapshot(self, name, alter):
+    def altered_snapshot(self, name, alter, record_id=BASE_IDS[0]):
         target = self.root / name
         backup(self.snapshot, target)
         with closing(sqlite3.connect(target)) as db:
             with db:
                 db.execute("DROP TRIGGER v11_no_update")
-                raw = db.execute("SELECT body FROM v11_records WHERE seq=3").fetchone()[0]
+                raw = db.execute("SELECT body FROM v11_records WHERE record_id=?",
+                                 (record_id,)).fetchone()[0]
                 body = json.loads(raw)
-                body.setdefault("payload", {})
                 alter(body)
-                db.execute("UPDATE v11_records SET body=?, body_sha256=? WHERE seq=3",
-                           (canonical(body), digest(body)))
+                db.execute("UPDATE v11_records SET body=?, body_sha256=?, kind=? WHERE record_id=?",
+                           (canonical(body), digest(body), body["kind"], record_id))
                 db.execute("CREATE TRIGGER v11_no_update BEFORE UPDATE ON v11_records "
                            "BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END")
             db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -203,7 +223,7 @@ class DailySeedPlanTests(unittest.TestCase):
 
     def test_source_path_swap_cannot_change_pinned_rows(self):
         pinned = file_sha(self.snapshot)
-        other = self.altered_snapshot("other.sqlite", lambda body: body["details"].update(sample=999))
+        other = self.altered_snapshot("other.sqlite", lambda body: body.update(source_identity="changed"))
         original_connect = sqlite3.connect
         saved = self.root / "saved.sqlite"
 
@@ -279,6 +299,32 @@ class DailySeedPlanTests(unittest.TestCase):
                         verify_existing_daily(self.snapshot, plan, plan.manifest_sha256)
                 finally:
                     sidecar.unlink()
+
+    def test_selected_baseline_kind_and_body_shapes_refused(self):
+        def source_result(body):
+            for field in ("revision", "payload", "observed_at", "issued_at", "published_at",
+                          "received_at", "evidence_class", "source_kind", "source_identity"):
+                body.pop(field)
+            body.update(kind="SOURCE_RESULT", provider="synthetic", cycle_id="fixture",
+                        state="SUCCESS", reason="fixture", elapsed_ms=1.0,
+                        capture_ids=["missing:capture"], attempts=1, retry_not_before=None)
+
+        cases = (
+            ("source-result.sqlite", BASE_IDS[0], source_result),
+            ("unknown-kind.sqlite", BASE_IDS[0], lambda b: b.update(
+                kind="UNKNOWN_KIND", details=["malformed"])),
+            ("top-level-dependency.sqlite", BASE_IDS[0], lambda b: b.update(capture_ids=["missing:capture"])),
+            ("malformed-details.sqlite", BASE_IDS[1], lambda b: b.update(details=["malformed"])),
+            ("details-dependency.sqlite", BASE_IDS[1], lambda b: b["details"].update(
+                raw_evidence_id="missing:raw")),
+            ("nested-metadata-dependency.sqlite", BASE_IDS[1], lambda b: b["details"]["metadata"].update(
+                capture_ids=["missing:capture"])),
+        )
+        for name, record_id, alter in cases:
+            with self.subTest(name=name):
+                target = self.altered_snapshot(name, alter, record_id)
+                with self.assertRaisesRegex(SeedPlanError, "BASELINE_BODY_UNREVIEWED"):
+                    plan_daily_seed(target, file_sha(target))
 
 
 if __name__ == "__main__":

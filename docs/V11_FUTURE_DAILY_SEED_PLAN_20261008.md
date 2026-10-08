@@ -19,8 +19,11 @@ checked at acquisition and again before return. It verifies source file identity
 the exact V11 schema and namespace, immutable row envelopes and hashes, and
 that all declared baseline evidence, source-capture, and raw-evidence references
 resolve within the three selected rows with matching hashes. The baseline
-payload must be an object containing only the two reviewed reference pairs.
-An unreviewed payload shape or dependency
+IDs must have the reviewed `STATION_METADATA`, `REGISTRY`, and `MEASUREMENT`
+kinds respectively, with the matching capture or audit body fields. The
+station raw payload must be an object containing only the two reviewed
+reference pairs; audit details are restricted to the reviewed metadata and
+technical-readiness fields. An unreviewed kind, body field, payload shape, or dependency
 causes refusal. The output contains the unchanged record bodies, IDs, hashes,
 and timestamps with deterministic local `seq=1..3`. A canonical manifest binds
 the source file hash and each old-to-new sequence mapping. The caller must
@@ -55,3 +58,9 @@ The three-row closure rule intentionally refuses if the actual baseline has
 additional dependencies. Expanding that selection requires a separate review
 of the extra records and any invalidating later state. This candidate does not
 read private live row bodies to make that decision.
+
+The synthetic suite demonstrates refusal and planning mechanics only. It does
+not establish that a real MASTER baseline satisfies these narrow schemas or
+the three-row closure rule. A station payload outside the whitelist or a
+readiness reference to any other row is refused pending a separate closure
+design and review.
