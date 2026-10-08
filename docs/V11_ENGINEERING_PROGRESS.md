@@ -1,3 +1,7 @@
+## 2026-10-08 02:03 UTC Gate-3 repin under different-model exact review
+
+Independent N5 test-only `f4fba2e` review passed in scope with zero qualification credit. The separately sealed combined X1/eligibility final-byte repin `da29ff1` is under frozen Astra/high exact review; PAPER WAL repair `5f522ee` is also under independent review. Neither candidate is integrated. Root gateway confirms V10 inactive/disabled and execution inactive/masked after disk recovered below its 85% refusal threshold. Gate-3 **91/200 (formal 1/50)**, **77 unqualified identities**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A boundary crossed.
+
 ## 2026-10-08 01:29 UTC live workers and day-key reconciled
 
 Verified eight distinct live Claude specialist processes and pending terminal markers, plus the automatic coordinator. No finished lane is awaiting intake and the host remains above scheduling floors. Read-only root status keeps V10 disabled and V11 execution masked. The daily Shadow manager uses the America/New_York date, explaining its Oct 7 status during early Oct 8 UTC; no restart was warranted. Existing exact reviews and repairs continue without duplicate writers. No score, acceptance, provider or financial boundary changed.
