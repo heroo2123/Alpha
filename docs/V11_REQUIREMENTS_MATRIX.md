@@ -1,3 +1,13 @@
+## 2026-10-08 12:08 UTC a1a2 duplicate finding closes that lane with no credit
+
+The a1a2 readiness-CLI review is closed: the code is correct but confirmed byte-identical/
+redundant with already-integrated protection reachable on `HEAD` via `b1b2011`..`09ab391`. Since
+main already has this exact A1/A2 protection, there was never any missing credit here to begin
+with -- this review closes a false-lead candidate, not a new gap. No selected-window identity,
+provider-rights evidence, PAPER real reservation/PWS evidence, Brain qualification, or
+READY_TO_FUND credit changes. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER
+**9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 12:00 UTC Launching reviews and verifying collector health add no new C/J/E/A credit
 
 Launching the two mandatory independent reviews (Astra/high on the Opus seed/provenance R2

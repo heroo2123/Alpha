@@ -1,3 +1,28 @@
+## 2026-10-08 12:08 UTC a1a2 readiness-CLI review closed: correct but confirmed duplicate, not integrated
+
+The independent Claude Sonnet review of the Codex a1a2 candidate (commit `5aa2e639...` on branch
+`paper-r89-readiness-cli-20261007`) returned **PASS_IN_SCOPE** on code correctness, qualified
+**DUPLICATE_ALREADY_INTEGRATED_DO_NOT_MERGE**: byte diff fidelity confirmed against the handoff
+(+141/-18 across the two named files), 44/44 focused tests reran identically in both Python modes,
+and a from-scratch adversarial harness (explicit rc/byte checks, no fragile `pytest.raises(match=)`
+under `-O`) reproduced all four claimed bypasses against the parent commit (`5f522ee`, including a
+previously-undemonstrated silent foreign-file corruption on `foreign-as-shm`) and confirmed clean
+refusal on the successor (`5aa2e63`) in both Python modes. The reviewer also found, and this
+session independently re-verified directly against this repo's own `HEAD` (not the reviewer's
+disposable clone): `git merge-base --is-ancestor 09ab391 HEAD` is true, and
+`tools/v11_paper_r08_r09_readiness_cli.py` on `HEAD` already contains both
+`UNSAFE_STORE_SIDECAR_REFUSED` and `STORE_PATH_REPLACED_DURING_CAPTURE`. Commit `5aa2e63` is
+byte-identical to already-merged `b1b2011` for that file, and `5aa2e63` itself is **not** an
+ancestor of origin's integration branch -- main already carries this exact protection via a
+different, already-reviewed commit chain (`b1b2011`..`09ab391`). Conclusion: branch
+`paper-r89-readiness-cli-20261007` / commit `5aa2e63` must not be merged, cherry-picked, or
+credited as new A1/A2 closure; it is correct but redundant. Confirmed residuals match prior
+disclosure (A3 crash-residue scratch cleanup, same-uid narrow-window substitution, `/proc/self/fd`
+Linux-only). Disposable review clones/worktrees deleted; the live worktree
+`/tmp/alpha-paper-r89-readiness-cli-20261007` was never touched by the reviewer. No provider,
+runtime/root/V10, financial, or acceptance transition. Gate-3 **91/200 (formal 1/50)**, 77 missing,
+G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 12:00 UTC Two finished repair candidates sent to independent review; real collectors confirmed healthy
 
 Host-state intake found both outstanding FIRST-PRIORITY candidates already finished since the
