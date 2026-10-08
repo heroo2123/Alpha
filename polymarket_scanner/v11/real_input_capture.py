@@ -25,32 +25,57 @@ PURPOSE = 'NONFINANCIAL_CWOP_AWC_BOOK_CAPTURE'
 # already has its own expiring per-host cooldown in ScheduledCollector's
 # SOURCE_SCHEDULE and must not block unrelated, currently-healthy sources.
 RIGHTS_SENSITIVE_PROVIDERS = frozenset({'NOAA_MADIS_CWOP'})
+# This collector has exactly three reviewed transport providers. New transport
+# families need code/review changes, not implicit trust in persisted strings.
+KNOWN_CAPTURE_PROVIDERS = RIGHTS_SENSITIVE_PROVIDERS | frozenset({
+    'NOAA_AWC', 'POLYMARKET_PUBLIC_CLOB',
+})
 
 
 def _held_providers(details):
-    """Recover which providers a persisted PROVIDER_HELD record actually held.
+    """Recover held providers conservatively, including legacy persisted records.
 
-    ``collection.sources`` is written by every record of this kind, including
-    the parent format that predates ``held_providers``; trust it over the
-    newer field so a legacy record cannot be read as holding nothing. An
-    outcome of PROVIDER_HELD always has at least one non-SUCCESS source on
-    the genuine write path, so an empty, missing, or unparseable recovery
-    from either field is itself a malformed or contradictory record, not
-    evidence of nothing held: fail closed as rights-sensitive rather than
-    let an unclassifiable held record escape the latch.
+    An unclassifiable provider is NOT evidence of a harmless transport error.
+    Collection rows take precedence for authentic old-format records; if both
+    fields are present and disagree, the record is corrupt and stays held.
     """
+    if type(details) is not dict:
+        return RIGHTS_SENSITIVE_PROVIDERS
     collection = details.get('collection')
-    if isinstance(collection, dict) and isinstance(collection.get('sources'), list):
-        try:
-            recovered = frozenset(source['provider'] for source in collection['sources']
-                                   if source.get('state') != 'SUCCESS')
-        except (KeyError, TypeError):
-            recovered = None
-        if recovered:
-            return recovered
-    held_providers = details.get('held_providers')
-    if isinstance(held_providers, (list, tuple, set, frozenset)) and held_providers:
-        return frozenset(held_providers)
+    failed = None
+    if type(collection) is dict and type(collection.get('sources')) is list:
+        sources = collection['sources']
+        if len(sources) > 63:
+            return RIGHTS_SENSITIVE_PROVIDERS
+        failed_rows = set()
+        for source in sources:
+            if type(source) is not dict:
+                return RIGHTS_SENSITIVE_PROVIDERS
+            provider, state = source.get('provider'), source.get('state')
+            if (type(provider) is not str or provider not in KNOWN_CAPTURE_PROVIDERS
+                    or type(state) is not str or not state or len(state) > 128):
+                return RIGHTS_SENSITIVE_PROVIDERS
+            if state != 'SUCCESS':
+                failed_rows.add(provider)
+        if failed_rows:
+            failed = frozenset(failed_rows)
+
+    held_raw = details.get('held_providers')
+    declared = None
+    if held_raw is not None:
+        if type(held_raw) not in (list, tuple, set, frozenset) or len(held_raw) > 63:
+            return RIGHTS_SENSITIVE_PROVIDERS
+        if any(type(p) is not str or p not in KNOWN_CAPTURE_PROVIDERS for p in held_raw):
+            return RIGHTS_SENSITIVE_PROVIDERS
+        if held_raw:
+            declared = frozenset(held_raw)
+
+    if failed is not None:
+        if declared is not None and declared != failed:
+            return RIGHTS_SENSITIVE_PROVIDERS
+        return failed
+    if declared is not None:
+        return declared
     return RIGHTS_SENSITIVE_PROVIDERS
 
 

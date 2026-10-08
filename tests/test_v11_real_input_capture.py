@@ -163,6 +163,16 @@ def test_legacy_parent_format_madis_hold_without_held_providers_field_still_bloc
     (dict(sources=[], omitted=[]), None),  # empty sources: nothing to recover, must not mean nothing held
     (dict(sources=[], omitted=[]), []),  # empty held_providers fallback must not be trusted either
     (None, None),  # collection itself missing or unparseable
+    (dict(sources=[dict(provider='', state='TRANSPORT_FAILURE')], omitted=[]), None),
+    (dict(sources=[dict(provider=None, state='TRANSPORT_FAILURE')], omitted=[]), None),
+    (dict(sources=[dict(provider='NOAA_MADIS_CWOP ', state='TRANSPORT_FAILURE')], omitted=[]), None),
+    (dict(sources=[dict(provider='UNRECOGNIZED', state='TRANSPORT_FAILURE')], omitted=[]), None),
+    (dict(sources=[dict(state='TRANSPORT_FAILURE')], omitted=[]), ['NOAA_AWC']),
+    (dict(sources=[dict(provider='NOAA_AWC', state=None)], omitted=[]), ['NOAA_AWC']),
+    (None, ['']),
+    (None, [None]),
+    (None, ['NOAA_MADIS_CWOP ']),
+    (None, ['UNRECOGNIZED']),
 ])
 def test_malformed_or_contradictory_held_record_still_blocks(capture_rig,collection,held_providers):
     r=capture_rig
@@ -191,7 +201,7 @@ def test_held_providers_fallback_recovers_an_explicit_hold_when_sources_is_empty
         run(r,cycle='after-empty-sources-explicit-held')
 
 
-def test_nonempty_sources_take_precedence_over_a_conflicting_held_providers_field(capture_rig):
+def test_conflicting_recovered_held_providers_fail_closed(capture_rig):
     r=capture_rig
     r['store'].audit('real-input:conflicting-held',event_id='v11-real-input-capture',kind='RUNTIME_STATUS',
         details=dict(config_sha256=digest(asdict(r['plan'])), outcome='PROVIDER_HELD',
@@ -200,9 +210,8 @@ def test_nonempty_sources_take_precedence_over_a_conflicting_held_providers_fiel
             errors=['REAL_INPUT_SOURCE_HELD'], raw_ids=[], normalized_ids=[], book_ids=[], qc_id=None,
             financial_authority=False, real_orders_sent=False, settlement_authority=False, acceptance_granted=False))
     r['now'][0]+=1000
-    row,calls=run(r,cycle='after-conflicting-held')
-    assert row['body']['details']['outcome']=='FRESH_SOURCE_EVIDENCE_ONLY'
-    assert any(c.url.host=='madis-data.ncep.noaa.gov' for c in calls)
+    with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r,cycle='after-conflicting-held')
 
 
 def test_interrupted_request_cannot_be_retried_unattended(capture_rig):
