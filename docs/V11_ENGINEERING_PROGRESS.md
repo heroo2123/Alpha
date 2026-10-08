@@ -1,3 +1,29 @@
+## 2026-10-08 14:54 UTC Shadow R3 independent Opus review: PASS_IN_SCOPE for documented install path; residual non-blocking findings deliberately not repaired; root commissioning OWNER_ACTION_REQUIRED
+
+Read actual host state before acting: `/tmp/alpha-shadow-r3-opus-independent-20261008.terminal`
+(`exit_code=0`, `ended_utc=2026-10-08T14:51:51Z`) and its `.verdict.json`, independently inspected
+rather than summarized from a claim. The independent Claude Opus/high reviewer (distinct model from
+the Sonnet author across all three repair rounds) confirmed the frozen candidate at
+`/tmp/alpha-shadow-seed-r3-frozen-review-20261008` has zero byte drift (33/33 integrity pins pass
+at intake and again at review end) and closed all five round-2 Astra HIGH findings for the documented
+`execute --install-preparer <frozen path> <sha> --i-have-protected-approval` path. Two residual
+findings (`R3-M21-RES` MEDIUM, `R3-L1` LOW) were independently confirmed to block only the separate,
+unapproved `--verify-installed-preparer` flag, not the real install path — a round-4 repair pass was
+considered and deliberately declined as unnecessary effort past what correctness/acceptance for the
+approved path requires, consistent with this project's standing instruction not to endlessly deepen
+an already-reviewed slice. No live/root file was touched or installed this cycle
+(`root_action_performed=false`, `candidate_installed=false`, `oct8_touched=false`,
+`live_sqlite_connections=0`) — this is reviewed-ready code only, not an installed effect, so it adds
+no C/J/E/A credit. The actual remaining step is root-privileged host commissioning (creating a
+root-owned import directory, re-owning `/var/lock/alpha-v11` to root, installing the reviewed
+authority/publisher binaries with verified hashes, then running the exact `execute` command) before
+2026-10-09T03:30-04:00Z — flagged `OWNER_ACTION_REQUIRED` with the precise commands recorded in
+`docs/V11_WORK_CHECKPOINT.md`, since this session has no root authority and must not bypass it.
+Confirmed no duplicate work was launched: the independent PAPER R08 contract lane
+(`alpha-paper-r08-contract-20261008`) is still actively running and was left untouched; InventoryTransform,
+G3 witnesses, and NOAA AWC/PWS collectors were all confirmed current with no new unblocked work to
+relaunch. Gate-3 **91/200 (formal 1/50)**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 14:16 UTC R08 lane: confirmed structural blocker in EventMetrics admission, not a data gap
 
 Read actual host state before acting: the second independent PAPER R08 lane

@@ -1,3 +1,21 @@
+## 2026-10-08 14:54 UTC Shadow R3 independent Opus review PASS_IN_SCOPE adds no new C/J/E/A credit; root commissioning is OWNER_ACTION_REQUIRED
+
+The independent Claude Opus/high review of the frozen Shadow-seed R3 candidate (checksum-pinned,
+no byte drift, verified rather than taken on claim) returned `PASS_IN_SCOPE` for the documented
+`--install-preparer ... --i-have-protected-approval` path, closing all five round-2 Astra HIGH
+findings; two residual findings (`R3-M21-RES` MEDIUM, `R3-L1` LOW) block only the separate,
+not-approved `--verify-installed-preparer` flag and are deliberately not being repaired further —
+a round-4 repair was considered and declined as unnecessary deepening of an already-reviewed slice
+past what the real (approved) path requires. This is reviewed-ready code, not installed effect:
+no live/root file touched (`root_action_performed=false`, `candidate_installed=false`,
+`oct8_touched=false`), so it supplies no C/J/E/A transition. The real remaining step is a
+root-privileged host action (`OWNER_ACTION_REQUIRED`, exact commands recorded in
+`docs/V11_WORK_CHECKPOINT.md` this entry) outside this session's authority, needed before
+2026-10-09T03:30-04:00Z for Oct 9/10 Shadow recovery. No selected-window identity, provider-rights
+evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit
+changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 14:16 UTC R08 NO_PATCH diagnostic adds no new C/J/E/A credit; flags owner-level blocker
 
 The second independent PAPER R08 lane's `NO_PATCH` outcome (verified independently, not taken on

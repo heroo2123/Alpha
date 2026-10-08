@@ -1,3 +1,64 @@
+## 2026-10-08 14:54 UTC Independent Opus review of Shadow R3 candidate returns PASS_IN_SCOPE; root commissioning is now OWNER_ACTION_REQUIRED, not further coding
+
+Read actual host state before acting (did not take the review on claim): `/tmp/alpha-shadow-r3-opus-independent-20261008.terminal`
+shows `exit_code=0`/`ended_utc=2026-10-08T14:51:51Z`; independently opened `/tmp/alpha-shadow-r3-opus-independent-20261008.verdict.json`
+and cross-checked its own structure rather than summarizing a claim. The independent Claude Opus/high
+reviewer (distinct model from the Sonnet author of all three repair rounds) examined the frozen,
+checksum-pinned candidate at `/tmp/alpha-shadow-seed-r3-frozen-review-20261008` (33/33 integrity pins
+PASS both at intake and at the end of review, `byte_drift=false`) and returned **`PASS_IN_SCOPE`**
+for the documented install path: `execute --day 2026-10-09 --day 2026-10-10 --txn <new path>
+--install-preparer <frozen proposed/user/perpetual_day_preparer.py> 4f5dd035a84fb617f4d00f857cdea821ce8d934f024c3007032cc356dcec0ca2
+--i-have-protected-approval`. All five round-2 Astra HIGH findings (R2-M1.1/M1.2/M1.3/M2.1/M2.2) are
+`CLOSED` for that path. Two residual findings remain, both **non-blocking for the documented install
+path**: `R3-M21-RES` (MEDIUM) blocks only the separate, not-approved `--verify-installed-preparer`
+flag (an unrelated old racy preparer sha could be live-swapped and accepted by that path only); `R3-L1`
+(LOW) is an already-acknowledged point-in-time lock-pathname gap in `execute`, not a correctness
+defect in committed results. Author test suites independently re-run by the reviewer: migration
+30/30 (both Python modes), full-repo-adjacent 94/94 passed (20 skipped) both modes with no failures;
+author's own full-suite run showed 2 failures independently attributed to a synthetic host-fixture
+date-naming artifact, not this candidate's logic. Root A/B swap race probes: 8/8 patched-root control
+never observed stale import; 2/2 unpatched control confirmed the race exists without the patch
+(F2 fix genuinely verified, not assumed). No live/root file was touched, installed, or activated
+(`root_action_performed=false`, `candidate_installed=false`, `oct8_touched=false`,
+`live_sqlite_connections=0`, `network_requests_made=false`) — this is a reviewed, uninstalled
+candidate only.
+
+**Decision: no round-4 repair launched.** Both residual findings are explicitly scoped by the
+reviewer as blocking only a flag (`--verify-installed-preparer`) that the documented/approved install
+path never uses — fixing them now would be exactly the "endlessly deepening an already-credited slice
+beyond what correctness/acceptance requires" this project's rules forbid, after three independent
+review rounds (R1 Astra CHANGES_REQUIRED, R2 Astra CHANGES_REQUIRED, R3 Opus PASS_IN_SCOPE) already
+closed every blocking finding for the real path. No C/J/E/A credit changes from this review: it
+is reviewed-ready code, not installed effect, and still requires a human root operator.
+
+**OWNER_ACTION_REQUIRED** (exact minimum action, from the reviewer's own
+`root_operator_commissioning_prerequisites`, not invented here): (1) create
+`/var/lib/alpha-v11/daily-review-import` root:root 0700 before installing anything; (2) change
+`/var/lock/alpha-v11` to root:root 0755 (currently alphaadmin-writable) and persistent across reboot;
+(3) install the reviewed/pinned `proposed/root/alpha-v11-daily-review-authority.py` and
+`alpha-v11-daily-review-publisher` to `/usr/local/libexec` / `/usr/local/sbin` root:root 0555,
+verifying the exact sha256 hashes recorded in the verdict, before 2026-10-09T04:00Z for the Oct 9
+F2 adversarial guarantee to hold; (4) run exactly the `execute --day 2026-10-09 --day 2026-10-10
+--txn <new path> --install-preparer <frozen path> <sha> --i-have-protected-approval` command directly
+(no sudo/timeout/nohup wrapper — the tool fails closed on a wrapped cmdline), never
+`--verify-installed-preparer`, before 2026-10-09T03:30Z after a passing inventory check. This unlocks
+resolving the live `AUDIT_PINNED_SEQUENCE_MISSING` DEGRADED Shadow state for Oct 9/10 (Oct 8 stays
+untouched/gated per the task). This is a root-privileged host action outside this session's authority
+— reporting it precisely rather than attempting any workaround.
+
+Confirmed no duplicate work launched this cycle: the independent PAPER R08 contract lane
+(`alpha-paper-r08-contract-20261008`, PID 41005, started 14:40Z) is still actively running (~14 min
+elapsed, files in its isolated worktree modified within the last 2 minutes) — left untouched, not
+duplicated. InventoryTransform supervisor (`/home/alphaadmin/AlphaV11_InventoryShadow`) confirmed
+still live (PID 1003, iteration climbing past 1659) with `inputs_seen=2` unchanged since the Tokyo
+observation was added — no new genuine local source has appeared in the last ~3.5 hours, so no
+redundant source search was relaunched this cycle, matching the prior pass's finding. G3 clock
+witness, storage witness, and NOAA AWC/PWS collectors all confirmed current (sample files timestamped
+within the last ~5 minutes via their own cron cadence) — no action needed, no code blocker, rights
+holds unchanged. No selected-window identity, provider-rights evidence, PAPER real reservation/PWS
+evidence, Brain qualification, or READY_TO_FUND credit changes this cycle. Gate-3 **91/200 (formal
+1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 14:16 UTC R08 lane returns NO_PATCH with a confirmed structural blocker (owner design decision needed); seed-r3 repair still running independently
 
 Read actual host state before acting: `/tmp/alpha-r08-real-evidence-20261008.terminal` showed
