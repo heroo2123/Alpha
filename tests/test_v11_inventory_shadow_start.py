@@ -145,28 +145,105 @@ def test_process_guard_denies_raw_subprocess_and_ctypes_socket_bypass():
 
 def test_process_guard_denies_cffi_backend_socket_bypass():
     # cffi's FFI().dlopen(None) can reach a raw libc handle, and thus a raw
-    # socket fd, the same way ctypes.CDLL(None) can (finding L-B). `import
-    # cffi` alone does not pull in the native backend: cffi.api.FFI.__init__
-    # imports `_cffi_backend` lazily, only once an FFI instance is
-    # constructed. The probe stops there: denying `_cffi_backend` makes
-    # `cffi.FFI()` fail before `dlopen` is ever called, so no socket is
-    # reached.
+    # socket fd, the same way ctypes.CDLL(None) can (finding L-B). The load
+    # that must be denied is the direct backend import: `import cffi` alone
+    # does not pull in the native backend (cffi.api.FFI.__init__ imports
+    # `_cffi_backend` lazily, only once an FFI instance is constructed), and
+    # `cffi.FFI()` on this interpreter happens to already fail earlier, at
+    # pycparser's `from subprocess import check_output` -> `_posixsubprocess`
+    # import, which is denied for an unrelated reason and would still fail
+    # this way even if `_cffi_backend` were missing from the deny set. So the
+    # probe pins `_cffi_backend` by a literal (not by looping over the set
+    # under test) and checks the direct import first, with an explicit exit
+    # code per failure mode instead of a child-side `assert`.
+    assert {"ctypes", "_ctypes", "_posixsubprocess", "_cffi_backend"} <= start._DENIED_IMPORT_MODULES
     code = (
         "import sys\n"
         "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
         "start._deny_ambient_access()\n"
+        "try:\n"
+        "    import _cffi_backend\n"
+        "except RuntimeError as exc:\n"
+        "    if str(exc) != 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED:import':\n"
+        "        sys.exit(4)\n"
+        "else:\n"
+        "    sys.exit(3)\n"
+        "if '_cffi_backend' in sys.modules or '_posixsubprocess' in sys.modules:\n"
+        "    sys.exit(5)\n"
         "import cffi\n"
         "try:\n"
         "    cffi.FFI()\n"
-        "except RuntimeError as exc:\n"
-        "    assert 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED' in str(exc)\n"
+        "except RuntimeError:\n"
+        "    pass\n"
         "else:\n"
-        "    sys.exit(3)\n"
+        "    sys.exit(6)\n"
         "print('DENIED')\n"
     )
     result = child("-c", code)
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, (result.returncode, result.stderr)
     assert result.stdout.strip() == "DENIED"
+
+
+def test_process_guard_denies_cffi_backend_dotted_alias_and_preload(tmp_path):
+    # F2: an exact-name deny can miss the same extension file reimported
+    # under a dotted alias (`aliaspkg._cffi_backend`), both at import time
+    # and when it is already in sys.modules before the hook installs. The
+    # guard must match the import audit event's and sys.modules name's last
+    # dotted component, not the full dotted name. If that match ever
+    # regresses, this probe proves raw libc was reached with `getpid()`
+    # only; it never opens a socket.
+    import importlib.util
+    spec = importlib.util.find_spec("_cffi_backend")
+    assert spec is not None and spec.origin
+    backend_dir = os.path.dirname(spec.origin)
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+
+    alias_setup = (
+        "import types\n"
+        "pkg = types.ModuleType('aliaspkg')\n"
+        f"pkg.__path__ = [{backend_dir!r}]\n"
+        "sys.modules['aliaspkg'] = pkg\n"
+    )
+
+    # Import-time: the dotted alias must be denied exactly like the bare name.
+    code = (
+        "import sys, os\n"
+        + alias_setup +
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "start._deny_ambient_access()\n"
+        "try:\n"
+        "    import aliaspkg._cffi_backend as backend\n"
+        "except RuntimeError as exc:\n"
+        "    if str(exc) != 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED:import':\n"
+        "        sys.exit(4)\n"
+        "else:\n"
+        "    lib = backend.load_library(None)\n"
+        "    bint = backend.new_primitive_type('int')\n"
+        "    fn = lib.load_function(backend.new_function_type((), bint, False), 'getpid')\n"
+        "    sys.exit(7 if fn() == os.getpid() else 8)\n"
+        "if 'aliaspkg._cffi_backend' in sys.modules or '_cffi_backend' in sys.modules:\n"
+        "    sys.exit(5)\n"
+        "print('DENIED')\n"
+    )
+    result = child("-c", code)
+    assert result.returncode == 0, (result.returncode, result.stderr)
+    assert result.stdout.strip() == "DENIED"
+
+    # Preload-time: the same alias, already imported before the hook
+    # installs, must be caught by DENIED_MODULE_PRELOADED just like the
+    # bare name is.
+    code = (
+        "import sys\n"
+        + alias_setup +
+        "import aliaspkg._cffi_backend\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "raise SystemExit(start.guarded_main(sys.argv[1:]))\n"
+    )
+    result = child("-c", code, "--input", str(path), "--event", EVENT, "--output-dir", str(out))
+    assert result.returncode == 2, (result.returncode, result.stderr)
+    assert "DENIED_MODULE_PRELOADED" in result.stderr
+    assert list(out.iterdir()) == []
 
 
 def test_process_entry_refuses_when_a_denied_module_is_already_loaded(tmp_path):

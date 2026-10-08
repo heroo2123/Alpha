@@ -51,6 +51,17 @@ _DENIED_AUDIT_EVENTS = frozenset({
 _DENIED_IMPORT_MODULES = frozenset({"_posixsubprocess", "ctypes", "_ctypes", "_cffi_backend"})
 
 
+def _denied_import_match(name: str) -> bool:
+    """True for a denied module loaded under its own name or a dotted alias.
+
+    ``import aliaspkg._cffi_backend`` raises an ``import`` audit event with
+    ``args[0] == "aliaspkg._cffi_backend"`` and leaves the same entry under
+    that full name in ``sys.modules``; an exact-name check misses it even
+    though the loader resolves the identical extension file.
+    """
+    return name.rpartition(".")[2] in _DENIED_IMPORT_MODULES
+
+
 def artifact_name(source_file_sha256: str, event_slug: str) -> str:
     """The only file an (observer version, input bytes, event) triple may occupy."""
     identity = json.dumps([shadow.VERSION, source_file_sha256, event_slug],
@@ -274,7 +285,7 @@ def _deny_ambient_access() -> None:
     """
     def hook(event: str, args: tuple) -> None:
         if (event.startswith("socket.") or event in _DENIED_AUDIT_EVENTS
-                or (event == "import" and args and args[0] in _DENIED_IMPORT_MODULES)):
+                or (event == "import" and args and _denied_import_match(args[0]))):
             raise RuntimeError("INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED:" + event)
     sys.addaudithook(hook)
 
@@ -285,7 +296,7 @@ def _foreign_modules() -> list[str]:
 
 
 def _preloaded_denied_modules() -> list[str]:
-    return sorted(name for name in _DENIED_IMPORT_MODULES if name in sys.modules)
+    return sorted(name for name in sys.modules if _denied_import_match(name))
 
 
 def guarded_main(argv: list[str] | None = None) -> int:
