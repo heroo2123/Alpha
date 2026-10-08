@@ -1,10 +1,13 @@
 """Offline refusal tests for the deployed preparer's sparse baseline pattern."""
 import hashlib
+import json
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
 from dataclasses import replace
+from contextlib import closing
+from unittest.mock import patch
 
 from polymarket_scanner.v11.daily_seed_plan import (
     BASE_IDS, NAMESPACE, SeedPlanError, plan_daily_seed, verify_existing_daily,
@@ -17,7 +20,7 @@ def file_sha(path):
 
 
 def backup(source, target):
-    with sqlite3.connect(source) as src, sqlite3.connect(target) as dst:
+    with closing(sqlite3.connect(source)) as src, closing(sqlite3.connect(target)) as dst:
         src.backup(dst)
 
 
@@ -61,6 +64,24 @@ class DailySeedPlanTests(unittest.TestCase):
 
     def plan(self):
         return plan_daily_seed(self.snapshot, file_sha(self.snapshot))
+
+    def altered_snapshot(self, name, alter):
+        target = self.root / name
+        backup(self.snapshot, target)
+        with closing(sqlite3.connect(target)) as db:
+            with db:
+                db.execute("DROP TRIGGER v11_no_update")
+                raw = db.execute("SELECT body FROM v11_records WHERE seq=3").fetchone()[0]
+                body = json.loads(raw)
+                body.setdefault("payload", {})
+                alter(body)
+                db.execute("UPDATE v11_records SET body=?, body_sha256=? WHERE seq=3",
+                           (canonical(body), digest(body)))
+                db.execute("CREATE TRIGGER v11_no_update BEFORE UPDATE ON v11_records "
+                           "BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END")
+            db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            db.execute("PRAGMA journal_mode=DELETE")
+        return target
 
     def test_sparse_source_plans_contiguous_local_genesis_and_preserves_envelopes(self):
         plan = self.plan()
@@ -179,6 +200,85 @@ class DailySeedPlanTests(unittest.TestCase):
         alias.symlink_to(self.snapshot)
         with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_SYMLINK_REFUSED"):
             plan_daily_seed(alias, file_sha(self.snapshot))
+
+    def test_source_path_swap_cannot_change_pinned_rows(self):
+        pinned = file_sha(self.snapshot)
+        other = self.altered_snapshot("other.sqlite", lambda body: body["details"].update(sample=999))
+        original_connect = sqlite3.connect
+        saved = self.root / "saved.sqlite"
+
+        def swap_around_connect(*args, **kwargs):
+            self.snapshot.rename(saved)
+            other.rename(self.snapshot)
+            try:
+                return original_connect(*args, **kwargs)
+            finally:
+                self.snapshot.rename(other)
+                saved.rename(self.snapshot)
+
+        with patch("polymarket_scanner.v11.daily_seed_plan.sqlite3.connect", swap_around_connect):
+            with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_PATH_CHANGED"):
+                plan_daily_seed(self.snapshot, pinned)
+        self.assertEqual(file_sha(self.snapshot), pinned)
+
+    def test_existing_path_swap_cannot_admit_sparse_inode(self):
+        plan = self.plan()
+        good = self.root / "good.sqlite"
+        EvidenceStore(good, NAMESPACE)
+        with sqlite3.connect(good) as db:
+            db.executemany("INSERT INTO v11_records VALUES(?,?,?,?,?,?,?,?)", plan.rows)
+        good_sealed = self.root / "good-sealed.sqlite"
+        backup(good, good_sealed)
+        original_connect = sqlite3.connect
+        saved = self.root / "saved.sqlite"
+
+        def swap_around_connect(*args, **kwargs):
+            self.snapshot.rename(saved)
+            good_sealed.rename(self.snapshot)
+            try:
+                return original_connect(*args, **kwargs)
+            finally:
+                self.snapshot.rename(good_sealed)
+                saved.rename(self.snapshot)
+
+        with patch("polymarket_scanner.v11.daily_seed_plan.sqlite3.connect", swap_around_connect):
+            with self.assertRaisesRegex(SeedPlanError, "EXISTING_DAILY_SPARSE_OR_PARTIAL"):
+                verify_existing_daily(self.snapshot, plan, plan.manifest_sha256)
+        with original_connect(self.snapshot) as db:
+            self.assertEqual([r[0] for r in db.execute("SELECT seq FROM v11_records ORDER BY seq")],
+                             [3, 4, 6])
+
+    def test_reference_payload_shape_and_raw_dependency_refusals(self):
+        changes = (
+            ("raw-missing.sqlite", lambda b: b["payload"].update(
+                raw_evidence_id="missing:raw", raw_evidence_sha256="a" * 64), "CLOSURE_UNREVIEWED"),
+            ("raw-orphan-hash.sqlite", lambda b: b["payload"].update(
+                raw_evidence_sha256="a" * 64), "REFERENCES_INVALID"),
+            ("capture-orphan-hash.sqlite", lambda b: b["payload"].update(
+                source_capture_sha256="a" * 64), "REFERENCES_INVALID"),
+            ("nonobject.sqlite", lambda b: b.update(payload=["malformed"]), "REFERENCES_INVALID"),
+            ("unknown-payload.sqlite", lambda b: b["payload"].update(
+                unknown_reference_id="missing"), "PAYLOAD_UNREVIEWED"),
+        )
+        for name, alter, error in changes:
+            with self.subTest(name=name):
+                target = self.altered_snapshot(name, alter)
+                with self.assertRaisesRegex(SeedPlanError, error):
+                    plan_daily_seed(target, file_sha(target))
+
+    def test_dangling_sidecars_refused_for_source_and_existing(self):
+        plan = self.plan()
+        for suffix in ("-wal", "-shm", "-journal"):
+            with self.subTest(suffix=suffix):
+                sidecar = Path(str(self.snapshot) + suffix)
+                sidecar.symlink_to(self.root / ("absent" + suffix))
+                try:
+                    with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_SIDECAR_REFUSED"):
+                        self.plan()
+                    with self.assertRaisesRegex(SeedPlanError, "SNAPSHOT_SIDECAR_REFUSED"):
+                        verify_existing_daily(self.snapshot, plan, plan.manifest_sha256)
+                finally:
+                    sidecar.unlink()
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ The caller must supply a sealed, checkpointed SQLite snapshot of MASTER.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 import hashlib
 import json
 import math
@@ -60,17 +61,65 @@ def _regular_sealed(path: Path) -> os.stat_result:
         raise SeedPlanError("SNAPSHOT_MISSING") from exc
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > MAX_SNAPSHOT_BYTES:
         raise SeedPlanError("SNAPSHOT_FILE_BOUNDS_OR_ALIAS")
-    if any(Path(str(path) + suffix).exists() for suffix in ("-wal", "-shm", "-journal")):
+    if any(os.path.lexists(str(path) + suffix) for suffix in ("-wal", "-shm", "-journal")):
         raise SeedPlanError("SNAPSHOT_SIDECAR_REFUSED")
     return info
 
 
-def _file_sha(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def _identity(info: os.stat_result) -> tuple[int, ...]:
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+            info.st_ctime_ns, info.st_nlink)
+
+
+def _sealed_bytes(path: Path) -> tuple[bytes, tuple[int, ...]]:
+    """Acquire one regular inode; SQLite will read only this captured byte string."""
+    before = _regular_sealed(path)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError as exc:
+        raise SeedPlanError("SNAPSHOT_OPEN_REFUSED") from exc
+    try:
+        opened = os.fstat(fd)
+        if _identity(opened) != _identity(before) or not stat.S_ISREG(opened.st_mode):
+            raise SeedPlanError("SNAPSHOT_CHANGED_DURING_ACQUISITION")
+        parts = []
+        remaining = opened.st_size
+        while remaining:
+            chunk = os.read(fd, min(1024 * 1024, remaining))
+            if not chunk:
+                raise SeedPlanError("SNAPSHOT_SHORT_READ")
+            parts.append(chunk)
+            remaining -= len(chunk)
+        if _identity(os.fstat(fd)) != _identity(opened):
+            raise SeedPlanError("SNAPSHOT_CHANGED_DURING_READ")
+    finally:
+        os.close(fd)
+    if _identity(_regular_sealed(path)) != _identity(opened):
+        raise SeedPlanError("SNAPSHOT_PATH_CHANGED")
+    return b"".join(parts), _identity(opened)
+
+
+def _same_path(path: Path, acquired_identity: tuple[int, ...]) -> None:
+    if _identity(_regular_sealed(path)) != acquired_identity:
+        raise SeedPlanError("SNAPSHOT_PATH_CHANGED")
+
+
+def _memory_db(data: bytes) -> sqlite3.Connection:
+    db = sqlite3.connect(":memory:")
+    try:
+        # A standalone backup can retain SQLite's WAL header flags even though
+        # it has no WAL. Deserialized memory databases cannot open that mode.
+        # Change only the private parser copy; source identity uses raw bytes.
+        parser_bytes = bytearray(data)
+        if parser_bytes[:16] == b"SQLite format 3\0" and parser_bytes[18:20] == b"\x02\x02":
+            parser_bytes[18:20] = b"\x01\x01"
+        db.deserialize(bytes(parser_bytes))
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA query_only=ON")
+    except Exception:
+        db.close()
+        raise
+    return db
 
 
 def _json_unique(raw: str) -> dict:
@@ -139,10 +188,18 @@ def _refs(body: dict) -> tuple[tuple[str, str], ...]:
             raise SeedPlanError("BASELINE_REFERENCES_INVALID")
         result.append((ref["id"], ref["sha256"]))
     payload = body.get("payload", {})
-    if type(payload) is dict and "source_capture_id" in payload:
-        if type(payload.get("source_capture_id")) is not str or type(payload.get("source_capture_sha256")) is not str:
-            raise SeedPlanError("BASELINE_REFERENCES_INVALID")
-        result.append((payload["source_capture_id"], payload["source_capture_sha256"]))
+    if type(payload) is not dict:
+        raise SeedPlanError("BASELINE_REFERENCES_INVALID")
+    if set(payload) - {"source_capture_id", "source_capture_sha256",
+                        "raw_evidence_id", "raw_evidence_sha256"}:
+        raise SeedPlanError("BASELINE_PAYLOAD_UNREVIEWED")
+    for stem in ("source_capture", "raw_evidence"):
+        id_key, hash_key = stem + "_id", stem + "_sha256"
+        if id_key in payload or hash_key in payload:
+            if (type(payload.get(id_key)) is not str or not payload[id_key]
+                    or type(payload.get(hash_key)) is not str):
+                raise SeedPlanError("BASELINE_REFERENCES_INVALID")
+            result.append((payload[id_key], payload[hash_key]))
     return tuple(result)
 
 
@@ -153,14 +210,12 @@ def plan_daily_seed(snapshot: Path, expected_source_sha256: str) -> SeedPlan:
     No file is created or modified here.
     """
     snapshot = Path(snapshot)
-    before = _regular_sealed(snapshot)
-    source_sha = _file_sha(snapshot)
+    source_bytes, source_identity = _sealed_bytes(snapshot)
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
     if source_sha != expected_source_sha256:
         raise SeedPlanError("SOURCE_SNAPSHOT_IDENTITY_CHANGED")
     try:
-        with sqlite3.connect(snapshot.as_uri() + "?mode=ro&immutable=1", uri=True) as db:
-            db.row_factory = sqlite3.Row
-            db.execute("PRAGMA query_only=ON")
+        with closing(_memory_db(source_bytes)) as db:
             _validate_schema(db)
             if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise SeedPlanError("SOURCE_INTEGRITY_FAILED")
@@ -183,11 +238,8 @@ def plan_daily_seed(snapshot: Path, expected_source_sha256: str) -> SeedPlan:
                        for i, row in enumerate(ordered, 1)]
     except sqlite3.DatabaseError as exc:
         raise SeedPlanError("SOURCE_SQLITE_INVALID") from exc
-    after = _regular_sealed(snapshot)
-    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
-            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns
-    ) or _file_sha(snapshot) != source_sha:
-        raise SeedPlanError("SOURCE_SNAPSHOT_CHANGED_DURING_READ")
+    # A caller must maintain custody of the sealed path after this observation.
+    _same_path(snapshot, source_identity)
     manifest = dict(version="alpha_v11_daily_seed_plan_v1", namespace=NAMESPACE,
                     source_snapshot_sha256=source_sha, mapping=mapping,
                     financial_authority=False)
@@ -195,10 +247,11 @@ def plan_daily_seed(snapshot: Path, expected_source_sha256: str) -> SeedPlan:
 
 
 def verify_existing_daily(path: Path, plan: SeedPlan, expected_manifest_sha256: str) -> int:
-    """Read-only admission of a same-generation DB; returns its contiguous tip.
+    """Read-only check of captured DB bytes; returns their contiguous tip.
 
     The manifest hash must be independently pinned by the caller. This verifier
-    does not create a path and does not infer a review or generation binding.
+    does not create a path or infer a review or generation binding. The caller
+    must retain custody of the path after this point-in-time observation.
     """
     if (plan.manifest_sha256 != expected_manifest_sha256
             or digest(plan.manifest) != expected_manifest_sha256
@@ -211,11 +264,12 @@ def verify_existing_daily(path: Path, plan: SeedPlan, expected_manifest_sha256: 
                 or mapped.get("record_id") != row[1] or mapped.get("body_sha256") != row[7]):
             raise SeedPlanError("SEED_MANIFEST_MAPPING_MISMATCH")
     path = Path(path)
-    before = _regular_sealed(path)
+    daily_bytes, daily_identity = _sealed_bytes(path)
     try:
-        with sqlite3.connect(path.as_uri() + "?mode=ro&immutable=1", uri=True) as db:
-            db.row_factory = sqlite3.Row
+        with closing(_memory_db(daily_bytes)) as db:
             _validate_schema(db)
+            if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                raise SeedPlanError("EXISTING_DAILY_INTEGRITY_FAILED")
             count, maximum = db.execute("SELECT count(*),max(seq) FROM v11_records").fetchone()
             if count < len(plan.rows) or count != maximum:
                 raise SeedPlanError("EXISTING_DAILY_SPARSE_OR_PARTIAL")
@@ -227,9 +281,5 @@ def verify_existing_daily(path: Path, plan: SeedPlan, expected_manifest_sha256: 
                     raise SeedPlanError("EXISTING_DAILY_GENESIS_MISMATCH")
     except sqlite3.DatabaseError as exc:
         raise SeedPlanError("EXISTING_DAILY_SQLITE_INVALID") from exc
-    after = _regular_sealed(path)
-    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
-            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns
-    ):
-        raise SeedPlanError("EXISTING_DAILY_CHANGED_DURING_READ")
+    _same_path(path, daily_identity)
     return count
