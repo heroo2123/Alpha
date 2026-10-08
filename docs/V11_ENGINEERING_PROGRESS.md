@@ -8313,3 +8313,11 @@ Intook exact Astra report/verdict for P2 D1 from clean frozen review: unrelated 
 ## 2026-10-08 02:36 UTC reviewed forward witness merged locally
 
 Integrated independent `PASS_IN_SCOPE` candidate `d6e67aa` through isolated merge `19e421e`; 50 focused witness/inventory tests passed normally and under `-O` after merge. Gate-3 D1 descriptor-root binding is under sole-writer repair. PAPER `5aa2e63` exact review ended on a tool flag without verdict; Brain `1266aad` review continues. Existing Shadow/observer processes remain live and execution masked; no acceptance or financial boundary changed.
+
+## 2026-10-08 02:42 UTC PAPER synthetic race repair running
+
+Reproduced the interrupted reviewer's late-ancestor sidecar mutation signal under optimized Python on disposable SQLite fixtures, retaining `/tmp/alpha-paper-a1a2-independent-repro-20261008/result.json`. Launched one Sol/high sole writer in clean original PAPER worktree `5aa2e63`, with `/tmp/alpha-paper-r89-late-ancestor-repair-5aa2e63.{prompt,runner.sh,out,final,terminal}` and a successor exact-review requirement. The Codex review of `5aa2e63` remains NO_VERDICT after its tool flag; Claude's recorded cooldown ends at 04:50 UTC. Gate-3 descriptor repair and Brain exact review continue independently. No main merge or acceptance change.
+
+## 2026-10-08 02:44 UTC Brain review recycled into repair
+
+Intook independent Codex Sol/high `CHANGES_REQUIRED` for clean `1266aad` with 278 adjacent tests per Python mode and synthetic R1/R2 blockers, plus nonblocking R3/R4. Started a sole Sol/high writer in the original clean Brain worktree under `/tmp/alpha-brain-official-reader-r2-repair-1266aad.*`; its successor requires different-model exact review. Gate-3 descriptor and PAPER late-ancestor repairs remain independent live lanes. No main merge, runtime action or acceptance credit.
