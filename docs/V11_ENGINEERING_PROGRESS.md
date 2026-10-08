@@ -8199,3 +8199,9 @@ Intook the old Gate-3 whole-closure worker's premature exit-0 marker: no handoff
 ## 2026-10-08 00:16 UTC Gate-3 binding candidate review launched
 
 The interrupted same-worktree binding repair was recovered and sealed as `157968b` after 42/42 focused tests in normal and optimized Python. A frozen independent Opus exact review is active at `/tmp/alpha-g3l-binding-review-157968b`; merge and repin remain dependent on its verdict and reconciliation with newer main. Nonfinancial Shadow continues, V10 is inactive/disabled, V11 execution is masked. No Gate-3/PAPER/READY_TO_FUND or C/J/E/A credit changed.
+
+## 2026-10-08 00:21 UTC reviewed F3 repair integrated and lanes recycled
+
+Independent Opus `PASS_IN_SCOPE` for F3 `45283fd` permitted exact single-file integration as main `913507c`; post-merge focused binding suites passed 37/37 in both Python modes with reviewed bytes preserved. Intook clean PAPER readiness CLI `2a08bd0` and forward witness prototype `28be40d`, launching separate frozen Opus exact reviews with retained terminal targets. Their author-side results confer no integration approval or requirement credit. Existing Gate-3 binding review and isolated repair/prerequisite lanes continue; Gate-3 remains 91/200 with 77 unqualified identities and G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
+InventoryTransform L-B Sonnet repair `7dd1aa0` sealed clean with 71 author-side focused/adjacent tests per Python mode. Launched frozen different-model Opus exact review in `/tmp/alpha-inventory-cffi-review-7dd1aa0`; no integration or activation follows before verdict and reconciliation.
