@@ -8310,3 +8310,6 @@ PAPER `5aa2e63` frozen Astra review exited on a cybersecurity content flag befor
 ## 2026-10-08 02:32 UTC descriptor adjudication recycled to sole repair
 
 Intook exact Astra report/verdict for P2 D1 from clean frozen review: unrelated denial-root descriptor accepted with opened-root history otherwise correct; no dispatch/root installation or G3-L credit demonstrated. Started sole isolated Astra/high offline writer from main `e57356b` to add semantic descriptor/root binding and synthetic normal/-O controls, retaining terminal and handoff targets. Different-model exact review and final-byte reconciliation remain required. Forward R2 and Brain reader exact reviews continue as separate specialists; PAPER tool-flag interruption remains NO_VERDICT for Claude after cooldown.
+## 2026-10-08 02:36 UTC reviewed forward witness merged locally
+
+Integrated independent `PASS_IN_SCOPE` candidate `d6e67aa` through isolated merge `19e421e`; 50 focused witness/inventory tests passed normally and under `-O` after merge. Gate-3 D1 descriptor-root binding is under sole-writer repair. PAPER `5aa2e63` exact review ended on a tool flag without verdict; Brain `1266aad` review continues. Existing Shadow/observer processes remain live and execution masked; no acceptance or financial boundary changed.
