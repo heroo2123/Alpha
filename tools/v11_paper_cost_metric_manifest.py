@@ -33,16 +33,32 @@ never this module's claim to make), but a manifest that echoed it as this
 module's own per-category `status` would let one caller-supplied component --
 including a single zero-value component spanning all seven categories -- make
 every category, including the six with no in-tree producer or reviewed
-reserve, look `KNOWN`/source-complete. This module never does that: a
-category only reaches `KNOWN` here when it is covered by a component that (a)
-declares a per-share value, (b) covers that category alone (never bundled
-with any other category), and (c) has a registered in-tree producer in
-`_COST_PRODUCER_REFERENCE`. Anything else that is declared-but-not-missing --
-including every multi-category declaration, zero or not -- is reported
-`DECLARED_UNVERIFIED`: visibly covered per `_costs`, never promoted to
-source-backed. `cost_summary` keeps `_costs`' own `complete` field verbatim
-(declared-coverage completeness); `source_backed_complete` is this module's
-separate, stricter field and is only true when every category is `KNOWN`.
+reserve, look source-backed/complete.
+
+This module never promotes a caller-supplied component to source-backed,
+full stop -- there is no `KNOWN` status. `CostComponent` is a public, frozen
+dataclass (`valuation.py:28-56`); any caller can construct one with any
+`name`, `assumption_sha256`, `priced_buy_limit`, `post_only`, and
+`valid_until` they like, including values that exactly mimic the shape
+`buy_fee_cost` produces. Registry membership
+(`name in _COST_PRODUCER_REFERENCE`) only says an in-tree producer function
+exists for that category; it says nothing about whether *this* component was
+actually returned by that producer, let alone whether the producer's own
+target/freshness checks ran against the caller's real target. Checking field
+shape (a name, a hash, a `valid_until`) cannot establish that either, since
+every one of those fields is caller-supplied and caller-forgeable. Without a
+reviewed, unforgeable producer-attestation mechanism -- which does not exist
+in this tree and this module does not invent -- the only sound behavior is to
+never claim source-backed knowledge from a caller-supplied component, genuine
+or not. `producer_in_tree`/`producer_reference` report producer *availability*
+only (is there in-tree code that could, if called, produce this category's
+cost) and must never be read as a claim about any supplied component's
+provenance. Every declared-but-not-missing category -- single, bundled,
+zero or not -- is reported `DECLARED_UNVERIFIED`: visibly covered per
+`_costs`, never promoted further. `cost_summary` keeps `_costs`' own
+`complete` field verbatim (declared-coverage completeness); the separate
+`source_backed_complete` field is therefore always `False` -- there is no
+path by which this module attests a category as source-backed.
 """
 from __future__ import annotations
 
@@ -84,44 +100,37 @@ def metric_manifest() -> tuple[dict, ...]:
     )
 
 
-def _category_status(name: str, *, missing: set, unknown: set, source_backed: set) -> str:
+def _category_status(name: str, *, missing: set, unknown: set) -> str:
     if name in unknown:
         return 'UNKNOWN_PER_SHARE'
     if name in missing:
         return 'MISSING'
-    if name in source_backed:
-        return 'KNOWN'
     return 'DECLARED_UNVERIFIED'
 
 
 def cost_manifest(costs: tuple[CostComponent, ...] = (), *, required: frozenset = ENTRY_RISKS) -> dict:
-    """Per-`ENTRY_RISKS`-category producer/coverage inventory.
+    """Per-`ENTRY_RISKS`-category producer-availability/coverage inventory.
 
     `required` must equal the real, imported `ENTRY_RISKS` set exactly;
     anything else (a forged/mismatched category set) is refused.
 
-    A category is `KNOWN` only when a single-category, non-null-per-share
-    component covers it and that category has a registered in-tree
-    producer. Any other declared-but-not-missing category (bundled with
-    another category, or no registered producer) is `DECLARED_UNVERIFIED`:
-    `_costs` counts it as covered, this manifest does not call it known.
+    There is no `KNOWN` status: a caller-supplied `CostComponent` can never
+    be distinguished from a forgery by this module (see module docstring),
+    so every declared-but-not-missing category -- single-category or
+    bundled, genuine producer output or not -- is `DECLARED_UNVERIFIED`.
+    `source_backed_complete` is always `False`.
     """
     if frozenset(required) != ENTRY_RISKS:
         raise EvidenceError('ENTRY_RISKS_SET_MISMATCH')
     result = _costs(costs, horizon=PAYOUT, required=ENTRY_RISKS, already=frozenset())
     missing, unknown = set(result['missing']), set(result['unknown'])
-    source_backed = {
-        c.covers[0] for c in costs
-        if c.per_share is not None and len(c.covers) == 1 and c.covers[0] in _COST_PRODUCER_REFERENCE
-    }
     categories = tuple(
         dict(name=name, producer_in_tree=name in _COST_PRODUCER_REFERENCE,
              producer_reference=_COST_PRODUCER_REFERENCE.get(name),
-             status=_category_status(name, missing=missing, unknown=unknown, source_backed=source_backed))
+             status=_category_status(name, missing=missing, unknown=unknown))
         for name in sorted(ENTRY_RISKS)
     )
-    return dict(categories=categories, cost_summary=result,
-                source_backed_complete=all(c['status'] == 'KNOWN' for c in categories))
+    return dict(categories=categories, cost_summary=result, source_backed_complete=False)
 
 
 def prerequisite_manifest(costs: tuple[CostComponent, ...] = (), *, required: frozenset = ENTRY_RISKS) -> dict:
