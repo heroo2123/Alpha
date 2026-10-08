@@ -116,7 +116,26 @@ REQUEST_ID_RE = re.compile(r'[A-Za-z0-9_-]{1,80}')
 # every genesis record now carries an explicit ``schema_version``, and
 # reopening a root whose genesis lacks the current value refuses outright,
 # before any new-field access can ever reach an old-format event.
-SHARED_LEDGER_SCHEMA_VERSION = 2
+#
+# X1 (independent review of 7ff3094, whole-closure chain): SharedLedger's
+# ``intent_held`` op (F3) cannot be distinguished from an ordinary
+# ``intent_closed FAILED`` on the wire for a per-read allowance violation
+# (``STREAM_ABORT_AT_ALLOWANCE``) -- that violation's recorded
+# ``total_delivered_bytes`` can sit at or below ``max_reservation_bytes``,
+# so it is byte-identical in shape to a legitimate FAILED close. A root
+# written by any runtime that predates ``intent_held`` (schema_version 2)
+# therefore cannot be told apart, by replay alone, from a root that really
+# did suffer only an ordinary verification failure: the overdelivered-close
+# guard in ``_state()`` (derived from ``max_reservation_bytes``) catches
+# only the byte-overdelivery shape, never the allowance-violation shape.
+# Bumping to schema_version 3 closes this the same way every other
+# unrepresentable-old-format case here is closed: explicit refusal at
+# ``SHARED_LEDGER_IDENTITY_MISMATCH`` on reopen, never a silent migration.
+# A schema_version-2 root that happens to contain no violation at all is
+# refused identically -- this guard cannot and does not try to tell the two
+# apart; that is the whole point of refusing explicitly instead of
+# re-deriving trust in old bytes.
+SHARED_LEDGER_SCHEMA_VERSION = 3
 SESSION_LEDGER_SCHEMA_VERSION = 2
 # R4: "Raw evidence must be durably retained or have an explicit
 # missing-evidence cause; hashing an ephemeral header tuple does not retain
@@ -775,6 +794,14 @@ class SharedLedger(_HashChainJournal):
         ``session.attempt['overdelivered']``), and instead hardens every
         boundary it *can* independently verify: the intent must be open for
         this exact request, not already held, and not an inherited hold.
+
+        Because an allowance-violation close is indistinguishable, on this
+        root alone, from an ordinary ``intent_closed FAILED`` (X1,
+        independent review of 7ff3094), a root written before this method
+        existed can never be reopened here at all: ``SHARED_LEDGER_SCHEMA_
+        VERSION`` 3 refuses every schema_version-2 root explicitly at
+        construction, before replay could ever treat such a close as
+        released.
         """
         with self._guard():
             self._healthy()

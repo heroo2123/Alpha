@@ -520,6 +520,103 @@ def test_shared_ledger_replay_double_intent_held_refuses(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# X1 (independent review of 7ff3094): the base-shaped overdelivered-close
+# guard above derives "overdelivered" from ``total_delivered_bytes >
+# max_reservation_bytes``, which can never catch a per-read allowance
+# violation (``STREAM_ABORT_AT_ALLOWANCE``) -- that violation's own
+# recorded total can sit at or below the reservation. A root written by a
+# pre-``intent_held`` process (schema_version 2) therefore records exactly
+# such a violation as an ordinary ``intent_closed FAILED`` with
+# ``delivered <= reservation``, which is byte-identical in shape to a
+# legitimate FAILED close: no replay-side check on the event itself can
+# ever tell the two apart. Only refusing the whole root explicitly, by its
+# schema_version, closes this.
+# ---------------------------------------------------------------------------
+
+def test_shared_ledger_refuses_historical_v2_root_outright(tmp_path, monkeypatch):
+    """A genuine historical v2 root: built with the real ``SharedLedger``
+    code, only the module's own schema-version constant turned back to the
+    value a pre-``intent_held`` process actually wrote, so every byte this
+    produces -- genesis, hash chain, event shapes -- is exactly what that
+    older process would have left on disk. Its single ``intent_closed``
+    event is the allowance-violation shape (``delivered <= reservation``,
+    outcome FAILED) that F3/R1's byte-overdelivery guard structurally
+    cannot catch on replay. Reopening it with the current schema_version
+    must refuse outright at construction, before ``_state`` ever gets a
+    chance to replay that close as released."""
+    import tools.v11_r09_gate3_ledgers as ledgers_mod
+    root = _root(tmp_path)
+    monkeypatch.setattr(ledgers_mod, 'SHARED_LEDGER_SCHEMA_VERSION', 2)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=70001)
+        # The allowance-violation shape: delivered (70000) <= reservation
+        # (70001), so the byte-overdelivery guard never trips on this
+        # event -- exactly the residual X1 reproduced end to end.
+        ledger.intent_closed('req-1', outcome='FAILED', accounting_head='c' * 64,
+                              total_delivered_bytes=70000)
+        head = ledger.prev
+    monkeypatch.undo()
+    # The current schema_version (3) must refuse this v2 root explicitly,
+    # never silently replay its events -- not even to confirm the token
+    # looks released.
+    with _raises_exactly('SHARED_LEDGER_IDENTITY_MISMATCH'):
+        SharedLedger(root, boot_id=BOOT, expected_history_head=head)
+    # A second job can never acquire the token through this refused root.
+    with _raises_exactly('SHARED_LEDGER_IDENTITY_MISMATCH'):
+        SharedLedger(root, boot_id=BOOT, expected_history_head=head,
+                     max_requests=1)
+
+
+def test_shared_ledger_refuses_historical_v2_root_even_without_violation(tmp_path,
+                                                                           monkeypatch):
+    """The schema-version refusal is unconditional on content: a v2 root
+    that happens to carry only an ordinary, un-violated FAILED close is
+    refused identically. This guard cannot and must not try to tell the
+    two apart on the wire -- that indistinguishability is exactly why a
+    content-level check can never close X1."""
+    import tools.v11_r09_gate3_ledgers as ledgers_mod
+    root = _root(tmp_path)
+    monkeypatch.setattr(ledgers_mod, 'SHARED_LEDGER_SCHEMA_VERSION', 2)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=10)
+        ledger.intent_closed('req-1', outcome='FAILED', accounting_head='c' * 64,
+                              total_delivered_bytes=3)
+        head = ledger.prev
+    monkeypatch.undo()
+    with _raises_exactly('SHARED_LEDGER_IDENTITY_MISMATCH'):
+        SharedLedger(root, boot_id=BOOT, expected_history_head=head)
+
+
+def test_shared_ledger_v3_root_replay_and_hold_semantics_unaffected(tmp_path):
+    """Valid v3 controls: the schema bump changes nothing about current-
+    schema behaviour. An ordinary, un-violated FAILED close on a current
+    root still replays as released (legitimate reuse of the token), while
+    a genuinely held intent -- recorded through ``intent_held``, exactly
+    as the current runtime does for both the byte and allowance shapes --
+    still never releases, live or on replay."""
+    root = _root(tmp_path, name='ok')
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=10)
+        ledger.intent_closed('req-1', outcome='FAILED', accounting_head='c' * 64,
+                              total_delivered_bytes=3)
+        head = ledger.prev
+    with SharedLedger(root, boot_id=BOOT, expected_history_head=head) as ledger:
+        assert ledger.open_intent is None
+        _open_intent(ledger, 'req-2', max_reservation_bytes=10)
+
+    held_root = _root(tmp_path, name='held')
+    with _new_shared(held_root) as ledger:
+        _open_intent(ledger, 'req-1', max_reservation_bytes=70001)
+        ledger.intent_held('req-1', accounting_head='c' * 64,
+                            total_delivered_bytes=70000)
+        head = ledger.prev
+    with SharedLedger(held_root, boot_id=BOOT, expected_history_head=head) as ledger:
+        assert ledger.open_intent is not None and ledger.open_intent['held'] is True
+        with _raises_exactly('SHARED_LEDGER_INTENT_OPEN_HELD'):
+            _open_intent(ledger, 'req-2', max_reservation_bytes=10)
+
+
+# ---------------------------------------------------------------------------
 # S2: an AMBIGUOUS close is not an accepted outcome; ambiguity is held by
 # simply never closing (inherited on restart like a crash), not released.
 # ---------------------------------------------------------------------------
