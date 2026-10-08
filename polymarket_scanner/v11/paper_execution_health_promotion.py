@@ -22,15 +22,20 @@ given the exact `record_id` of an already-appended `MEASUREMENT` row holding
 one such `observe()` result (no writer persists one yet), it re-verifies
 scope, authority, freshness and internal shape, AND independently re-derives
 the row's two diagnostic numbers by re-running `observe()` itself over the
-store's own archive history -- paged from sequence 1 up to the row's own
-self-declared `frontier_tip_sha256`, bounded by the caller-supplied
-`ObservationPolicy`'s own `complete_history_scan_bound` (<=4096 rows) and the
-32MB archive-byte ceiling `observe()` itself enforces -- before treating the
-two diagnostic numbers as real `EventMetrics` inputs. The recomputed result
-must equal the row's claimed `details` EXACTLY; any mismatch, any failure to
-re-find the claimed tip within the bounded scan, or zero genuine recent
-fills (`NO_RECONCILED_RECENT_PAPER_FILLS`, or any other non-success status)
-stays `UNKNOWN`, never a fabricated or merely self-consistent number -- "no
+store's own archive history -- paged from sequence 1 through this row's own
+true immediate predecessor (`row['seq'] - 1` in the store's real append
+order, never a self-chosen earlier cutoff -- see `_replay_observation`'s
+R2-H1 fix), bounded by the caller-supplied `ObservationPolicy`'s own
+`complete_history_scan_bound` (<=4096 rows) and the 32MB archive-byte
+ceiling `observe()` itself enforces -- before treating the two diagnostic
+numbers as real `EventMetrics` inputs. The recomputed result must equal the
+row's claimed `details` EXACTLY, including `frontier_tip_sha256` itself, so
+a row whose self-declared tip is not genuinely its own real immediate
+predecessor can never match; any mismatch, any failure to find the claimed
+tip anywhere in the real prefix, an `observed_at` outside the real tip/row
+`recorded_at` bracket, or zero genuine recent fills
+(`NO_RECONCILED_RECENT_PAPER_FILLS`, or any other non-success status) stays
+`UNKNOWN`, never a fabricated or merely self-consistent number -- "no
 orders" is not evidence of "no adverse fills," and a row that only hashes
 consistently with itself is not evidence of anything a store's real history
 produced. The record itself is also read via `EvidenceStore.get`, which
@@ -149,14 +154,27 @@ def promote_execution_health(store, record_id, *, account_id, event_id, rule_fin
     returns `UNKNOWN`, never a guessed number.
     """
     identity(account_id); identity(event_id); identity(collateral_asset); sha(rule_fingerprint)
-    if not isinstance(policy, ObservationPolicy):
+    # R2-L3: exact type, not isinstance -- a subclass overriding reason()
+    # would still carry the same asdict() digest, so only an exact-type
+    # match keeps the policy binding below meaningful.
+    if type(policy) is not ObservationPolicy:
         raise EvidenceError('EXECUTION_HEALTH_POLICY_REQUIRED')
     sha(policy.policy_sha256)
     # F2: a caller-supplied bound must be finite and never above this
     # module's own ceiling; NaN, inf, and absurdly large values are caller
     # bugs, not data this module should silently tolerate or loosen for.
-    if (type(maximum_observation_age_seconds) not in (int, float)
-            or not math.isfinite(maximum_observation_age_seconds)
+    if type(maximum_observation_age_seconds) not in (int, float):
+        raise EvidenceError('EXECUTION_HEALTH_AGE_BOUND_INVALID')
+    try:
+        # R2-L4: a Python int far too large to convert to float (e.g.
+        # 10**400) makes math.isfinite raise OverflowError instead of
+        # returning False. That is exactly as unusable here as NaN/inf, and
+        # must fail through this module's own typed error, not an uncaught
+        # OverflowError.
+        age_bound_is_finite = math.isfinite(maximum_observation_age_seconds)
+    except OverflowError:
+        age_bound_is_finite = False
+    if (not age_bound_is_finite
             or not 0 < maximum_observation_age_seconds <= MAXIMUM_OBSERVATION_AGE_SECONDS):
         raise EvidenceError('EXECUTION_HEALTH_AGE_BOUND_INVALID')
     try:
@@ -278,15 +296,38 @@ def _replay_observation(store, row, details, *, policy, account_id, event_id, ru
                         collateral_asset, observed_at):
     """Independently re-derive this row's claimed `observe()` result.
 
-    Pages the store's own history, in its own append order, from sequence 1
-    up to (but never including) this row's own insertion point, stopping
-    exactly at the row's self-declared `frontier_tip_sha256`. Bounded by the
-    same `complete_history_scan_bound` (<=4096 rows) and 32MB archive-byte
-    ceiling `observe()` itself enforces, so a row whose claimed tip never
-    actually appears cannot force an unbounded scan. Returns `None` (never
-    raises) if the bound is invalid, the claimed tip cannot be found within
-    it, or the archive before this row's own append is otherwise too short
-    to contain it.
+    R2-H1 fix: this used to page from sequence 1 only up to the row's own
+    self-declared `frontier_tip_sha256`, stopping (breaking out of the scan)
+    the instant that sha256 was seen anywhere in history. A row could
+    therefore self-declare an arbitrarily old real tip and a freshly-dated
+    `observed_at`, and the replay would silently never see anything genuine
+    that happened between that chosen tip and the row's own real insertion
+    point (a later adverse fill, a later `stream_healthy: false` book
+    update, ...) -- the recomputed numbers could still exactly match the
+    row's claim while being blind to real, disqualifying history.
+
+    The fix: always page the *entire* real history from sequence 1 through
+    `row['seq'] - 1` -- this row's own true immediate predecessor in the
+    store's real append order, never a self-chosen earlier cutoff -- and
+    run `observe()` over that complete set, using the *real* final row's own
+    sha256 as the tip (not the row's self-declared one). The claimed
+    `frontier_tip_sha256`/`frontier_sha256`/diagnostic numbers are still
+    required to equal this recomputed result EXACTLY by the caller's
+    dict-equality check; a row whose self-declared tip is not genuinely its
+    own real immediate predecessor can now never match, because the
+    recomputed `frontier_tip_sha256` is always the real one. The scan is
+    still bounded by the same `complete_history_scan_bound` (<=4096 rows)
+    and 32MB archive-byte ceiling `observe()` itself enforces.
+
+    This also binds `observed_at`: it must fall between the real tip row's
+    own `recorded_at` and this row's own `recorded_at` (its real append
+    time), so a row can no longer self-declare an `observed_at` later than
+    its own real insertion to extend its own apparent freshness window.
+
+    Returns `None` (never raises) if the scan bound is invalid, the row's
+    self-declared tip never genuinely appears anywhere in the real prefix,
+    the real prefix is too short/incomplete to reach `row['seq'] - 1`, or
+    `observed_at` falls outside the real tip/row recorded_at bracket.
     """
     scan_bound = policy.complete_history_scan_bound
     if type(scan_bound) is not int or not 1 <= scan_bound <= MAX_ROWS:
@@ -307,14 +348,19 @@ def _replay_observation(store, row, details, *, policy, account_id, event_id, ru
             after = item['seq']
             if item['sha256'] == tip_target:
                 found = True
-                break
             if len(collected) >= scan_bound or total_bytes > MAX_ARCHIVE_BYTES:
                 break
-        if found:
-            break
-    if not found:
+    # The claimed tip must genuinely exist somewhere in real history, AND
+    # the real prefix must be complete through this row's own immediate
+    # predecessor (never truncated early by a scan-bound/byte-bound cutoff).
+    if not found or not collected or collected[-1]['seq'] != through_seq:
         return None
-    return observe(tuple(collected), tip_sha256=tip_target, at=observed_at, policy=policy,
+    tip_row = collected[-1]
+    tip_recorded_at = finite(tip_row['body']['recorded_at'])
+    row_recorded_at = finite(row['body']['recorded_at'])
+    if not tip_recorded_at <= observed_at <= row_recorded_at:
+        return None
+    return observe(tuple(collected), tip_sha256=tip_row['sha256'], at=observed_at, policy=policy,
                    account_id=account_id, event_id=event_id,
                    rule_fingerprint=rule_fingerprint, collateral_asset=collateral_asset)
 

@@ -16,12 +16,13 @@ from dataclasses import asdict
 import pytest
 
 from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, digest
+from polymarket_scanner.v11.microstructure import STREAM_VERSION
 from polymarket_scanner.v11.paper_execution_health_promotion import (
     AUTHORIZED_SETTLEMENT_PROVIDERS, ExecutionHealthPromotion, MAXIMUM_OBSERVATION_AGE_SECONDS,
     SETTLEMENT_FINALITY_VERSION, SettlementFinalityObservation,
     promote_execution_health, promote_settlement_timing,
 )
-from polymarket_scanner.v11.paper_risk_observation import VERSION as OBSERVATION_VERSION
+from polymarket_scanner.v11.paper_risk_observation import VERSION as OBSERVATION_VERSION, observe
 
 # Reused, not reinvented: this is the same genuine-archive fixture machinery
 # `test_v11_paper_risk_observation.py` already uses to build a real pinned
@@ -29,11 +30,13 @@ from polymarket_scanner.v11.paper_risk_observation import VERSION as OBSERVATION
 # alias because this file also keeps its own minimal single-row `rig` fixture
 # (below) for the many structural/scope/freshness tests that never need a
 # full genuine archive to exercise the check they target.
-from test_v11_basket_coordinator import rig as basket_rig
+from test_v11_basket_coordinator import rig as basket_rig, reserve
 from test_v11_certification_rules import setup
 from test_v11_model_artifacts import bundle
 from test_v11_strategy_pipeline import factory
-from test_v11_paper_risk_observation import policy as observation_policy, sample, sequenced_fill
+from test_v11_fill_evidence import detailed_fill
+import test_v11_fill_evidence as fill_fixture
+from test_v11_paper_risk_observation import policy as observation_policy, rows, sample, sequenced_fill
 
 
 ACCOUNT_ID = 'account'
@@ -136,13 +139,22 @@ def test_fabricated_row_with_a_real_frontier_tip_is_rejected_not_promoted(rig):
     re-hashed fields the row declared about itself and never re-verified
     anything against the store's real history. The repaired contract
     independently reconstructs this exact archive slice with `observe()` and
-    requires an EXACT dict match; a fabricated `OBSERVED_SYNTHETIC_DIAGNOSTIC`
-    claim over an archive that in genuine truth has no RULE_STATE/account
-    lineage at all can never match, so it stays UNKNOWN.
+    requires an EXACT dict match: the real archive has no RULE_STATE/account
+    lineage at all, so `observe()` fails inside with
+    `OBSERVATION_RULE_OR_ACCOUNT_HEAD_MISSING`, that UNKNOWN result can never
+    match the row's fabricated `OBSERVED_SYNTHETIC_DIAGNOSTIC` claim, and the
+    row stays UNKNOWN via `REPLAY_MISMATCH`.
+
+    `observed_at=1000.` (the anchor's own `recorded_at`), not the fixture
+    default `990.`: an earlier `observed_at` would instead fail the new
+    tip/row `recorded_at` binding check first (R2-L2 -- the original
+    `990.` default made this test pass for the wrong reason, via
+    `OBSERVATION_FUTURE_RECEIPT` inside the replay rather than the
+    head-missing lineage path this docstring describes).
     """
     store, now = rig
     real_tip = store.get('anchor')['sha256']
-    record(store, 'obs', details(frontier_tip_sha256=real_tip))
+    record(store, 'obs', details(frontier_tip_sha256=real_tip, observed_at=1000.))
     result = promote(store, 'obs')
     assert result.status == 'UNKNOWN' and result.reason == 'EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH'
     assert result.adverse_fills is None and result.recent_markout_per_share is None
@@ -173,6 +185,156 @@ def test_tampered_diagnostic_numbers_in_an_otherwise_genuine_observation_is_reje
                                         rule_fingerprint=basket_rig['rule'].sha256,
                                         collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
     assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH'
+    assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
+
+
+# -- R2-H1 regression: a self-chosen EARLIER real tip must not truncate the --
+# -- replay's view of genuine later history --------------------------------
+
+def _sequenced_books(monkeypatch):
+    # Identical to test_v11_paper_risk_observation.sequenced_fill's post-book
+    # patch, generalised to tag every captured book with an explicit
+    # continuity sequence so two independent basket legs can each build their
+    # own real, honest horizon book.
+    def post_with_sequence(r, key, original, **changes):
+        body = original['body']
+        payload = dict(body['payload'], **changes,
+                       book_sequence=dict(version=STREAM_VERSION, epoch='fixture-epoch', sequence=1, previous_sequence=0))
+        return r['store'].capture(key, event_id=original['event_id'], kind='BOOK',
+                                  provider=body['provider'], source_identity=body['source_identity'], revision=key,
+                                  observed_at=r['now'][0], evidence_class=body['evidence_class'], payload=payload)
+    monkeypatch.setattr(fill_fixture, 'book', post_with_sequence)
+
+
+def _intent(r, leg):
+    return r['store'].latest(kind='COORDINATOR_EVENT',
+                             event_id='v11-paper-account-state')['body']['details']['state']['intents']['basket:leg:%d' % leg]
+
+
+def _horizon(r, key, leg, executed, *, bid, ask, sequence=2, previous=1, healthy=True):
+    intent = _intent(r, leg)
+    return r['store'].capture(key, event_id=r['rule'].payload['event_id'], kind='BOOK',
+        provider='basket-fixture', source_identity=intent['token_id'], revision=key,
+        observed_at=executed + 2., evidence_class='PUBLIC_OBSERVED',
+        payload=dict(intent['target'], rule_fingerprint=r['rule'].sha256, collateral_asset='FIXTURE_COLLATERAL',
+                     stream_healthy=healthy, bids=[dict(price=bid, size='20')], asks=[dict(price=ask, size='20')],
+                     book_sequence=dict(version=STREAM_VERSION, epoch='fixture-epoch', sequence=sequence,
+                                        previous_sequence=previous)))
+
+
+def _fill(r, leg, key):
+    detailed_fill(r, intent_id='basket:leg:%d' % leg, key=key)
+    return r['store'].get(key)['body']['payload']['execution_details']['executed_at']
+
+
+def test_truncated_frontier_hiding_a_later_adverse_fill_is_rejected_not_promoted(basket_rig, monkeypatch):
+    """R2-H1 (HIGH): the old `_replay_observation` paged only up to the row's
+    self-declared `frontier_tip_sha256` and stopped the instant it was seen,
+    so a row could claim an earlier real tip and a fresh `observed_at`,
+    hiding a later genuine adverse fill, and still be PROMOTED with the
+    cherry-picked (favourable-only) numbers. The fix always replays the
+    COMPLETE real history through this row's own true immediate predecessor
+    (`row['seq'] - 1`), so the recomputed numbers (and `frontier_tip_sha256`
+    itself) can no longer match a truncated claim.
+
+    Fill A (leg 0) marks out FAVOURABLY; fill B (leg 1), appended later,
+    marks out ADVERSELY. A row claiming only the tip before fill B's horizon
+    book -- with a freshly-dated `observed_at` -- must now be rejected.
+    """
+    _sequenced_books(monkeypatch)
+    reserve(basket_rig)
+    store = basket_rig['store']
+    ex_a = _fill(basket_rig, 0, 'fill-a')
+    basket_rig['now'][0] = ex_a + 2.
+    _horizon(basket_rig, 'horizon-a', 0, ex_a, bid='.5', ask='.6')
+    ex_b = _fill(basket_rig, 1, 'fill-b')
+    basket_rig['now'][0] = ex_b + 2.
+    _horizon(basket_rig, 'horizon-b', 1, ex_b, bid='.1', ask='.2')
+    now = basket_rig['now'][0]
+
+    truth = sample(basket_rig)
+    assert truth['diagnostic_adverse_fill_count'] >= 1
+
+    tip_row = store.get('horizon-a')
+    cut = tuple(x for x in rows(store) if x['seq'] <= tip_row['seq'])
+    cherry = observe(cut, tip_sha256=tip_row['sha256'], at=now, policy=observation_policy(),
+                     account_id='account', event_id=basket_rig['rule'].payload['event_id'],
+                     rule_fingerprint=basket_rig['rule'].sha256, collateral_asset='FIXTURE_COLLATERAL')
+    assert cherry['diagnostic_adverse_fill_count'] == 0, 'fixture no longer truncates as intended'
+
+    store.audit('cherry-obs', event_id=cherry['event_id'], kind='MEASUREMENT', details=cherry,
+               evidence_ids=tuple(dict.fromkeys(cherry['evidence_ids'])))
+    promoted = promote_execution_health(store, 'cherry-obs', account_id='account', event_id=cherry['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH', promoted
+    assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
+
+
+def test_truncated_frontier_hiding_a_later_unhealthy_stream_is_rejected_not_promoted(basket_rig, monkeypatch):
+    """R2-H1 (HIGH), second case: the same stream later reports itself
+    `stream_healthy: false`. Real full-history `observe()` must refuse
+    (`OBSERVATION_BOOK_SCOPE_OR_HEALTH`); a row claiming only the earlier
+    healthy tip must now also be rejected, never PROMOTED.
+    """
+    _sequenced_books(monkeypatch)
+    reserve(basket_rig)
+    store = basket_rig['store']
+    ex_a = _fill(basket_rig, 0, 'fill-a')
+    basket_rig['now'][0] = ex_a + 2.
+    tip_row = _horizon(basket_rig, 'horizon-a', 0, ex_a, bid='.1', ask='.2')
+    basket_rig['now'][0] += 1.
+    _horizon(basket_rig, 'unhealthy', 0, ex_a + 1., bid='.1', ask='.2', sequence=3, previous=2, healthy=False)
+    now = basket_rig['now'][0]
+
+    truth = sample(basket_rig)
+    assert truth['execution_status'] == 'UNKNOWN'
+
+    cut = tuple(x for x in rows(store) if x['seq'] <= tip_row['seq'])
+    cherry = observe(cut, tip_sha256=tip_row['sha256'], at=now, policy=observation_policy(),
+                     account_id='account', event_id=basket_rig['rule'].payload['event_id'],
+                     rule_fingerprint=basket_rig['rule'].sha256, collateral_asset='FIXTURE_COLLATERAL')
+    assert cherry['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', 'fixture no longer truncates as intended'
+
+    store.audit('cherry-obs', event_id=cherry['event_id'], kind='MEASUREMENT', details=cherry,
+               evidence_ids=tuple(dict.fromkeys(cherry['evidence_ids'])))
+    promoted = promote_execution_health(store, 'cherry-obs', account_id='account', event_id=cherry['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN' and promoted.reason == 'EXECUTION_HEALTH_OBSERVATION_REPLAY_MISMATCH', promoted
+
+
+def test_observed_at_cannot_self_extend_past_the_rows_own_real_append_time(basket_rig, monkeypatch):
+    """R2-H1 (HIGH), the `observed_at` half: a row appended at real wall time
+    T used to be able to self-declare `observed_at = T + 17s` and still be
+    PROMOTED once the clock reached it, extending its own freshness window
+    with no real new evidence. `_replay_observation` now requires
+    `tip.recorded_at <= observed_at <= row.body.recorded_at`, binding
+    `observed_at` to the row's own real append time rather than trusting it
+    as a bare self-declared float checked only against the real-time clock's
+    staleness bound.
+    """
+    _sequenced_books(monkeypatch)
+    reserve(basket_rig)
+    store = basket_rig['store']
+    ex_a = _fill(basket_rig, 0, 'fill-a')
+    basket_rig['now'][0] = ex_a + 2.
+    _horizon(basket_rig, 'horizon-a', 0, ex_a, bid='.1', ask='.2')
+    future_at = ex_a + 19.  # still inside the fixture's 20s lookback of the fill
+
+    cut = rows(store)
+    claimed = observe(cut, tip_sha256=cut[-1]['sha256'], at=future_at, policy=observation_policy(),
+                      account_id='account', event_id=basket_rig['rule'].payload['event_id'],
+                      rule_fingerprint=basket_rig['rule'].sha256, collateral_asset='FIXTURE_COLLATERAL')
+    assert claimed['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC', 'fixture no longer reaches a real claim'
+    store.audit('future-obs', event_id=claimed['event_id'], kind='MEASUREMENT', details=claimed,
+               evidence_ids=tuple(dict.fromkeys(claimed['evidence_ids'])))
+
+    basket_rig['now'][0] = future_at
+    promoted = promote_execution_health(store, 'future-obs', account_id='account', event_id=claimed['event_id'],
+                                        rule_fingerprint=basket_rig['rule'].sha256,
+                                        collateral_asset='FIXTURE_COLLATERAL', policy=observation_policy())
+    assert promoted.status == 'UNKNOWN', promoted
     assert promoted.adverse_fills is None and promoted.recent_markout_per_share is None
 
 
