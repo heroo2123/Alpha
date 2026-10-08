@@ -1,3 +1,25 @@
+## 2026-10-08 11:20 UTC closed R89-5-FC2; confirmed two chains already merged; filling idle lanes
+
+Read actual host state before acting: process table, tmux sessions, and terminal/verdict files
+for every lane the prior checkpoint entry described as live. Found the checkpoint was stale by
+about 35 minutes in a way that mattered: the third review of `40282d3` (recorded at 10:44 as
+"no verdict yet") had actually returned `CHANGES_REQUIRED` with new finding `R89-5-FC2`
+(nonempty-but-unclassifiable held-provider identifiers bypassing the rights latch), which had
+already been repaired same-session as `3fa6c1e` and merged to local main via `ac78da3` before
+this session started. Launched and read a fourth independent review
+(`/tmp/alpha-r89-6-review-3fa6c1e`): `PASS_IN_SCOPE`, zero findings, 37/37 focused + 120/120 wide
+family + 49/49 independent-adversarial in both Python modes, closing the entire `R89-1`..
+`R89-5-FC2` chain with no outstanding review debt. Also traced an unrelated-looking but
+load-bearing fact: the separate PAPER readiness-CLI sidecar/FIFO-race chain
+(`26427e6`..`5405add`, Claude Opus/high `PASS_IN_SCOPE` at 05:00 UTC) was reconciled onto main as
+`09ab391` and is already an ancestor of current HEAD — fully done, no action needed, and the
+leftover `/tmp/alpha-paper-r89-readiness-cli-20261007` / `-a1a2-repair-5f522ee` worktree and dead
+tmux session are stale, not live work. The only genuinely active lane found was the Opus/high
+`alpha-shadow-seed-r2-20261008` session (started 11:10, still running, no terminal marker) on the
+FIRST-PRIORITY Shadow contiguous-seed/root-publisher-epoch-race defect; it was left untouched to
+avoid duplicating a live writer. `R89-2` remains UNKNOWN. No provider, runtime/root/V10, financial
+or acceptance transition. Gate-3 91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 10:44 UTC intook R89-4 review; found and repaired residual R89-4-FC gap
 
 Intook the independent Codex Astra/high review of R89-4 repair `b79a9e2`: `CHANGES_REQUIRED`,

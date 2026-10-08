@@ -1,3 +1,15 @@
+## 2026-10-08 11:20 UTC R89-5-FC2 closure adds no new C/J/E/A credit
+
+The fourth independent review of the held-provider rights-latch chain (`3fa6c1e`, already on
+local main) returned `PASS_IN_SCOPE` with zero findings, closing `R89-5-FC2` and the entire
+`R89-1`..`R89-5-FC2` repair chain. Like every repair before it in this chain, this is
+defensive-correctness hardening of an already-PARTIAL real-input-capture path: it supplies no
+selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit. `R89-2` remains UNKNOWN. The separately-confirmed
+already-merged PAPER readiness-CLI sidecar/FIFO chain (`09ab391`) likewise added no credit when
+integrated and adds none now. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER
+**9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 10:44 UTC R89-4-FC fail-closed repair adds no new C/J/E/A credit
 
 Residual `R89-4-FC` finding and its `40282d3` repair are the same category as `R89-4` before it:

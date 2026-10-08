@@ -1,3 +1,34 @@
+## 2026-10-08 11:20 UTC R89-5-FC2 closed; R89 rights-hold repair chain has zero open findings
+
+Intook host state before new work: the independent Codex Astra/high review of `40282d3`
+(third review in this chain, verdict recorded at 10:44) actually returned `CHANGES_REQUIRED`
+with a new finding **R89-5-FC2** — nonempty but unclassifiable held-provider identifiers
+(empty string, null, whitespace-suffixed MADIS alias, unrecognized strings) in either
+`collection.sources` or the `held_providers` fallback produced a nonempty recovered set that did
+not intersect `RIGHTS_SENSITIVE_PROVIDERS`, letting a later command request MADIS and return
+`FRESH_SOURCE_EVIDENCE_ONLY`. This was already repaired same-session as `3fa6c1e` ("Reject
+unrecognized or contradictory held-provider histories"): `_held_providers()` now classifies every
+source/held-provider entry against a strict three-member `KNOWN_CAPTURE_PROVIDERS` allowlist
+(`NOAA_MADIS_CWOP`, `NOAA_AWC`, `POLYMARKET_PUBLIC_CLOB`) and fails closed to
+`RIGHTS_SENSITIVE_PROVIDERS` on any non-dict/oversized/non-string/unrecognized shape at any
+nesting level, on both sides disagreeing, or on either side being empty. `3fa6c1e` was already
+merged to local main via `ac78da3` before this session started. A fourth independent review
+(`/tmp/alpha-r89-6-review-3fa6c1e`) has now returned **PASS_IN_SCOPE, zero findings**: it
+confirms R89-5-FC2 closed across 14 adversarial shape categories (homoglyphs, zero-width
+suffixes, non-string types at every level, oversized lists, bidirectional contradiction, etc.),
+confirms genuine AWC/CLOB transient-failure recovery, the MADIS 401/403/429/503 latch, and the
+`STARTED` interrupted-request latch are all unregressed, and finds no new financial/settlement
+authority. Focused 37/37, wide family 120/120, independent adversarial 49/49, all both Python
+modes; frozen checkout unmodified, zero network requests. This closes the entire `R89-1` →
+`R89-4` → `R89-4-FC` → `R89-5-FC2` held-provider rights-latch repair chain with no outstanding
+review findings. Separately confirmed by host inspection (not new work this session): the earlier
+PAPER readiness-CLI sidecar/FIFO-race chain (`26427e6`..`09ab391`, reviewed PASS_IN_SCOPE by
+Claude Opus/high at `5405add`/`09ab391`) was already fast-forwarded onto this same local main
+before this session started and needs no further action. `R89-2` (MADIS `madisPublic1` anonymous
+entitlement) remains UNKNOWN and untouched throughout both chains. No provider, runtime/root/V10,
+financial or acceptance transition. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 10:44 UTC R89-4-FC residual gap found and repaired; third review launched
 
 The independent Codex Astra/high exact review of R89-4 repair `b79a9e2` returned
