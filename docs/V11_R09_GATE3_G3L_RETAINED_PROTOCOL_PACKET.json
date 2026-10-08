@@ -1,0 +1,239 @@
+{
+  "candidates": {
+    "protocol.g3i_composition_review_terminal": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "refs": [
+        {
+          "byte_length": 6084,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md",
+          "sha256": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517"
+        },
+        {
+          "byte_length": 2210,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_terminal.json",
+          "sha256": "60fc42e27f5d62a2b37dc4dce5c3e774955220f9f86ca412376e1b2675a6c78e"
+        }
+      ],
+      "review_status": "LOCAL_RECONCILIATION_PENDING_INDEPENDENT_ENTRY_REVIEW",
+      "review_terminal": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_terminal.json",
+      "reviewed_commit": "0b7209dba3e0c6d3ab55aa984881b83855ae0692",
+      "reviewed_tree": "87cbb35b6615d21b36a989197e490acebdfe0ad0"
+    },
+    "protocol.g3p_addendum_commit_tree_document": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "refs": [
+        {
+          "byte_length": 17309,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 4126,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+          "sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e"
+        },
+        {
+          "byte_length": 737,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+          "sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44"
+        }
+      ],
+      "review_status": "LOCAL_RECONCILIATION_PENDING_INDEPENDENT_ENTRY_REVIEW",
+      "review_terminal": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+      "reviewed_commit": "14c2413c4cef63dab35a806955fcdd3ef0942f69",
+      "reviewed_tree": "d37d7ad55a76902cae0536e6f4d21b9db6aeaa81"
+    },
+    "protocol.g3p_addendum_review_terminal": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "refs": [
+        {
+          "byte_length": 4126,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+          "sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e"
+        },
+        {
+          "byte_length": 737,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+          "sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44"
+        }
+      ],
+      "review_status": "LOCAL_RECONCILIATION_PENDING_INDEPENDENT_ENTRY_REVIEW",
+      "review_terminal": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+      "reviewed_commit": "14c2413c4cef63dab35a806955fcdd3ef0942f69",
+      "reviewed_tree": "d37d7ad55a76902cae0536e6f4d21b9db6aeaa81"
+    },
+    "protocol.g3p_original_commit_tree_document": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "refs": [
+        {
+          "byte_length": 20041,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 13657,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+          "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+        },
+        {
+          "byte_length": 383,
+          "git_commit": "5a06629c34577c14c2fffd5ced1fda7bd62ab7f2",
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json",
+          "sha256": "414aef99c0576a0e96b86aa9244ad1ca4ffe4b02f161c69e0193f78498d3db22"
+        }
+      ],
+      "review_status": "LOCAL_RECONCILIATION_PENDING_INDEPENDENT_ENTRY_REVIEW",
+      "review_terminal": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json",
+      "reviewed_commit": "117830a9b418cdf2a1b1f5146e074343623b8e3f",
+      "reviewed_tree": "07c4d72fcafb4897896e27dfbcc415e7ab078ee9"
+    },
+    "protocol.g3p_original_review_terminal": {
+      "category": "DETERMINISTIC_OFFLINE_RECONCILIATION",
+      "refs": [
+        {
+          "byte_length": 13657,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+          "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+        },
+        {
+          "byte_length": 383,
+          "git_commit": "5a06629c34577c14c2fffd5ced1fda7bd62ab7f2",
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json",
+          "sha256": "414aef99c0576a0e96b86aa9244ad1ca4ffe4b02f161c69e0193f78498d3db22"
+        }
+      ],
+      "review_status": "LOCAL_RECONCILIATION_PENDING_INDEPENDENT_ENTRY_REVIEW",
+      "review_terminal": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json",
+      "reviewed_commit": "117830a9b418cdf2a1b1f5146e074343623b8e3f",
+      "reviewed_tree": "07c4d72fcafb4897896e27dfbcc415e7ab078ee9"
+    },
+    "protocol.transport_design_review_terminal": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "refs": [
+        {
+          "byte_length": 28627,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 11482,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md",
+          "sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b"
+        },
+        {
+          "byte_length": 2500,
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json",
+          "sha256": "3c583f854ab7f8eff7b36d83a2571b9aa80181664391d2469e12e30f10a0349c"
+        }
+      ],
+      "review_status": "LOCAL_RECONCILIATION_PENDING_INDEPENDENT_ENTRY_REVIEW",
+      "review_terminal": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json",
+      "reviewed_commit": "7e132a02ae0fcceed5e3fea65f7b86bed4a92c23",
+      "reviewed_tree": "89332f46dfc6b2111fe331fca54467cce96a3895"
+    }
+  },
+  "disposition": "Six original local references are reviewable reconciliation candidates only; all 77 PRE_REVIEW qualified entries remain missing, including the other 71. Independent package-entry review and all selected-window, provider-rights, clock, storage, and detached-review evidence remain open.",
+  "g3l": "NO-GO",
+  "launchable": false,
+  "provider_request_authority": false,
+  "qualification_credit": 0,
+  "qualified_entries": {
+    "clocks.calibration_sync_uncertainty": null,
+    "clocks.host_boot_monotonic_identity": null,
+    "clocks.measurement_age_policy": null,
+    "clocks.unprivileged_recorder_build_method": null,
+    "code.clock_recorder_commit_tree": null,
+    "code.collector_commit_tree": null,
+    "code.decoder_commit_tree": null,
+    "code.dependency_build_lock": null,
+    "code.launch_validator_commit_tree": null,
+    "code.mapping_exact_commit_review": null,
+    "code.runtime_entrypoint_review": null,
+    "code.slice3_exact_commit_review": null,
+    "code.source_file_hashes": null,
+    "code.transport_commit_tree": null,
+    "cohort.high_low_event_ids": null,
+    "cohort.metadata_bytes_receipt": null,
+    "cohort.official_rule_rounding_buckets": null,
+    "cohort.pre_weather_selection_rationale": null,
+    "cohort.requested_gate2_key_mapping": null,
+    "cohort.settlement_source": null,
+    "cohort.station_version_coordinates_timezone": null,
+    "cohort.tzdata_bytes": null,
+    "network.anonymous_no_retry_credential_policy": null,
+    "network.dns_tls_build_peer_policy": null,
+    "network.ecmwf_503_429_expiry_resumption_review": null,
+    "network.exact_origin_path_purpose_allowlist": null,
+    "network.preflight_approval_receipts_if_used": null,
+    "network.restriction_domain_lineage": null,
+    "protocol.g3i_collector_review_terminal": null,
+    "protocol.g3i_composition_review_terminal": null,
+    "protocol.g3i_gefs_ceiling_review_terminal": null,
+    "protocol.g3i_provider_bound_review_terminal": null,
+    "protocol.g3p_addendum_commit_tree_document": null,
+    "protocol.g3p_addendum_review_terminal": null,
+    "protocol.g3p_original_commit_tree_document": null,
+    "protocol.g3p_original_review_terminal": null,
+    "protocol.transport_design_review_terminal": null,
+    "review.detached_g3l_completed_terminal": null,
+    "review.detached_g3l_report": null,
+    "review.private_v4_manifest_canonical_bytes": null,
+    "review.private_v4_manifest_digest": null,
+    "schedule.four_phase_receipt_schema": null,
+    "schedule.full_2713_slot_inventory_digest": null,
+    "schedule.observed_size_evidence_review": null,
+    "schedule.ordered_subset_request_paths_ranges": null,
+    "schedule.purpose_reservations_and_resource_quota": null,
+    "schedule.run_candidate_readiness_evidence": null,
+    "schedule.shared_index_object_cache_binding": null,
+    "schedule.terminal_reason_precedence": null,
+    "sources.aifs_control_perturbed_mapping": null,
+    "sources.aifs_current_run_index_object_range": null,
+    "sources.aifs_grib_identity_decoder_build": null,
+    "sources.aifs_licence_anonymous_access": null,
+    "sources.aifs_operational_release_dossier": null,
+    "sources.aifs_publication_attestation_or_absence_reason": null,
+    "sources.aifs_purpose_endpoint_contracts": null,
+    "sources.aifs_release_document_retrieval": null,
+    "sources.gefs_control_perturbed_mapping": null,
+    "sources.gefs_current_run_index_object_range": null,
+    "sources.gefs_grib_identity_decoder_build": null,
+    "sources.gefs_licence_anonymous_access": null,
+    "sources.gefs_operational_release_dossier": null,
+    "sources.gefs_publication_attestation_or_absence_reason": null,
+    "sources.gefs_purpose_endpoint_contracts": null,
+    "sources.gefs_release_document_retrieval": null,
+    "sources.ifs_control_perturbed_mapping": null,
+    "sources.ifs_current_run_index_object_range": null,
+    "sources.ifs_grib_identity_decoder_build": null,
+    "sources.ifs_licence_anonymous_access": null,
+    "sources.ifs_operational_release_dossier": null,
+    "sources.ifs_publication_attestation_or_absence_reason": null,
+    "sources.ifs_purpose_endpoint_contracts": null,
+    "sources.ifs_release_document_retrieval": null,
+    "storage.denial_root_history_head": null,
+    "storage.exclusive_lock_atomic_seal_qualification": null,
+    "storage.live_disk_memory_quota_measurement": null,
+    "storage.physical_persistence_review": null,
+    "storage.private_root_owner_mode_dev_inode": null,
+    "storage.session_report_root_identities": null
+  },
+  "schema": "R09_GATE3_G3L_RETAINED_PROTOCOL_PACKET_V1",
+  "selected_cohort": null,
+  "source_reconciliation_sha256": "fa089c078a43c18a52f7f685d449e98129bc37b0d1c946afd1155a6297a3eda6",
+  "source_review_terminal_sha256": "6ba3a34a7679130409a966560ad7313227bb749d6b0ffa1a13b10d109850b11f",
+  "target_date": null
+}
