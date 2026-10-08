@@ -44,8 +44,9 @@ def capture_rig(books, monkeypatch):
     return r
 
 
-def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=False):
+def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=False, book_fail_status=None):
     calls = []
+    book_calls = [0]
     def transport(req):
         calls.append(req)
         if req.url.host == 'madis-data.ncep.noaa.gov':
@@ -54,6 +55,9 @@ def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=
             return httpx.Response(status, text='<mesonet/>' if empty else xml(r['now'][0]))
         if req.url.host == 'aviationweather.gov':
             return httpx.Response(200, json=[dict(icaoId='KATL', obsTime=r['now'][0]-1, temp=25)])
+        book_calls[0] += 1
+        if book_fail_status is not None and book_calls[0] == 1:
+            return httpx.Response(book_fail_status, text='')
         body = response(r, req.url.params['token_id'])
         if stale:
             body['timestamp'] = str(int((r['now'][0]-31)*1000))
@@ -107,10 +111,40 @@ def test_provider_cadence_does_not_reuse_old_pws_as_fresh(capture_rig):
 def test_provider_failure_is_durable_hold_with_no_retry(capture_rig,status):
     row,calls=run(capture_rig,status=status)
     assert row['body']['details']['outcome']=='PROVIDER_HELD'
+    assert row['body']['details']['held_providers']==['NOAA_MADIS_CWOP']
     assert sum(c.url.host=='madis-data.ncep.noaa.gov' for c in calls)==1
     capture_rig['now'][0]+=301
     with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
         run(capture_rig,cycle='retry')
+
+
+def test_unrelated_book_transport_failure_does_not_block_future_healthy_cycles(capture_rig):
+    r=capture_rig
+    row,calls=run(r,book_fail_status=503)
+    d=row['body']['details']
+    assert d['outcome']=='PROVIDER_HELD'
+    assert d['held_providers']==['POLYMARKET_PUBLIC_CLOB']  # the book provider, never MADIS
+    assert sum(c.url.host=='clob.polymarket.com' for c in calls)>=1
+    r['now'][0]+=301  # past every host's own SOURCE_SCHEDULE cooldown, not the removed global latch
+    row2,_=run(r,cycle='retry')
+    assert row2['body']['details']['outcome']=='FRESH_SOURCE_EVIDENCE_ONLY',row2['body']['details']
+
+
+def test_held_ledger_does_not_block_a_completely_different_cycle_with_no_transport_at_all(capture_rig):
+    r=capture_rig
+    run(r,book_fail_status=503)
+    r['now'][0]+=3000  # far past any plausible backoff ceiling, still inside the review window
+    row,calls=run(r,cycle='much-later')
+    assert row['body']['details']['outcome']=='FRESH_SOURCE_EVIDENCE_ONLY'
+    assert calls
+
+
+def test_madis_hold_still_blocks_subsequent_attempts_after_any_delay(capture_rig):
+    r=capture_rig
+    run(r,status=429)
+    r['now'][0]+=10000  # a rights-sensitive hold must never auto-clear
+    with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r,cycle='much-later')
 
 
 def test_interrupted_request_cannot_be_retried_unattended(capture_rig):

@@ -20,6 +20,11 @@ from .weather_sources import madis_request, normalize_weather_capture
 
 KEY = 'v11-real-input-capture'
 PURPOSE = 'NONFINANCIAL_CWOP_AWC_BOOK_CAPTURE'
+# Only a failure of the rights-ambiguous provider latches collection shut
+# until manual review. An ordinary transient failure on any other provider
+# already has its own expiring per-host cooldown in ScheduledCollector's
+# SOURCE_SCHEDULE and must not block unrelated, currently-healthy sources.
+RIGHTS_SENSITIVE_PROVIDERS = frozenset({'NOAA_MADIS_CWOP'})
 
 
 @dataclass(frozen=True)
@@ -132,8 +137,11 @@ class RealInputCapture:
         head = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)
         if head and head['body']['details']['config_sha256'] != self.config:
             raise EvidenceError('REAL_INPUT_CONFIG_CHANGED_REVIEW_REQUIRED')
-        if head and head['body']['details']['outcome'] in {'PROVIDER_HELD', 'STARTED'}:
+        if head and head['body']['details']['outcome'] == 'STARTED':
             # A crash after sending a request is ambiguous: no unattended retry.
+            raise EvidenceError('REAL_INPUT_PROVIDER_OR_INTERRUPTED_HOLD')
+        if head and head['body']['details']['outcome'] == 'PROVIDER_HELD' and (
+                RIGHTS_SENSITIVE_PROVIDERS & set(head['body']['details'].get('held_providers', ()))):
             raise EvidenceError('REAL_INPUT_PROVIDER_OR_INTERRUPTED_HOLD')
         try:
             previous = self.store.get(key)
@@ -234,8 +242,10 @@ class RealInputCapture:
             errors.append(str(exc))
         if len(normalized_ids) != len(self.plan.requests()):
             errors.append('REAL_INPUT_INCOMPLETE_COVERAGE')
+        held_providers = sorted({source['provider'] for source in collected['sources']
+                                  if source['state'] != 'SUCCESS'})
         return self._save(key, 'PROVIDER_HELD' if held else 'GATED' if errors else 'FRESH_SOURCE_EVIDENCE_ONLY',
                           raw_ids=raw_ids, normalized_ids=normalized_ids, book_ids=book_ids,
-                          qc_id=qc_id, errors=errors, collection=collected,
+                          qc_id=qc_id, errors=errors, collection=collected, held_providers=held_providers,
                           evidence_ids=tuple(normalized_ids)+((qc_id,) if qc_id else ()),
                           expected_heads=tuple(heads))
