@@ -8442,3 +8442,6 @@ Started separate persistent Opus/high review of clean Gate-3 final-byte `da29ff1
 ## 2026-10-08 04:55 UTC daily protected-generation map dispatched
 
 Started one clean isolated read-only Sonnet/high lane to map v2 protected daily review publication and commissioning prerequisites from current main, with a required terminal marker. The three frozen exact reviews and sole six-record writer continue independently. No runtime, root, provider, V10, financial or acceptance transition.
+## 2026-10-08 05:00 UTC six-record review and resource recovery
+
+Intook clean offline `b4078f9` / tree `566150e`, author-reported 124 focused tests in each Python mode and 20 optimized guards, with source image and manifest pinned in its private handoff. Launched one frozen different-model Opus/high exact review with `/tmp/alpha-future-daily-six-record-review-b4078f9.{prompt,out,report.md,verdict.json,terminal}` targets. Reclaimed inactive `/tmp/review_0090c1f_scratch/runs` and two old `/tmp/alpha-g3l-exact-da29ff1-evidence/pytest-*` basetemps after no-handle checks, retaining review scripts/logs/verdicts. Disk recovered from gateway refusal to 82% at check; V10 remains disabled and execution masked. No merge, provider, root/runtime, financial or acceptance transition.
