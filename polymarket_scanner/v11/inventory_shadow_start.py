@@ -51,15 +51,33 @@ _DENIED_AUDIT_EVENTS = frozenset({
 _DENIED_IMPORT_MODULES = frozenset({"_posixsubprocess", "ctypes", "_ctypes", "_cffi_backend"})
 
 
-def _denied_import_match(name: str) -> bool:
+def _denied_import_match(name: object) -> bool:
     """True for a denied module loaded under its own name or a dotted alias.
 
-    ``import aliaspkg._cffi_backend`` raises an ``import`` audit event with
-    ``args[0] == "aliaspkg._cffi_backend"`` and leaves the same entry under
-    that full name in ``sys.modules``; an exact-name check misses it even
-    though the loader resolves the identical extension file.
+    Fails closed on anything that is not a plain, trustworthy ``str``:
+
+    - ``import aliaspkg._cffi_backend`` raises an ``import`` audit event with
+      ``args[0] == "aliaspkg._cffi_backend"`` and leaves the same entry under
+      that full name in ``sys.modules``; an exact-name check misses it even
+      though the loader resolves the identical extension file, so the match
+      is on the last dotted component, not the whole name.
+    - A name containing a NUL byte is denied outright rather than matched.
+      CPython resolves an extension module's init symbol from a C string,
+      which a NUL byte truncates, so ``_imp.create_dynamic`` or
+      ``ExtensionFileLoader`` can load (for example) the real
+      ``_cffi_backend`` extension under a Python-level name such as
+      ``"_cffi_backend\x00x"`` whose last dotted component does not
+      literally match any denied name.
+    - A name that is not exactly ``type(name) is str`` is denied outright
+      rather than matched. A ``str`` subclass instance passed to
+      ``_imp.create_dynamic`` keeps control of its own methods, so an
+      attacker who controls the subclass can override ``rpartition`` (or
+      ``__eq__``/``__hash__``) to make this function see a harmless split
+      while the loader still resolves the real denied extension.
     """
-    return name.rpartition(".")[2] in _DENIED_IMPORT_MODULES
+    if type(name) is not str or "\x00" in name:
+        return True
+    return str.rpartition(name, ".")[2] in _DENIED_IMPORT_MODULES
 
 
 def artifact_name(source_file_sha256: str, event_slug: str) -> str:

@@ -246,6 +246,130 @@ def test_process_guard_denies_cffi_backend_dotted_alias_and_preload(tmp_path):
     assert list(out.iterdir()) == []
 
 
+def test_denied_import_match_fails_closed_on_nul_suffixed_and_str_subclass_names():
+    # R1: CPython resolves an extension module's init symbol from a C
+    # string, which truncates at the first NUL, so '_cffi_backend\x00x' can
+    # load the same extension as '_cffi_backend' while its last dotted
+    # component does not literally match any denied name.
+    assert start._denied_import_match("_cffi_backend\x00x") is True
+    assert start._denied_import_match("harmless\x00_cffi_backend") is True
+    # R2: a str subclass can override rpartition (or __eq__/__hash__) on the
+    # instance the loader passes through the audit event, so anything that
+    # is not exactly `str` must be denied outright rather than matched.
+    class EvilRpartition(str):
+        def rpartition(self, sep):
+            return ("", "", "harmless")
+
+    class EvilEqHash(str):
+        def __eq__(self, other):
+            return False
+
+        def __hash__(self):
+            return 0
+
+    assert start._denied_import_match(EvilRpartition("_cffi_backend")) is True
+    assert start._denied_import_match(EvilEqHash("_cffi_backend")) is True
+    # Ordinary names are unaffected: no false denial of a legitimate import.
+    assert start._denied_import_match("_cffi_backend") is True
+    assert start._denied_import_match("aliaspkg._cffi_backend") is True
+    assert start._denied_import_match("json") is False
+    assert start._denied_import_match("os.path") is False
+
+
+def test_process_guard_denies_cffi_backend_nul_suffixed_name_bypass(tmp_path):
+    # R1 (independent review of the F1/F2 repair, 7dd1aa0): a NUL-suffixed
+    # spec name resolves the identical extension file through
+    # `_imp.create_dynamic`/`ExtensionFileLoader` because CPython reads the
+    # init symbol from a C string, which the NUL truncates. The guard must
+    # deny the name outright rather than match its (unmatchable) last dotted
+    # component. If this ever regresses, the probe proves raw libc was
+    # reached with `getpid()` only; it never opens a socket.
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+
+    code = (
+        "import sys, os, _imp\n"
+        "import importlib.util, importlib.machinery\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "start._deny_ambient_access()\n"
+        "spec = importlib.util.find_spec('_cffi_backend')\n"
+        "name = '_cffi_backend\\x00x'\n"
+        "loader = importlib.machinery.ExtensionFileLoader(name, spec.origin)\n"
+        "newspec = importlib.util.spec_from_loader(name, loader, origin=spec.origin)\n"
+        "try:\n"
+        "    backend = _imp.create_dynamic(newspec)\n"
+        "except RuntimeError as exc:\n"
+        "    if str(exc) != 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED:import':\n"
+        "        sys.exit(4)\n"
+        "else:\n"
+        "    lib = backend.load_library(None)\n"
+        "    bint = backend.new_primitive_type('int')\n"
+        "    fn = lib.load_function(backend.new_function_type((), bint, False), 'getpid')\n"
+        "    sys.exit(7 if fn() == os.getpid() else 8)\n"
+        "print('DENIED')\n"
+    )
+    result = child("-c", code)
+    assert result.returncode == 0, (result.returncode, result.stderr)
+    assert result.stdout.strip() == "DENIED"
+
+    # Preload-time: the same NUL-suffixed name, already in sys.modules
+    # before the hook installs, must be caught by DENIED_MODULE_PRELOADED
+    # just like the bare name is.
+    code = (
+        "import sys, _imp\n"
+        "import importlib.util, importlib.machinery\n"
+        "spec = importlib.util.find_spec('_cffi_backend')\n"
+        "name = '_cffi_backend\\x00x'\n"
+        "loader = importlib.machinery.ExtensionFileLoader(name, spec.origin)\n"
+        "newspec = importlib.util.spec_from_loader(name, loader, origin=spec.origin)\n"
+        "sys.modules[name] = _imp.create_dynamic(newspec)\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "raise SystemExit(start.guarded_main(sys.argv[1:]))\n"
+    )
+    result = child("-c", code, "--input", str(path), "--event", EVENT, "--output-dir", str(out))
+    assert result.returncode == 2, (result.returncode, result.stderr)
+    assert "DENIED_MODULE_PRELOADED" in result.stderr
+    assert list(out.iterdir()) == []
+
+
+def test_process_guard_denies_cffi_backend_str_subclass_rpartition_override_bypass():
+    # R2 (independent review of the F1/F2 repair, 7dd1aa0): the matcher
+    # calls `name.rpartition(".")`, a method an attacker-controlled `str`
+    # subclass instance can override to report a harmless split while
+    # `_imp.create_dynamic` still resolves the real denied extension by its
+    # true name. The guard must deny any name that is not exactly `str`
+    # rather than call a method the attacker controls. If this ever
+    # regresses, the probe proves raw libc was reached with `getpid()` only;
+    # it never opens a socket.
+    code = (
+        "import sys, os, _imp\n"
+        "import importlib.util, importlib.machinery\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "start._deny_ambient_access()\n"
+        "class EvilRpartition(str):\n"
+        "    def rpartition(self, sep):\n"
+        "        return ('', '', 'harmless')\n"
+        "spec = importlib.util.find_spec('_cffi_backend')\n"
+        "name = EvilRpartition('_cffi_backend')\n"
+        "loader = importlib.machinery.ExtensionFileLoader(name, spec.origin)\n"
+        "newspec = importlib.util.spec_from_loader(name, loader, origin=spec.origin)\n"
+        "try:\n"
+        "    backend = _imp.create_dynamic(newspec)\n"
+        "except RuntimeError as exc:\n"
+        "    if str(exc) != 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED:import':\n"
+        "        sys.exit(4)\n"
+        "else:\n"
+        "    lib = backend.load_library(None)\n"
+        "    bint = backend.new_primitive_type('int')\n"
+        "    fn = lib.load_function(backend.new_function_type((), bint, False), 'getpid')\n"
+        "    sys.exit(7 if fn() == os.getpid() else 8)\n"
+        "print('DENIED')\n"
+    )
+    result = child("-c", code)
+    assert result.returncode == 0, (result.returncode, result.stderr)
+    assert result.stdout.strip() == "DENIED"
+
+
 def test_process_entry_refuses_when_a_denied_module_is_already_loaded(tmp_path):
     path = write_fixture(tmp_path / "in")
     out = output_dir(tmp_path)
