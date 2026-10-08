@@ -25,7 +25,7 @@ from polymarket_scanner.v11.official_label_review_reader import (
     PERMANENT_HOLDS, ReviewInputs, read_review_inputs,
 )
 from polymarket_scanner.v11.probability import _partition as threshold_partition
-from polymarket_scanner.v11.rules import RuleGuard, fingerprint_event
+from polymarket_scanner.v11.rules import GUARD_VERSION, RuleGuard, fingerprint_event
 
 from test_v11_certification_rules import setup
 from test_v11_learning_capture import bundle, evaluate, kwargs
@@ -694,3 +694,555 @@ def test_holds_never_empty_and_no_authority_flag_can_be_forced(rig):
     import dataclasses
     with pytest.raises(dataclasses.FrozenInstanceError):
         result.holds = ()
+
+
+# ==========================================================================
+# 15. Repair round: RULE_STATE <-> decision binding (F1).
+# ==========================================================================
+
+class RuleStateFieldForgingView(TamperedView):
+    """Delegates everything except `records`, which applies `mutate` to the
+    `details` dict of every returned RULE_STATE row (deep-copied first)."""
+
+    def __init__(self, source, mutate):
+        super().__init__(source, {})
+        self.mutate = mutate
+
+    def records(self, **kwargs):
+        rows = self.source.records(**kwargs)
+        if kwargs.get("kind") == "RULE_STATE":
+            rows = copy.deepcopy(rows)
+            for r in rows:
+                self.mutate(r["body"]["details"])
+        return rows
+
+
+def test_decision_bound_to_never_admitted_rule_is_flagged(rig):
+    """RULE_STATE admits rule A; the capture/children commit to a different
+    rule B (same event id, never independently observed). The reader must
+    not silently claim FINGERPRINT_EQUALITY -- it must flag the mismatch."""
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule_a, _ = _observe(store, event=event, label="admitted")
+    other = copy.deepcopy(event)
+    other["markets"][0]["clobTokenIds"] = ["never-admitted-yes", "never-admitted-no"]
+    rule_b = fingerprint_event(other, station_timezone="America/New_York", metadata_fingerprint="a" * 64)
+    assert rule_b.payload["event_id"] == rule_a.payload["event_id"] and rule_b.sha256 != rule_a.sha256
+    event_id = rule_a.payload["event_id"]
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule_b.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", "never-admitted"])
+    now[0] += 1.
+    order = [b["market_id"] for b in threshold_partition(rule_b)]
+    rows = _write_children(store, rule=rule_b, binding=binding, event_id=event_id, order=order,
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="nb")
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule_b, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="nb-capture")
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert result.rule.sha256 == rule_b.sha256
+    assert result.rule_receipt["fingerprint"] == rule_a.sha256 != result.rule.sha256
+    assert "RULE_RECEIPT_FINGERPRINT_MISMATCH" in result.holds
+    # RULE_STATE_NOT_ADMISSIBLE_AT_DECISION is a separate, orthogonal fact
+    # about rule A's own state -- rule A is genuinely admissible on its own.
+    assert "RULE_STATE_NOT_ADMISSIBLE_AT_DECISION" not in result.holds
+
+
+def test_rule_receipt_preimage_integrity_is_verified(rig):
+    """The selected RULE_STATE row's declared `preimage` must actually digest
+    to its declared `fingerprint`. A dishonest store rewriting only the
+    preimage must be refused, not silently trusted."""
+    store, now = rig
+    fixture = _build_simple_capture(store, label="preimage")
+
+    def forge_preimage(details):
+        details["preimage"] = dict(details["preimage"], station="KZZZ")
+
+    view = RuleStateFieldForgingView(store, forge_preimage)
+    with expect_refusal("LABEL_REVIEW_READER_RULE_RECEIPT_PREIMAGE_INTEGRITY"):
+        read_review_inputs(store=view, capture_id=fixture["capture"]["id"])
+
+
+@pytest.mark.parametrize("mutate,note", [
+    (lambda d: d.update(quarantined=True), "quarantined-isolated"),
+    (lambda d: d.update(state="SOME_OTHER_STATE"), "state-isolated"),
+    (lambda d: d.update(version="legacy-guard-v0"), "version-isolated"),
+])
+def test_receipt_admissibility_checks_are_each_independently_enforced(rig, mutate, note):
+    """Each of the three admissibility fields (version, quarantined, state)
+    must independently gate RULE_STATE_NOT_ADMISSIBLE_AT_DECISION -- a mutant
+    that drops only one of the three checks must still be caught because the
+    other two stay genuinely valid here."""
+    store, now = rig
+    fixture = _build_simple_capture(store, label="adm-" + note)
+    view = RuleStateFieldForgingView(store, mutate)
+    result = read_review_inputs(store=view, capture_id=fixture["capture"]["id"])
+    assert "RULE_STATE_NOT_ADMISSIBLE_AT_DECISION" in result.holds
+    # The mutation never touches fingerprint/preimage, so the independent
+    # fingerprint-binding check must stay unaffected.
+    assert "RULE_RECEIPT_FINGERPRINT_MISMATCH" not in result.holds
+
+
+def test_drift_window_is_measured_against_decision_rule_not_mismatched_receipt(rig):
+    """A RULE_STATE row inside the decision window that matches the rule the
+    decision actually committed to must not itself be reported as drift,
+    even when the *selected receipt* (the latest RULE_STATE before the first
+    child) is bound to a different rule entirely.
+
+    `RuleGuard.observe` itself always quarantines a row that changes the
+    fingerprint from its predecessor, so a genuine `observe()` call cannot
+    produce the discriminating fixture here (the quarantined-row check
+    would mask the drift-baseline check either way). This writes the
+    window's `RULE_STATE` directly through `store.audit`, exactly as
+    `RuleGuard.observe` would have shaped it, to isolate the one check this
+    test targets -- the same technique `test_legacy_capture_version_is_unsupported`
+    uses to bypass the normal capture writer.
+    """
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule_a, _ = _observe(store, event=event, label="base-a")
+    event_id = rule_a.payload["event_id"]
+    other = copy.deepcopy(event)
+    other["markets"][0]["clobTokenIds"] = ["baseline-b-yes", "baseline-b-no"]
+    rule_b = fingerprint_event(other, station_timezone="America/New_York", metadata_fingerprint="a" * 64)
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule_b.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", "baseline"])
+    now[0] += 1.
+    order = [b["market_id"] for b in threshold_partition(rule_b)]
+    rows = _write_children(store, rule=rule_b, binding=binding, event_id=event_id, order=order,
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="baseline")
+    now[0] += 1.
+    store.audit("baseline-b-window-state", event_id=event_id, kind="RULE_STATE",
+                details={"version": GUARD_VERSION, "fingerprint": rule_b.sha256, "preimage": rule_b.payload,
+                         "source_event_sha256": rule_b.source_event_sha256, "quarantined": False,
+                         "state": "SEMANTICS_OBSERVED", "changed": False}, evidence_ids=())
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule_b, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="baseline-capture")
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert result.rule.sha256 == rule_b.sha256
+    assert result.rule_receipt["fingerprint"] == rule_a.sha256
+    assert "RULE_RECEIPT_FINGERPRINT_MISMATCH" in result.holds
+    assert "RULE_DRIFT_IN_DECISION_WINDOW" not in result.holds
+
+
+# ==========================================================================
+# 16. Repair round: embedded rule's event must bind the capture's event (F2).
+# ==========================================================================
+
+def test_capture_embedding_other_events_rule_is_refused(rig):
+    store, now = rig
+    rule_e, _ = _observe(store, event=_event(station="KATL", family="high", eid="event-E"), label="e")
+    rule_f = fingerprint_event(_event(station="KATL", family="high", eid="event-F"),
+                                station_timezone="America/New_York", metadata_fingerprint="a" * 64)
+    e_id, f_id = rule_e.payload["event_id"], rule_f.payload["event_id"]
+    assert e_id != f_id
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule_f.sha256)
+    evidence_row = _evidence_row(store, event_id=e_id)
+    request_sha256 = digest(["request", "cross-event"])
+    now[0] += 1.
+    order = [b["market_id"] for b in threshold_partition(rule_f)]
+    rows = _write_children(store, rule=rule_f, binding=binding, event_id=e_id, order=order,
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="xe")
+    now[0] += 1.
+    captured = _write_capture(store, event_id=e_id, rule=rule_f, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="xe-capture")
+    with expect_refusal("LABEL_REVIEW_READER_RULE_EVENT_MISMATCH"):
+        read_review_inputs(store=store, capture_id=captured["id"])
+
+
+# ==========================================================================
+# 17. Repair round: D3 disclosure scan is provider-agnostic (F3).
+# ==========================================================================
+
+@pytest.mark.parametrize("provider,payload_for", [
+    ("GAMMA_EVENT", lambda eid, m: {"event": {"id": eid, "markets": [m]}}),
+    ("GAMMA_EVENT_LIST", lambda eid, m: {"response": [{"id": eid, "markets": [m]}]}),
+    ("GAMMA_MARKET", lambda eid, m: {"response": m}),
+    ("GAMMA_CLOSED_MARKET_EXACT_TOKEN_PAYOUT", lambda eid, m: {"response": m}),
+])
+def test_pre_decision_payout_from_any_gamma_provider_is_disclosed(rig, provider, payload_for):
+    """Contract section 4, D3: payout receipts disclose the winner from *any*
+    provider, not only GAMMA_CLOSED_MARKET/GAMMA_DISCOVERY_EVENT. A packet
+    built from the mapped disclosures must flag LOOKAHEAD_VIOLATION."""
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule, _ = _observe(store, event=event, label="anyprov-" + provider.lower())
+    event_id = rule.payload["event_id"]
+    bucket = rule.payload["partition"][0]
+    market = _closed_market(bucket["market_id"], bucket["yes_token"], bucket["no_token"],
+                             condition_id=bucket["condition_id"])
+    early = store.capture("anyprov-early-" + provider.lower(), event_id=event_id, kind="RULES", provider=provider,
+                           source_identity="event:" + event_id, revision="r1", evidence_class="PUBLIC_OBSERVED",
+                           payload=payload_for(event_id, market))
+    now[0] += 1.
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", "anyprov-" + provider])
+    now[0] += 1.
+    order = [b["market_id"] for b in threshold_partition(rule)]
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id, order=order,
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="anyprov")
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="anyprov-capture-" + provider.lower())
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert early["id"] in {d["id"] for d in result.disclosures}
+    source_claim = dict(version=official_settlement_source.VERSION, code="SYNTHETIC_DERIVATION_ONLY",
+        rule_fingerprint_sha256=rule.sha256, station=rule.payload["station"], target_date=rule.payload["target_date"],
+        independent_label_attestation=False, settlement_authority=False, financial_authority=False,
+        automatic_promotion=False, synthetic_mechanism_only=True, winning_market_id=bucket["market_id"],
+        winning_yes_token=bucket["yes_token"], raw_sha256="f" * 64)
+    packet = build_review_packet(rule=result.rule, rule_receipt=result.rule_receipt, decision=result.decision,
+                                  capture=result.capture, disclosures=result.disclosures, source_claim=source_claim)
+    assert "LOOKAHEAD_VIOLATION" in packet.violations
+
+
+# ==========================================================================
+# 18. Repair round: self-declared earlier publish/observe time (F4).
+# ==========================================================================
+
+def test_self_declared_published_at_clamps_rules_disclosure_time(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="pubtime")
+    bucket = fixture["rule"].payload["partition"][0]
+    decision_time = min(store.get(r["decision_id"])["body"]["recorded_at"] for r in fixture["rows"])
+    now[0] += 10.
+    earlier_published_at = decision_time - 100.
+    row = store.capture("pubtime-payout", event_id=fixture["event_id"], kind="RULES", provider="GAMMA_CLOSED_MARKET",
+                         source_identity="market:" + bucket["market_id"], revision="g1",
+                         evidence_class="PUBLIC_OBSERVED", published_at=earlier_published_at,
+                         payload={"response": _closed_market(bucket["market_id"], bucket["yes_token"],
+                                                               bucket["no_token"], condition_id=bucket["condition_id"])})
+    result = read_review_inputs(store=store, capture_id=fixture["capture"]["id"])
+    entry = next(d for d in result.disclosures if d["id"] == row["id"])
+    assert entry["recorded_at"] == earlier_published_at < row["body"]["recorded_at"]
+
+
+# ==========================================================================
+# 19. Repair round: holds type/vocabulary enforcement (F5).
+# ==========================================================================
+
+def test_holds_must_be_a_tuple_within_the_closed_vocabulary_retaining_permanents(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="holdsvocab")
+    result = read_review_inputs(store=store, capture_id=fixture["capture"]["id"])
+
+    with pytest.raises(ValueError):
+        replace(result, holds=("READY",))  # drops every permanent hold
+    with pytest.raises(ValueError):
+        replace(result, holds="QUALIFIED")  # not a tuple
+    with pytest.raises(ValueError):
+        replace(result, holds=result.holds + ("SOMETHING_NOT_IN_THE_VOCABULARY",))
+    with pytest.raises(ValueError):
+        replace(result, holds=result.holds + (7,))  # non-str element
+
+
+# ==========================================================================
+# 20. Repair round: child DECISION frontier discipline (F6).
+# ==========================================================================
+
+def test_child_appended_after_the_pin_is_refused(rig):
+    """A child DECISION that does not exist at the pin, but is injected
+    during the pin_read_view call itself, must be refused rather than
+    silently folded into the decision mapping."""
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule, _ = _observe(store, event=event, label="frontier")
+    event_id = rule.payload["event_id"]
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    ev = _evidence_row(store, event_id=event_id)
+    req = digest(["request", "frontier"])
+    order = [b["market_id"] for b in threshold_partition(rule)]
+    now[0] += 1.
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id, order=order,
+                            request_sha256=req, evidence_row=ev, prefix="frontier")
+    last = store.get(rows[-1]["decision_id"])
+    late_id = "frontier:late-child"
+    late_at = now[0] + 2.
+    body = dict(last["body"], record_id=late_id, recorded_at=late_at, available_at=late_at)
+    rows[-1] = dict(rows[-1], decision_id=late_id, decision_sha256=digest(body))
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding, rows=rows,
+                               request_sha256=req, record_id="frontier-capture")
+
+    def inject():
+        now[0] = late_at
+        b = last["body"]
+        row = store.decision(late_id, event_id=event_id, strategy="FUTURE_FORECAST", binding=ReleaseBinding(**b["binding"]),
+                              evidence_ids=tuple(e["id"] for e in b["evidence"]),
+                              feature_ready_at=b["feature_ready_at"], valuation_type=b["valuation_type"],
+                              target=b["target"], outcome=b["outcome"], reason=b["reason"],
+                              explanation=b["explanation"], expires_at=b["expires_at"])
+        assert row["sha256"] == rows[-1]["decision_sha256"]
+
+    view = PinInjectingView(store, inject)
+    with expect_refusal("LABEL_REVIEW_READER_CHILD_AFTER_FRONTIER"):
+        read_review_inputs(store=view, capture_id=captured["id"])
+
+
+# ==========================================================================
+# 21. Repair round: typed refusals for malformed/missing lineage shapes (F7).
+# ==========================================================================
+
+def test_missing_capture_and_missing_child_raise_typed_refusals(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="missingtyped")
+    cid = fixture["capture"]["id"]
+
+    with expect_refusal("LABEL_REVIEW_READER_CAPTURE_NOT_FOUND"):
+        read_review_inputs(store=store, capture_id="no-such-capture-at-all")
+
+    def drop(row):
+        row["body"]["details"]["rows"][0]["decision_id"] = "does-not-exist-at-all"
+    with expect_refusal("LABEL_REVIEW_READER_CHILD_NOT_FOUND"):
+        read_review_inputs(store=TamperedView(store, {cid: drop}), capture_id=cid)
+
+
+@pytest.mark.parametrize("mutate,refusal", [
+    (lambda d: d.__setitem__("rows", ["not-a-dict"]), "LABEL_REVIEW_READER_ROW_SHAPE_INVALID"),
+    (lambda d: d["rule"].__setitem__("canonical_json", 7), "LABEL_REVIEW_READER_RULE_PREIMAGE_INVALID"),
+])
+def test_malformed_capture_shapes_raise_typed_refusals(rig, mutate, refusal):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="typedshape")
+    cid = fixture["capture"]["id"]
+    view = TamperedView(store, {cid: lambda row: mutate(row["body"]["details"])})
+    with expect_refusal(refusal):
+        read_review_inputs(store=view, capture_id=cid)
+
+
+# ==========================================================================
+# 22. Test-adequacy round (F8): one discriminating test per lineage refusal
+#     the author's suite left unexercised, plus contract test 6.
+# ==========================================================================
+
+def test_decision_seq_and_time_equal_child_minimum_not_maximum(rig):
+    """Contract test 6: `decision.seq`/`recorded_at` must equal the MIN over
+    children, not the max -- with children genuinely spread across distinct
+    seqs and times, not all written in the same tick."""
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule, _ = _observe(store, event=event, label="minmax")
+    event_id = rule.payload["event_id"]
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", "minmax"])
+    order = [b["market_id"] for b in threshold_partition(rule)]
+    rows = []
+    for i, market_id in enumerate(order):
+        now[0] += 1.
+        rows.extend(_write_children(store, rule=rule, binding=binding, event_id=event_id, order=[market_id],
+                                     request_sha256=request_sha256, evidence_row=evidence_row, prefix=f"minmax{i}"))
+    now[0] += 1.
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="minmax-capture")
+    children = [store.get(r["decision_id"]) for r in rows]
+
+    result = read_review_inputs(store=store, capture_id=captured["id"])
+    assert result.decision["seq"] == min(c["seq"] for c in children) != max(c["seq"] for c in children)
+    assert (result.decision["recorded_at"] == min(c["body"]["recorded_at"] for c in children)
+            != max(c["body"]["recorded_at"] for c in children))
+
+
+@pytest.mark.parametrize("field,value,refusal", [
+    ("side", "NO", "LABEL_REVIEW_READER_CHILD_SIDE_INVALID"),
+    ("financial_authority", True, "LABEL_REVIEW_READER_CHILD_FINANCIAL_AUTHORITY_VIOLATION"),
+])
+def test_child_shape_level_refusals_are_each_independently_enforced(rig, field, value, refusal):
+    """CHILD_SIDE_INVALID and CHILD_FINANCIAL_AUTHORITY_VIOLATION must each
+    fire on their own -- not merely as a side effect of the sha/binding/
+    target-identity checks that happen to run first."""
+    store, now = rig
+    fixture = _build_simple_capture(store, label="childshape-" + field)
+    decision_id = fixture["rows"][0]["decision_id"]
+    cid = fixture["capture"]["id"]
+    original_child = store.get(decision_id)
+    forged_body = copy.deepcopy(original_child["body"])
+    if field == "side":
+        forged_body["explanation"]["target_identity"] = dict(
+            forged_body["explanation"]["target_identity"], side=value)
+    else:
+        forged_body["explanation"][field] = value
+    forged_sha = digest(forged_body)
+
+    def tamper_child(row):
+        if field == "side":
+            row["body"]["explanation"]["target_identity"] = dict(
+                row["body"]["explanation"]["target_identity"], side=value)
+        else:
+            row["body"]["explanation"][field] = value
+        row["sha256"] = forged_sha
+
+    def tamper_capture(row):
+        rows = row["body"]["details"]["rows"]
+        idx = next(i for i, r in enumerate(rows) if r["decision_id"] == decision_id)
+        updated = dict(rows[idx], decision_sha256=forged_sha)
+        if field == "side":
+            updated["target_identity"] = dict(updated["target_identity"], side=value)
+        rows[idx] = updated
+
+    view = TamperedView(store, {cid: tamper_capture, decision_id: tamper_child})
+    with expect_refusal(refusal):
+        read_review_inputs(store=view, capture_id=cid)
+
+
+def _capture_details(store, *, rule, binding, rows, request_sha256, **overrides):
+    details = dict(version=capture.VERSION, request_sha256=request_sha256, rule=asdict(rule),
+                    binding=asdict(binding), complete_event_vector=True, financial_authority=False,
+                    target=capture.TARGET, selection_scope="ALL_BUCKETS_OF_THIS_EVALUATED_EVENT",
+                    inference_cutoff=store.clock(), rows=rows)
+    details.update(overrides)
+    return details
+
+
+@pytest.mark.parametrize("override,refusal", [
+    ({"financial_authority": True}, "LABEL_REVIEW_READER_CAPTURE_FINANCIAL_AUTHORITY_VIOLATION"),
+    ({"complete_event_vector": False}, "LABEL_REVIEW_READER_COMPLETE_VECTOR_REQUIRED"),
+    ({"target": "SOMETHING_ELSE"}, "LABEL_REVIEW_READER_CAPTURE_TARGET_INVALID"),
+    ({"selection_scope": "PARTIAL"}, "LABEL_REVIEW_READER_CAPTURE_SELECTION_SCOPE_INVALID"),
+])
+def test_capture_level_authority_and_shape_checks_are_each_independently_enforced(rig, override, refusal):
+    store, now = rig
+    label = "capdet-" + next(iter(override))
+    event = _event(station="KATL", family="high")
+    rule, _ = _observe(store, event=event, label=label)
+    event_id = rule.payload["event_id"]
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", label])
+    order = [b["market_id"] for b in threshold_partition(rule)]
+    now[0] += 1.
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id, order=order,
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix=label)
+    details = _capture_details(store, rule=rule, binding=binding, rows=rows,
+                                request_sha256=request_sha256, **override)
+    captured = store.audit(label + "-capture", event_id=event_id, kind="MEASUREMENT",
+                            details=details, evidence_ids=())
+    with expect_refusal(refusal):
+        read_review_inputs(store=store, capture_id=captured["id"])
+
+
+def test_rule_binding_mismatch_is_refused(rig):
+    """binding.rule_fingerprint must equal rule.sha256 -- independent of
+    whether any children exist yet."""
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule, _ = _observe(store, event=event, label="bindmismatch")
+    event_id = rule.payload["event_id"]
+    real_binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", "bindmismatch"])
+    order = [b["market_id"] for b in threshold_partition(rule)]
+    now[0] += 1.
+    rows = _write_children(store, rule=rule, binding=real_binding, event_id=event_id, order=order,
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="bindmismatch")
+    forged_binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, "f" * 64)
+    details = _capture_details(store, rule=rule, binding=forged_binding, rows=rows, request_sha256=request_sha256)
+    captured = store.audit("bindmismatch-capture", event_id=event_id, kind="MEASUREMENT",
+                            details=details, evidence_ids=())
+    with expect_refusal("LABEL_REVIEW_READER_RULE_BINDING_MISMATCH"):
+        read_review_inputs(store=store, capture_id=captured["id"])
+
+
+def test_row_partition_mismatch_on_incomplete_vector_is_refused(rig):
+    """A capture whose rows cover only a strict subset of the rule's
+    partition must be refused, not silently accepted as a smaller vector."""
+    store, now = rig
+    event = _event(station="KATL", family="high")
+    rule, _ = _observe(store, event=event, label="partialvec")
+    event_id = rule.payload["event_id"]
+    binding = ReleaseBinding("a" * 40, "b" * 40, "c" * 64, "d" * 64, rule.sha256)
+    evidence_row = _evidence_row(store, event_id=event_id)
+    request_sha256 = digest(["request", "partialvec"])
+    order = [b["market_id"] for b in threshold_partition(rule)]
+    assert len(order) >= 2
+    now[0] += 1.
+    rows = _write_children(store, rule=rule, binding=binding, event_id=event_id, order=order[:-1],
+                            request_sha256=request_sha256, evidence_row=evidence_row, prefix="partialvec")
+    captured = _write_capture(store, event_id=event_id, rule=rule, binding=binding, rows=rows,
+                               request_sha256=request_sha256, record_id="partialvec-capture")
+    with expect_refusal("LABEL_REVIEW_READER_ROW_PARTITION_MISMATCH"):
+        read_review_inputs(store=store, capture_id=captured["id"])
+
+
+def test_duplicate_decision_id_across_rows_is_refused(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="dupid")
+    cid = fixture["capture"]["id"]
+
+    def dup(row):
+        rows = row["body"]["details"]["rows"]
+        rows[1] = dict(rows[1], decision_id=rows[0]["decision_id"], decision_sha256=rows[0]["decision_sha256"])
+
+    with expect_refusal("LABEL_REVIEW_READER_ROW_DECISION_ID_DUPLICATED"):
+        read_review_inputs(store=TamperedView(store, {cid: dup}), capture_id=cid)
+
+
+def test_row_target_identity_malformed_is_refused(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="rowti")
+    cid = fixture["capture"]["id"]
+
+    def mutate(row):
+        rows = row["body"]["details"]["rows"]
+        rows[0] = dict(rows[0], target_identity=dict(rows[0]["target_identity"], condition_id=""))
+
+    with expect_refusal("LABEL_REVIEW_READER_ROW_TARGET_IDENTITY_INVALID"):
+        read_review_inputs(store=TamperedView(store, {cid: mutate}), capture_id=cid)
+
+
+def test_capture_row_kind_invalid_is_refused(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="capkind")
+    cid = fixture["capture"]["id"]
+
+    def mutate(row):
+        row["kind"] = "LABEL"
+
+    with expect_refusal("LABEL_REVIEW_READER_CAPTURE_KIND_INVALID"):
+        read_review_inputs(store=TamperedView(store, {cid: mutate}), capture_id=cid)
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda row: row.update(event_id="some-other-event"),
+    lambda row: row.update(kind="MEASUREMENT"),
+])
+def test_child_kind_or_event_mismatch_is_refused(rig, mutate):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="childlin")
+    decision_id = fixture["rows"][0]["decision_id"]
+    view = TamperedView(store, {decision_id: mutate})
+    with expect_refusal("LABEL_REVIEW_READER_CHILD_LINEAGE_MISMATCH"):
+        read_review_inputs(store=view, capture_id=fixture["capture"]["id"])
+
+
+def test_non_proxy_provider_official_observation_is_not_counted(rig):
+    """The proxy-count/hold is gated on provider == NOAA_AWC specifically --
+    any other provider under the same OFFICIAL_OBSERVATION kind must not
+    be swept in."""
+    store, now = rig
+    fixture = _build_simple_capture(store, label="nonproxy")
+    now[0] += 1.
+    store.capture("nonproxy-1", event_id=fixture["event_id"], kind="OFFICIAL_OBSERVATION",
+                  provider="SOME_OTHER_PROVIDER", source_identity="KATL", revision="1",
+                  evidence_class="SYNTHETIC", payload={})
+    result = read_review_inputs(store=store, capture_id=fixture["capture"]["id"])
+    assert "INTRADAY_PROXY_INFORMATION_PRESENT" not in result.holds
+    assert result.provenance["proxy_receipts_target_day_before_decision"] == 0
+
+
+def test_label_disclosure_for_market_outside_partition_is_excluded(rig):
+    store, now = rig
+    fixture = _build_simple_capture(store, label="labelfilter")
+    now[0] += 1.
+    label_row = store.capture("labelfilter-unknown", event_id=fixture["event_id"], kind="LABEL", provider="TEST_ONLY",
+        source_identity="unknown-token", revision="v1", evidence_class="SYNTHETIC",
+        payload=dict(target_identity=dict(market_id="not-a-real-market", condition_id="cX",
+                                           token_id="unknown-token", side="YES"), value=1))
+    result = read_review_inputs(store=store, capture_id=fixture["capture"]["id"])
+    assert label_row["id"] not in {d["id"] for d in result.disclosures}

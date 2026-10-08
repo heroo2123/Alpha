@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .evidence import EvidenceError, EvidenceStore
+from .evidence import EvidenceError, EvidenceStore, digest
 from .learning_capture import TARGET as CAPTURE_TARGET, VERSION as CAPTURE_VERSION
 from .rules import GUARD_VERSION as RULE_GUARD_VERSION, RuleFingerprint
 from ..settlement import exact_token_payout
@@ -60,6 +60,7 @@ PERMANENT_HOLDS = (
 )
 CONDITIONAL_HOLDS = (
     "RULE_STATE_NOT_ADMISSIBLE_AT_DECISION",
+    "RULE_RECEIPT_FINGERPRINT_MISMATCH",
     "RULE_DRIFT_IN_DECISION_WINDOW",
     "RULE_DRIFT_AFTER_CAPTURE",
     "CHILD_DECISION_AFTER_CAPTURE",
@@ -79,6 +80,21 @@ _DISCLOSURE_SCAN_CAP = 2000
 def _require(ok: bool, reason: str) -> None:
     if not ok:
         raise EvidenceError("LABEL_REVIEW_READER_" + reason)
+
+
+def _get(store, record_id, *, missing_reason: str) -> dict:
+    """`store.get`, re-typed to the reader's namespaced refusal vocabulary.
+
+    `EvidenceStore.get` raises a bare, unprefixed `EvidenceError('EVIDENCE_MISSING')`
+    for both a non-str key and an absent id. Contract section 5 requires every
+    lineage defect this reader finds to raise `EvidenceError('LABEL_REVIEW_READER_<REASON>')`.
+    """
+    try:
+        return store.get(record_id)
+    except EvidenceError as exc:
+        if exc.args == ("EVIDENCE_MISSING",):
+            raise EvidenceError("LABEL_REVIEW_READER_" + missing_reason) from None
+        raise
 
 
 @dataclass(frozen=True)
@@ -117,8 +133,12 @@ class ReviewInputs:
             raise ValueError("packet must be None in this reader slice")
         if self.gamma_comparator is not None:
             raise ValueError("gamma_comparator must be None in this reader slice")
-        if not self.holds:
-            raise ValueError("holds must never be empty")
+        if type(self.holds) is not tuple or not all(type(h) is str for h in self.holds):
+            raise ValueError("holds must be a tuple of str")
+        if not set(PERMANENT_HOLDS) <= set(self.holds):
+            raise ValueError("holds must retain every permanent hold")
+        if not set(self.holds) <= set(HOLDS):
+            raise ValueError("holds must stay within the closed hold vocabulary")
 
 
 def _scan(store, *, kind: str, event_id: str, through_seq: int, cap: int) -> tuple[list[dict], bool]:
@@ -137,22 +157,45 @@ def _scan(store, *, kind: str, event_id: str, through_seq: int, cap: int) -> tup
             return rows, False
 
 
+_GAMMA_WRAPPERS = ("event", "market", "response")
+_GAMMA_MAX_DEPTH = 4
+
+
+def _gamma_market_candidates(value, depth: int = 0):
+    """Bounded-depth, provider-agnostic walk of a Gamma RULES payload.
+
+    Contract section 4 (D3) requires scanning payout receipts "from any
+    provider", not just the two providers this reader happened to special-
+    case. Every retained provider shape nests the market object under some
+    combination of ``event``/``market``/``response`` and/or a ``markets``
+    list (`tools/v11_brain_label_attestation.py:_gamma_market` is the
+    precedent). The depth bound fails closed on any unexpectedly deep or
+    malformed nesting rather than scanning without limit.
+    """
+    if depth > _GAMMA_MAX_DEPTH:
+        return
+    if isinstance(value, list):
+        for item in value:
+            yield from _gamma_market_candidates(item, depth + 1)
+    elif isinstance(value, dict):
+        markets = value.get("markets")
+        if isinstance(markets, list):
+            yield from _gamma_market_candidates(markets, depth + 1)
+        elif "clobTokenIds" in value or "outcomePrices" in value:
+            yield value
+        for key in _GAMMA_WRAPPERS:
+            if key in value:
+                yield from _gamma_market_candidates(value[key], depth + 1)
+
+
 def _d3_discloses(row: dict, partition_by_id: dict) -> bool:
     body = row["body"]
     payload = body.get("payload")
     if not isinstance(payload, dict):
         return False
-    provider = body.get("provider")
-    if provider == "GAMMA_CLOSED_MARKET":
-        response = payload.get("response")
-        candidates = (response,) if isinstance(response, dict) else ()
-    elif provider == "GAMMA_DISCOVERY_EVENT":
-        event = payload.get("event")
-        markets = event.get("markets") if isinstance(event, dict) else None
-        candidates = tuple(m for m in markets if isinstance(m, dict)) if isinstance(markets, list) else ()
-    else:
-        candidates = ()
-    for market in candidates:
+    for market in _gamma_market_candidates(payload):
+        if not isinstance(market, dict):
+            continue
         bucket = partition_by_id.get(str(market.get("id")))
         if bucket is None:
             continue
@@ -166,8 +209,16 @@ def _d3_discloses(row: dict, partition_by_id: dict) -> bool:
 
 
 def _disclosure_entry(row: dict, *, recorded_at: float | None = None) -> dict:
-    return {"id": row["id"], "seq": row["seq"],
-            "recorded_at": row["body"]["recorded_at"] if recorded_at is None else recorded_at}
+    body = row["body"]
+    candidates = [body["recorded_at"] if recorded_at is None else recorded_at]
+    # Contract section 4, "disclosure time": min(archive recorded_at, any
+    # self-declared earlier receive/publish time). An earlier self-declared
+    # time can only make lookahead more likely to be flagged -- fail-closed.
+    for key in ("observed_at", "issued_at", "published_at"):
+        value = body.get(key)
+        if isinstance(value, (int, float)):
+            candidates.append(value)
+    return {"id": row["id"], "seq": row["seq"], "recorded_at": min(candidates)}
 
 
 def _scan_disclosures(store, *, event_id: str, through_seq: int,
@@ -230,7 +281,7 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     if settlement_source_record_id is not None and not isinstance(settlement_source_record_id, str):
         raise EvidenceError("LABEL_REVIEW_READER_SETTLEMENT_SOURCE_RECORD_ID_TYPE_INVALID")
 
-    capture_row = store.get(capture_id)
+    capture_row = _get(store, capture_id, missing_reason="CAPTURE_NOT_FOUND")
     _require(capture_row["kind"] == "MEASUREMENT", "CAPTURE_KIND_INVALID")
     event_id = capture_row["event_id"]
 
@@ -284,10 +335,12 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     _require(details.get("selection_scope") == "ALL_BUCKETS_OF_THIS_EVALUATED_EVENT", "CAPTURE_SELECTION_SCOPE_INVALID")
 
     rule_dict = details.get("rule")
-    _require(isinstance(rule_dict, dict) and set(rule_dict) == {"canonical_json", "sha256", "source_event_sha256"},
-              "RULE_PREIMAGE_INVALID")
+    _require(isinstance(rule_dict, dict) and set(rule_dict) == {"canonical_json", "sha256", "source_event_sha256"}
+              and isinstance(rule_dict.get("canonical_json"), str) and isinstance(rule_dict.get("sha256"), str)
+              and isinstance(rule_dict.get("source_event_sha256"), str), "RULE_PREIMAGE_INVALID")
     rule = RuleFingerprint(**rule_dict)
     rule_payload = rule.payload  # raises EvidenceError('RULE_FINGERPRINT_INTEGRITY') on tamper.
+    _require(rule_payload.get("event_id") == event_id, "RULE_EVENT_MISMATCH")
 
     binding = details.get("binding")
     _require(isinstance(binding, dict) and binding.get("rule_fingerprint") == rule.sha256, "RULE_BINDING_MISMATCH")
@@ -300,6 +353,7 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     rows = details.get("rows")
     _require(isinstance(rows, list) and rows, "ROWS_INVALID")
     for r in rows:
+        _require(isinstance(r, dict), "ROW_SHAPE_INVALID")
         ti = r.get("target_identity")
         _require(isinstance(ti, dict) and set(ti) == {"market_id", "condition_id", "token_id", "side"}
                   and all(isinstance(ti[k], str) and ti[k] for k in ti), "ROW_TARGET_IDENTITY_INVALID")
@@ -314,7 +368,8 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     children = []
     for row in rows:
         decision_id = row.get("decision_id")
-        child = store.get(decision_id)
+        child = _get(store, decision_id, missing_reason="CHILD_NOT_FOUND")
+        _require(child["seq"] <= through_seq, "CHILD_AFTER_FRONTIER")
         _require(child["kind"] == "DECISION" and child["event_id"] == event_id, "CHILD_LINEAGE_MISMATCH")
         _require(child["sha256"] == row.get("decision_sha256"), "CHILD_SHA_MISMATCH")
         body = child["body"]
@@ -367,12 +422,25 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     if rule_receipt_row is not None:
         rb, rd = rule_receipt_row["body"], rule_receipt_row["body"].get("details", {})
         receipt_fingerprint = rd.get("fingerprint")
+        # The receipt's own internal consistency: its declared preimage must
+        # actually digest to its declared fingerprint. Without this, a
+        # dishonest store could rewrite only `preimage` and this reader would
+        # never notice -- the admissibility and drift checks below trust
+        # `fingerprint` alone.
+        _require(isinstance(rd.get("preimage"), dict) and digest(rd["preimage"]) == receipt_fingerprint,
+                  "RULE_RECEIPT_PREIMAGE_INTEGRITY")
         rule_receipt = {"event_id": rule_receipt_row["event_id"], "seq": rule_receipt_row["seq"],
                          "recorded_at": rb.get("recorded_at"), "fingerprint": receipt_fingerprint}
         admissible = (rd.get("version") == RULE_GUARD_VERSION and rd.get("quarantined") is False
                       and rd.get("state") in ADMISSIBLE_RULE_STATES)
         if not admissible:
             hold("RULE_STATE_NOT_ADMISSIBLE_AT_DECISION")
+        # The receipt being independently admissible says nothing about
+        # whether it is the rule the decision actually committed to -- that
+        # is a separate, independent cross-check against the capture-
+        # embedded `rule.sha256`.
+        if receipt_fingerprint != rule.sha256:
+            hold("RULE_RECEIPT_FINGERPRINT_MISMATCH")
         run_seq = rule_receipt_row["seq"]
         for candidate in reversed(before[:-1]):
             cd = candidate["body"].get("details", {})
@@ -385,8 +453,12 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
         hold("RULE_STATE_NOT_ADMISSIBLE_AT_DECISION")
 
     def drifted(row: dict) -> bool:
+        # Measured against the decision's own committed fingerprint
+        # (`rule.sha256`), not the (possibly wrong) selected receipt's own
+        # fingerprint -- otherwise a receipt bound to the wrong rule would
+        # make every genuinely-drifted row look consistent with it.
         d = row["body"].get("details", {})
-        return d.get("quarantined") is True or d.get("fingerprint") != receipt_fingerprint
+        return d.get("quarantined") is True or d.get("fingerprint") != rule.sha256
 
     window_rows = [r for r in rule_state_rows if min_seq <= r["seq"] <= capture_row["seq"]]
     after_rows = [r for r in rule_state_rows if r["seq"] > capture_row["seq"]]
