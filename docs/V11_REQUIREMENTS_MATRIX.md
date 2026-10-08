@@ -1,3 +1,17 @@
+## 2026-10-08 14:16 UTC R08 NO_PATCH diagnostic adds no new C/J/E/A credit; flags owner-level blocker
+
+The second independent PAPER R08 lane's `NO_PATCH` outcome (verified independently, not taken on
+claim: `risk_inputs.py:189-190`/`event_risk.py:329-335` directly confirm `EventMetrics` is always
+constructed with `time_to_settlement_seconds`/`adverse_fills`/`recent_markout_per_share` fixed to
+`None`, which unconditionally forces `state == 'EVENT'` on every cycle) is a truthful diagnostic
+result, not evidence -- it supplies no selected-window identity, provider-rights evidence, PAPER
+real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit. It is now
+`OWNER_ACTION_REQUIRED` rather than open investigation: two unmade owner-level design decisions
+(a settlement-finality timing source; an execution-health promotion contract for simulated PAPER
+fills) are the actual precondition for any R08 proposal to exist, independent of further data
+collection. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 13:56 UTC Full-regression confirmation and round-3 repair launch add no new C/J/E/A credit
 
 The FOURTH-priority full-regression retest of `27b4c71` finished clean except for one failure

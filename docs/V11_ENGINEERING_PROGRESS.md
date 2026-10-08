@@ -1,3 +1,32 @@
+## 2026-10-08 14:16 UTC R08 lane: confirmed structural blocker in EventMetrics admission, not a data gap
+
+Read actual host state before acting: the second independent PAPER R08 lane
+(`alpha-r08-real-evidence-20261008`) finished at 14:15:57Z with `exit_code=0`, outcome `NO_PATCH
+warranted` — worktree left clean. Did not take this on the handoff's claim: independently read
+`polymarket_scanner/v11/risk_inputs.py:189-190` (confirmed via grep to be the sole production
+constructor of `EventMetrics`) and `polymarket_scanner/v11/event_risk.py:329-335` directly, and
+reconfirmed against today's real root-owned `daily-2026-10-08.sqlite` (read-only query) that all 58
+real `COORDINATOR_EVENT` cycles today carry `EXECUTION_HEALTH_UNKNOWN` and
+`SETTLEMENT_WINDOW_UNKNOWN_OR_CLOSED` for the structural reason the handoff identified: three
+`EventMetrics` fields are permanently fixed to `None`, unconditionally forcing `state == 'EVENT'`
+regardless of book/model freshness. Independently reran the lane's cited test evidence (84 passed,
+both Python modes) rather than trusting the reported count. This explains, at the exact code line,
+why PAPER R08/R09 have shown zero accepted reservations for four consecutive days (Oct 5-8)
+independent of book freshness or GEFS cadence — filling either missing field requires a reviewed
+owner-level policy/design contract (settlement-finality timing source; execution-health promotion
+contract for simulated fills) that the code's own docstrings already name as prerequisite, not a
+plumbing fix; inventing one unilaterally would be fabricated signal, which this lane correctly
+declined to do. Flagged `OWNER_ACTION_REQUIRED` in the checkpoint rather than left as open
+investigation, since re-diagnosing this further (a second independent lane just reached the same
+conclusion as the first) would not move the needle without the owner decision. Confirmed no
+duplicate-writer risk: `alpha-seed-r3-sonnet-20261008` (round-3 Shadow-migration repair) remains the
+only other live lane, confirmed still actively working via fresh file mtimes, left untouched.
+InventoryTransform `iteration` 1600->1623, `inputs_seen` steady at 2, consistent with "no new
+genuine source this pass" checked 20 minutes prior — did not redundantly re-search. G3-L's
+14:00-17:00Z window is mechanically open but provider rights holds are unchanged/indefinite; no
+network/provider action taken. No provider, runtime/root/V10, financial or acceptance transition.
+Gate-3 91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 13:56 UTC full-regression result confirmed pre-existing; disk recovered; round-3 repair launched
 
 Read actual host state before acting: the full-regression retest of `27b4c71` (mid-run at the

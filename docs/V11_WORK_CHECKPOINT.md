@@ -1,3 +1,64 @@
+## 2026-10-08 14:16 UTC R08 lane returns NO_PATCH with a confirmed structural blocker (owner design decision needed); seed-r3 repair still running independently
+
+Read actual host state before acting: `/tmp/alpha-r08-real-evidence-20261008.terminal` showed
+`exit_code=0`/`ended_utc=2026-10-08T14:15:57Z` for the second, independent PAPER R08 lane (started
+14:05Z in its own isolated worktree/branch, no overlap with the live `alpha-seed-r3-sonnet-20261008`
+repair). Outcome: **NO_PATCH warranted** — worktree left clean, no commits, consistent with the
+task's own instruction not to invent code where none can honestly help. Did not take the handoff on
+claim: independently re-read `polymarket_scanner/v11/risk_inputs.py:189-190` and
+`polymarket_scanner/v11/event_risk.py:329-335` directly and confirmed both cited facts firsthand —
+`risk_inputs.py` is the sole production constructor of `EventMetrics` (`grep` confirms no other
+non-test call site) and always passes fixed `None` for `time_to_settlement_seconds`,
+`adverse_fills`, and `recent_markout_per_share`; `event_risk.py` unconditionally appends
+`EXECUTION_HEALTH_UNKNOWN` when either of the latter two is `None` and
+`SETTLEMENT_WINDOW_UNKNOWN_OR_CLOSED` when the first is `None`, forcing `state == 'EVENT'` on every
+cycle regardless of book/model freshness. Also independently re-confirmed against today's real,
+root-owned `daily-2026-10-08.sqlite` (read-only `?mode=ro` query, no write) that all 58 of today's
+real `COORDINATOR_EVENT` records carry exactly these reasons, matching the Oct 5-7 pattern already
+in `docs/V11_FORWARD_EVIDENCE_HARVEST_20261007.md` §2.4/§7.3 — this is a structural code property, not
+a transient data-freshness gap, and it independently reconfirms why zero R08 reservations have been
+accepted on any of the last four days regardless of how fresh the inputs are. The lane correctly
+declined to fill either field itself: both require a reviewed policy/design contract the code's own
+docstrings already name as prerequisite (`risk_inputs.py` module docstring; `paper_prerequisites.py`
+reason strings `REVIEWED_NEW_RISK_CUTOFF_POLICY_AND_CAUSAL_SOURCE_REQUIRED` /
+`EXECUTION_HEALTH_PROMOTION_CONTRACT_REQUIRED`), not a one-line plumbing fix — inventing either
+unilaterally would be exactly the fabricated-signal-to-pass-R08 this project's standing rules
+forbid. Verified the lane's own test evidence is real, not just claimed: reran
+`tests/test_v11_r08_scenario_reservation_readiness.py tests/test_v11_r08_r09_lineage_adversarial.py
+tests/test_v11_event_risk.py tests/test_v11_risk_inputs.py tests/test_v11_paper_prerequisites.py`
+directly — 84 passed in both normal and `-O` modes, matching the handoff. This is a truthful,
+independently-verified negative/diagnostic result: no C/J/E/A transition, but it is the first precise
+code-level explanation (not just "freshness/book admission failed") for the standing PAPER R08/R09
+zero-acceptance state, and it is now flagged `OWNER_ACTION_REQUIRED` below rather than left as an
+open investigation thread.
+
+**OWNER_ACTION_REQUIRED**: PAPER R08/R09 cannot produce any accepted event-risk reservation under
+the current code regardless of further data collection, book freshness, or GEFS cadence, because
+`time_to_settlement_seconds`, `adverse_fills`, and `recent_markout_per_share` are permanently `None`
+by design pending two unmade owner-level decisions: (1) specify a settlement-finality timing source
+for `time_to_settlement_seconds` (the code explicitly rejects bare Gamma `closedTime` as an adequate
+proxy for actual UMA settlement finality); (2) specify the "execution-health promotion contract"
+already named in `paper_prerequisites.py` defining what counts as an "adverse" simulated fill/markout
+under nonfinancial PAPER with no real order ever sent. Until the owner authorizes and a specialist
+implements+independently reviews both as typed adapters, this is a dead end, not a parallelizable
+coding task — repeatedly re-diagnosing it (as this second independent R08 lane just did, matching the
+first) would waste capacity. What it unlocks: a genuine path for today's or any future day's real
+KATL event-risk cycles to leave `state == 'EVENT'`, which is the actual precondition for any R08
+proposal/reservation to exist to evaluate.
+
+Confirmed no other change this cycle: `alpha-seed-r3-sonnet-20261008` (round-3 Shadow-migration
+repair) is still live and actively working (process alive, `migration/retire_prospective_days.py`
+and `tests/test_r2_migration.py` both modified in the last ~10 minutes, test-probe artifacts being
+generated) — left untouched, not duplicated. InventoryTransform `iteration` advanced 1600->1623,
+`inputs_seen` steady at 2 — confirms "no new genuine local source this pass," not stalled, consistent
+with the check 20 minutes ago; did not re-launch a redundant source search this cycle. G3-L's
+14:00-17:00Z window is mechanically open per the prior update but provider rights holds are
+unchanged and indefinite; no network/provider action taken, matching the explicit instruction not to
+spend further on noncredit planning or repins while the hard blocker is a rights hold, not code. No
+selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L
+**NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 13:56 UTC Full-regression confirmed clean (1 known pre-existing failure, not a regression); disk recovered; launched deferred round-3 repair
 
 Read actual host state: the FOURTH-priority full-regression retest of `27b4c71` (launched 12:59Z,
