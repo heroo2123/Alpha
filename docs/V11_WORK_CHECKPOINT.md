@@ -1,3 +1,27 @@
+## 2026-10-08 10:44 UTC R89-4-FC residual gap found and repaired; third review launched
+
+The independent Codex Astra/high exact review of R89-4 repair `b79a9e2` returned
+`CHANGES_REQUIRED`: the genuine parent-format MADIS bypass was closed, but a residual gap,
+**R89-4-FC, high, CONFIRMED_FOR_MALFORMED_RECORDS** — an empty or unclassifiable
+`collection.sources`/`held_providers` recovery returned an empty `frozenset()` directly instead of
+reaching the fail-closed branch, since an empty set is not an exception. Authored same-session
+repair `40282d3`: `_held_providers()` now only trusts a recovery when it is non-empty (an outcome
+of `PROVIDER_HELD` always has at least one non-`SUCCESS` source on the genuine write path, so an
+empty recovery is itself malformed, not evidence of nothing held); otherwise it falls through to
+`RIGHTS_SENSITIVE_PROVIDERS`. `collection.sources` still wins over a conflicting `held_providers`
+value when both are non-empty by design (the genuine write path always derives one from the
+other; they can only disagree on a forged/corrupted record, a separate trust-boundary question).
+Added regression coverage for all three reviewer-demonstrated shapes plus two cases documenting
+intended fallback/precedence behavior. Focused 27/27, wide family 110/110, both modes;
+independently re-verified in the prior reviewer's own disposable adversarial checkout — the four
+tests whose names and assertions encoded the bug now correctly fail (bypass no longer reproduces)
+while the remaining 8, including the forged-field precedence case, pass unchanged. Launched a
+third frozen Codex Astra/high exact review at `/tmp/alpha-r89-5-exact-review-40282d3`; no verdict
+yet. `R89-2` (MADIS entitlement) remains UNKNOWN and untouched throughout this whole R89-1 →
+R89-4 → R89-4-FC repair chain. No provider, runtime/root/V10, financial or acceptance transition.
+Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 10:33 UTC guardian SIGSTOP fix integrated; R89-4 bypass found and repaired; full-suite PASS confirmed
 
 Intook three completed lanes this batch. (1) The guarded full-release retest on frozen candidate

@@ -1,3 +1,18 @@
+## 2026-10-08 10:44 UTC intook R89-4 review; found and repaired residual R89-4-FC gap
+
+Intook the independent Codex Astra/high review of R89-4 repair `b79a9e2`: `CHANGES_REQUIRED`,
+new finding R89-4-FC (high, confirmed for malformed records) — an empty or unclassifiable
+held-provider recovery returned an empty set directly rather than reaching the fail-closed
+branch. Authored same-session repair `40282d3` so `_held_providers()` only trusts a non-empty
+recovery and otherwise fails closed to `RIGHTS_SENSITIVE_PROVIDERS`, while preserving
+`collection.sources`-over-`held_providers` precedence as deliberate (write path always derives
+one from the other). Focused 27/27, wide family 110/110, both modes; re-verified in the
+reviewer's own disposable checkout that every test documenting the bug now fails for the right
+reason (bypass closed) while unrelated tests pass unchanged. Launched a third frozen Codex
+Astra/high review at `/tmp/alpha-r89-5-exact-review-40282d3`; no verdict yet. R89-2 remains
+UNKNOWN throughout. No provider, runtime/root/V10, financial or acceptance transition; Gate-3
+91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
 ## 2026-10-08 10:33 UTC intook full-suite PASS and guardian fix; found and repaired R89-4 bypass
 
 Read actual host state (process table, terminals, disk) and found three live lanes had each

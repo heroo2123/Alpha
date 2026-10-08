@@ -1,3 +1,12 @@
+## 2026-10-08 10:44 UTC R89-4-FC fail-closed repair adds no new C/J/E/A credit
+
+Residual `R89-4-FC` finding and its `40282d3` repair are the same category as `R89-4` before it:
+defensive-correctness work closing a rights-bypass edge case in the already-PARTIAL real-input
+capture path, under independent review again. No selected-window identity, provider-rights
+evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit
+changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 10:33 UTC release PASS and rights-bypass repair add no new C/J/E/A credit
 
 The guarded full-release retest of frozen `f02d26b` completed clean (9486 passed, 22 skipped, 0
