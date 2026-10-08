@@ -1,3 +1,7 @@
+## 2026-10-08 02:22 UTC forward witness remains unqualified
+
+Exact review of `809bad9` returned `CHANGES_REQUIRED` for inherited cleanup OSError escape despite closing R1; a sole R2 repair is live and requires fresh exact review. No protected-interval or forward qualification credit. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
 ## 2026-10-08 02:21 UTC Gate-3 descriptor/root binding remains unqualified
 
 An offline historical-writer probe in frozen X1 `23f1150` confirmed v2 root refusal before downstream acquisition in normal and optimized Python, but separately exposed an unresolved denial-root descriptor-to-opened-root binding question. An isolated Astra/high adjudication is live; no reviewed fix, root attestation, G3-L identity, PAPER R08/R09 or C/J/E/A requirement crosses. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
