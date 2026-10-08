@@ -10,10 +10,10 @@ writer, plus the discovery convention a reader needs to find "the latest
 such row for this exact account/event/rule/collateral/policy scope" --
 nothing else.
 
-This module never chooses production `ObservationPolicy` windows, never
-wires its output into `risk_inputs.py`'s live `EventMetrics` construction,
-and is not imported by any production call path. Those remain the separate,
-explicit owner decisions `paper_execution_health_promotion.py`'s own
+This module never chooses production `ObservationPolicy` windows. Its only
+production caller is `risk_inputs.py`'s opt-in `execution_health_policy`
+(default `None`, inert); choosing real windows and accepting the evidence for
+live gating remain the separate, explicit owner decisions `paper_execution_health_promotion.py`'s own
 docstring already names: real policy windows are a timing-calibration
 judgment, and accepting this evidence to drive live gating is a sign-off
 only an owner can give. Calling `observe_and_promote_execution_health`
@@ -244,7 +244,23 @@ def record_execution_health_observation(store, *, account_id, event_id, rule_fin
 
 def observe_and_promote_execution_health(store, *, account_id, event_id, rule_fingerprint, collateral_asset,
                                          policy, maximum_observation_age_seconds=MAXIMUM_OBSERVATION_AGE_SECONDS):
+    """`observe_and_promote_execution_health_record` without the record id."""
+    return observe_and_promote_execution_health_record(
+        store, account_id=account_id, event_id=event_id, rule_fingerprint=rule_fingerprint,
+        collateral_asset=collateral_asset, policy=policy,
+        maximum_observation_age_seconds=maximum_observation_age_seconds)[0]
+
+
+def observe_and_promote_execution_health_record(store, *, account_id, event_id, rule_fingerprint,
+                                                collateral_asset, policy,
+                                                maximum_observation_age_seconds=MAXIMUM_OBSERVATION_AGE_SECONDS):
     """Write (or reuse) an observation, then immediately independently re-verify it.
+
+    Returns `(promotion, record_id)`: `record_id` is the id of the exact row
+    that was written/reused and verified (None when no row exists). Callers
+    must cite this id rather than re-deriving it with
+    `current_execution_health_record_id`, whose effective tip may already
+    have advanced past the row that was promoted.
 
     This is the single call a future caller would make. Always returns an
     `ExecutionHealthPromotion` for any data or storage reason: no complete
@@ -260,9 +276,9 @@ def observe_and_promote_execution_health(store, *, account_id, event_id, rule_fi
                                                    rule_fingerprint=rule_fingerprint,
                                                    collateral_asset=collateral_asset, policy=policy)
     except EvidenceError as exc:
-        return _unknown(str(exc))
+        return _unknown(str(exc)), None
     if row is None:
-        return _unknown('EXECUTION_HEALTH_MEASUREMENT_SCAN_INCOMPLETE')
+        return _unknown('EXECUTION_HEALTH_MEASUREMENT_SCAN_INCOMPLETE'), None
     return promote_execution_health(store, row['id'], account_id=account_id, event_id=event_id,
                                     rule_fingerprint=rule_fingerprint, collateral_asset=collateral_asset,
-                                    policy=policy, maximum_observation_age_seconds=maximum_observation_age_seconds)
+                                    policy=policy, maximum_observation_age_seconds=maximum_observation_age_seconds), row['id']
