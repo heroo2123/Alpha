@@ -1,3 +1,7 @@
+## 2026-10-08 08:06 UTC accounting recovery adds no acceptance credit
+
+The offline coordinator-accounting R2 repair is in a sole isolated writer lane, with live installation forbidden pending exact review and separate commissioning. Brain R5 and A7 exact reviews remain pending. No G3-L selected-window identity, PAPER R08/R09 evidence, Brain qualification, release PASS, READY_TO_FUND or C/J/E/A boundary crossed; Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**, PAPER **9/11**.
+
 ## 2026-10-08 08:03 UTC selector integration remains nonqualifying
 
 Reviewed offline selector R3 is integrated on main as `60174fc` after 247 reconciled adjacent passes per Python mode and 77 actual-main focused passes per mode. It proposes dates mechanically but supplies no selected-window provider evidence, rights release, G3-L approval, PAPER R08/R09 real evidence, or C/J/E/A boundary. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
