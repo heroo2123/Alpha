@@ -1,4 +1,23 @@
-## 2026-10-08 18:01 UTC Round-5 Opus review returned genuine PASS_IN_SCOPE on `8fe407a`; R3-M1 closed, three non-blocking LOW findings; two scoped follow-ups launched
+## 2026-10-08 18:06 UTC Correction to the prior entry: only one follow-up is actually launched, not two; the contract candidate itself is still unmerged
+
+Self-correction before acting further, not a new result. The prior entry (below) said "two scoped
+follow-ups launched" before the second (observation-writer wiring prep) had actually been dispatched,
+and before checking a fact that invalidates it as currently scoped: `8fe407a` (and the whole
+`paper_execution_health_promotion.py` candidate chain `fa8b5ef8`->`0e13fa6`->`dce1f95`->`8fe407a`) is
+NOT merged into `weather-v11-profitability-upgrade-2026-09-23` -- it exists only on the separate local
+branch/worktree `alpha-r08-contract-repair-20261008` (`git ls-tree HEAD` on the real branch confirms
+the file does not exist there at all; `git branch --contains 8fe407a` shows only the candidate branch).
+This matches this project's standing practice of never merging an R08 contract candidate before full
+independent review, but it means the earlier read-only wiring-integration map's "code-only, ready now"
+items for `risk_inputs.py`/`event_risk.py`/`katl_live_plan.py` are premature today: those call sites
+would need to call `promote_execution_health`, which is not yet part of the main tree. Launching that
+wiring lane now, in parallel with the round-6 LOW-finding repair, would be exactly the kind of
+"dependent writer against unfinished bytes" this project's standing rule prohibits -- the contract
+itself still isn't in main. Only the round-6 repair (closing R5-L1/L2/L3 in the existing
+`alpha-r08-contract-repair-20261008` worktree, same branch, no new worktree) is being launched now.
+Wiring prep correctly waits until a fully closed-out candidate is reviewed once more and merged.
+
+## 2026-10-08 18:01 UTC Round-5 Opus review returned genuine PASS_IN_SCOPE on `8fe407a`; R3-M1 closed, three non-blocking LOW findings; one scoped follow-up launched
 
 Did not take the review agent's hand-back summary on faith: independently read the actual
 `alpha-r08-contract-opus-review-8fe407a-20261008.verdict.json` and `.report.md` it wrote, and
@@ -21,18 +40,15 @@ non-blocking per the reviewer, who recommended closing this review thread withou
   busy store). Reviewer explicitly flagged this as "should be fixed before wiring," i.e. relevant at
   wiring time, not blocking the candidate itself.
 
-Rather than leaving these to be rediscovered during wiring, launched two genuinely independent scoped
-Sonnet follow-ups in parallel (different files, no shared writer, neither depends on the other's
-unfinished bytes): (1) a tightly scoped round-6 patch to `paper_execution_health_promotion.py` closing
-all three LOW findings using the reviewer's own probes as the regression tests, so the contract module
-itself has zero known residual findings before anything consults it from a real store; (2) the
-observation-writer wiring prep the earlier read-only map identified as code-only and ready once R3-M1
-closed (append-path for `observe()` results as a MEASUREMENT row, a discovery/key convention to read
-one back, and threading the one confirmed-non-rippling field through `katl_live_plan.py:348`) --
-explicitly instructed NOT to choose real production `ObservationPolicy` numeric windows or enable live
-EVENT/CAUTION gating from this data, since that sign-off is owner-gated per the map, not something this
-session may decide. Neither lane is merged; each needs its own independent review before closure,
-per this project's standing rule for every R08 contract change.
+Rather than leaving these to be rediscovered during wiring, launched a tightly scoped round-6 patch to
+`paper_execution_health_promotion.py` (in the existing `alpha-r08-contract-repair-20261008` worktree/
+branch, same sole writer, no new worktree) closing all three LOW findings using the reviewer's own
+probes as the regression tests, so the contract module itself has zero known residual findings before
+anything consults it from a real store. (See the correction entry directly above: the previously-planned
+second, parallel wiring-prep lane is deferred, not launched -- the contract candidate is still unmerged
+into `weather-v11-profitability-upgrade-2026-09-23`, so there is nothing in main yet for that lane to
+wire against.) Not merged; needs its own independent review before closure, per this project's standing
+rule for every R08 contract change.
 
 This is process, not evidence: no selected-window identity, provider-rights evidence, PAPER real
 reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
