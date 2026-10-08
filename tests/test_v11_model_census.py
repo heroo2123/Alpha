@@ -6,7 +6,7 @@ import pytest
 
 from polymarket_scanner.v11.book_inputs import BookPolicy
 from polymarket_scanner.v11.census_worker import CensusWorker,CensusPlan,CensusPolicy
-from polymarket_scanner.v11.evidence import EvidenceError,digest
+from polymarket_scanner.v11.evidence import EvidenceError,canonical,digest
 from polymarket_scanner.v11.event_queue import EventQueue,_census_raw_receipt
 from polymarket_scanner.v11.gefs_sources import assemble_path,current_path_heads
 from polymarket_scanner.v11.model_census import ModelCensusStage,restore_plan
@@ -168,6 +168,41 @@ def test_concurrent_stage_cannot_clear_or_duplicate_an_inflight_request(gefs,mon
         assert row['body']['details']['outcome']=='MODEL_FIELD_STAGED' and len(calls)==1
         await gw.scheduled.collector.client.aclose()
     asyncio.run(run())
+
+
+def test_census_persistence_bytes_are_linear_not_quadratic(gefs,monkeypatch):
+    """Guard the O(n^2)->O(n) fix: total persisted bytes for a full pass must
+    stay within a small constant factor of a delta-only payload, and far below
+    what the old full-list-per-row format would have cost for the same run."""
+    r=gefs;q,cw,gw,calls=setup(r,monkeypatch);expected=31*len(r['plan'].hours)
+    async def run():
+        for index in range(expected):
+            result=await cw.step('bytes-'+str(index));d=result['body']['details']
+            assert d['outcome']=='MODEL_CENSUS_COLLECTION_PENDING',d
+            advance(r)
+        finished=await cw.step('bytes-finish')
+        assert finished['body']['details']['outcome']=='CENSUS_SOURCE_COVERAGE_ONLY',finished['body']['details']
+        await gw.scheduled.collector.client.aclose()
+    asyncio.run(run())
+    rows=r['store'].records(kind='RUNTIME_STATUS',event_id='model-census:'+r['plan'].event_id,limit=1000)
+    assert len(rows)>=2*expected
+    total_new=sum(len(canonical(row['body']).encode()) for row in rows)
+    minimal_total=0;legacy_total=0;cumulative=[]
+    for row in rows:
+        details=dict(row['body']['details']);c=details.pop('census',None)
+        if c is None:
+            size=len(canonical(row['body']).encode());minimal_total+=size;legacy_total+=size;continue
+        field=c.get('field_id')
+        minimal_details=dict(details,census=dict(field_id=field))
+        minimal_total+=len(canonical(dict(row['body'],details=minimal_details)).encode())
+        if field:cumulative.append(field)
+        legacy_details=dict(details,state=dict(field_ids=list(cumulative),active=c.get('active')))
+        legacy_total+=len(canonical(dict(row['body'],details=legacy_details)).encode())
+    print(f'CENSUS_BYTES slots={expected} rows={len(rows)} new_total_bytes={total_new} '
+          f'minimal_delta_only_bytes={minimal_total} legacy_full_list_bytes={legacy_total} '
+          f'new_over_minimal={total_new/minimal_total:.2f}x legacy_over_new={legacy_total/total_new:.2f}x')
+    assert total_new<2*minimal_total,(total_new,minimal_total)
+    assert total_new<legacy_total/5,(total_new,legacy_total)
 
 
 def test_model_census_failure_does_not_bypass_shared_provider_backoff(gefs,monkeypatch):
