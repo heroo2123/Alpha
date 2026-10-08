@@ -5498,3 +5498,6 @@ Clean forward-witness `d6e67aa` is under frozen independent exact review after p
 ## 2026-10-08 02:30 UTC PAPER and Brain reviews remain unqualified
 
 PAPER `5aa2e63` exact review was interrupted by a provider tool flag with **NO_VERDICT**; its synthetic adverse output requires independent adjudication. Brain reader `1266aad` has a fresh exact review after prior Claude quota exit. Neither supplies acceptance credit. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+## 2026-10-08 02:32 UTC Gate-3 descriptor readiness blocked by D1
+
+Independent synthetic complete-path adjudication found denial-root descriptor/root semantic mismatch accepted before GateRuntime; D1 is `CHANGES_REQUIRED` and an isolated offline repair is live. This is no G3-L identity, selected-window eligibility or real-root installation authority. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
