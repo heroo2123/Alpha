@@ -1,3 +1,29 @@
+## 2026-10-08 10:33 UTC intook full-suite PASS and guardian fix; found and repaired R89-4 bypass
+
+Read actual host state (process table, terminals, disk) and found three live lanes had each
+produced a result since the last checkpoint. The guarded full-release retest on frozen `f02d26b`
+finished clean — exit 0, `reason=completed`, 9486 passed/22 skipped/0 failed in 2813.58s — the
+first clean full-suite completion recorded in this log; reclaimed its 6.4 GiB basetemp after
+confirming no live `/proc` reference, restoring free disk from ~4.4 to ~11 GiB. The independent
+Claude Sonnet-5-high review of guardian SIGSTOP fix `d5ff0c3` returned `PASS_IN_SCOPE`/no findings
+after mechanistic tracing and an independent out-of-repo race reproduction; integrated it as
+`b115559` after a byte-identical isolated merge and 90/90 reconciliation, then 90/90 again on
+actual main, both Python modes. The independent Codex Astra/high review of PAPER R89-1 repair
+`2c56551` returned `CHANGES_REQUIRED` with a new high/CONFIRMED finding, R89-4: a persisted
+parent-format `PROVIDER_HELD` record lacking `held_providers` was read as holding nothing,
+letting a later command silently re-request MADIS after a genuine rights-sensitive failure.
+Authored same-session repair `b79a9e2`, which recovers the held set from the always-present
+`collection.sources` field (matching the write-side computation) instead of trusting the
+possibly-absent `held_providers` field, and fails closed when neither can be classified. Verified
+with a new regression test (parent-format record injected via `store.audit`) plus, independently,
+by copying the fix into the reviewer's own disposable adversarial checkout and confirming their
+exact demonstrated bypass no longer reproduces. Focused 22/22, wide family 105/105, both modes.
+Launched a separate frozen Codex Astra/high exact review of `b79a9e2`; left the lower-priority
+sealed coordinator-accounting R4 repair queued again, deferred behind named critical-path work.
+Three specialist lanes stayed at or under the safe target of 3 throughout. No provider,
+runtime/root/V10, financial or acceptance transition; Gate-3 91/200, G3-L NO-GO, PAPER 9/11,
+READY_TO_FUND=false.
+
 ## 2026-10-08 10:18 UTC queued guardian review launched; completed R4 accounting repair intook
 
 Read actual host state (process table, live terminals, disk/mem) before acting. Found the

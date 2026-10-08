@@ -1,3 +1,37 @@
+## 2026-10-08 10:33 UTC guardian SIGSTOP fix integrated; R89-4 bypass found and repaired; full-suite PASS confirmed
+
+Intook three completed lanes this batch. (1) The guarded full-release retest on frozen candidate
+`f02d26b` finished cleanly: exit 0, reason `completed` (not a time/disk stop), **9486 passed, 22
+skipped, 0 failed** in 2813.58s per `/tmp/alpha-release-retest-clean-20261008.terminal.json`; its
+6.4 GiB basetemp was reclaimed after confirming no live process held it, restoring ~11 GiB free.
+This is the first clean full-suite completion recorded in this log; it is a release-suite PASS for
+that frozen commit, not an automatic PASS for current main or a C/J/E/A transition. (2) The
+independent Claude Sonnet-5-high exact review of guardian SIGSTOP test fix `d5ff0c3` returned
+`PASS_IN_SCOPE` with zero findings: mechanistically traced the real fail-closed path
+(`process_identity`/`/proc` state), independently reproduced the underlying race outside the repo
+(17% flake immediate-check vs 0/30 after `waitpid(WUNTRACED)`), and confirmed 90/90 in both Python
+modes. Integrated it: isolated merge onto then-HEAD `d153138` was byte-identical to the reviewed
+tree, passed 90/90 per mode, and fast-forwarded local main to `b115559`; actual main re-confirmed
+90/90 per mode. (3) The independent Codex Astra/high exact review of PAPER R89-1 repair `2c56551`
+returned `CHANGES_REQUIRED`: new finding **R89-4, high, CONFIRMED** — the parent commit's
+`PROVIDER_HELD` records lack `held_providers`, so `details.get('held_providers', ())` silently
+defaulted a genuine persisted MADIS hold to empty, letting a later command re-request
+`NOAA_MADIS_CWOP` after a real rights-sensitive failure (reproduced by the reviewer). Authored a
+same-session repair `b79a9e2` in the original `alpha-r89-real-evidence-wiring-20261008` worktree:
+a new `_held_providers()` recovers the held set from `collection.sources` (always written, matches
+the write-side computation) and falls back to the `held_providers` field only when that cannot be
+parsed, failing closed as rights-sensitive if neither can be classified. Focused 22/22 (21+1 new),
+wide family 105/105 (104+1 new), both modes; independently re-verified by copying the fix into the
+reviewer's own disposable adversarial checkout and confirming their exact bypass scenario
+(`test_parent_format_madis_hold_without_new_field_is_bypassed`) no longer reproduces — the second
+command now raises `REAL_INPUT_PROVIDER_OR_INTERRUPTED_HOLD` instead of returning
+`FRESH_SOURCE_EVIDENCE_ONLY`. Launched a separate frozen Codex Astra/high exact review of `b79a9e2`
+at `/tmp/alpha-r89-4-exact-review-b79a9e2`; no verdict yet. `R89-1` (new records) and `R89-2`
+(MADIS entitlement, UNKNOWN) are otherwise unchanged. The lower-priority offline
+coordinator-accounting R4 repair remains sealed and queued for review, deferred again behind named
+critical-path work. No provider, runtime/root/V10, financial or acceptance transition. Gate-3
+**91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 10:18 UTC queued guardian review launched after cooldown; R4 accounting intake pending
 
 Intook sealed offline coordinator-accounting R4 repair (exit 0 at 09:18, candidate SHA-256

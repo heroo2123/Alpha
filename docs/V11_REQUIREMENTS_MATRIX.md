@@ -1,3 +1,18 @@
+## 2026-10-08 10:33 UTC release PASS and rights-bypass repair add no new C/J/E/A credit
+
+The guarded full-release retest of frozen `f02d26b` completed clean (9486 passed, 22 skipped, 0
+failed, exit 0, not a timeout/disk stop) — a genuine release-suite PASS for that commit, but not
+itself a C/J/E/A transition for any of the 50 requirements, and not yet re-run against current
+main (the only diff since is the independently reviewed, 90/90-confirmed guardian test fix). The
+independently reviewed guardian SIGSTOP test fix `d5ff0c3` is integrated as `b115559`. The newly
+found and repaired `R89-4` rights-bypass defect (`b79a9e2`, independent review pending) prevents a
+real regression in the PAPER R08/R09 real-input-capture path but, like its predecessor `2c56551`,
+supplies no selected-window identity, provider-rights evidence, PAPER real reservation/PWS
+evidence, Brain qualification, or READY_TO_FUND credit by itself — it is defensive-correctness
+work on an already-PARTIAL requirement, not new evidence. `R89-2` (MADIS entitlement) remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 10:18 UTC lane recycling adds no requirement credit
 
 Sealed coordinator-accounting R4 repair and the newly launched guardian SIGSTOP exact review are
