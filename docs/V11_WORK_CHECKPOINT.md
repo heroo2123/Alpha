@@ -1,3 +1,36 @@
+## 2026-10-08 12:26 UTC Astra R2 verdict intake (CHANGES_REQUIRED); repair + full-regression lanes launched
+
+Host-state read found the Astra exact-byte R2 review of the Opus seed/provenance candidate
+(`/tmp/alpha-shadow-seed-r2-20261008`) had finished at 12:16-12:17Z, after the prior checkpoint
+entry, with no verdict yet recorded. Verdict: **CHANGES_REQUIRED**
+(`/tmp/alpha-shadow-seed-r2-astra-review-20261008.verdict.json`). F1's new-seed protocol, F2's
+root epoch-isolation/serialization, and F3's historical-evidence closure all passed
+(`PASS_IN_TESTED_SCOPE`/`PASS_IN_TESTED_SCOPE_NOT_DEPLOYED`). Two HIGH/blocking findings remain in
+the prospective Oct 9/10 migration tool `migration/retire_prospective_days.py`: **R2-M1**
+(`rollback` is not crash-idempotent and lacks exact inode/hash custody before restoring -- a crash
+between rename and journal-append, or between restore and `RESTORED`-append followed by a second
+rollback, both mishandle the artifact) and **R2-M2** (the commissioning barrier does not survive
+interruption -- a crash after old-day retirement but before new-preparer install lets the next
+ordinary cron cycle regenerate the old preparer/sparse day, and `resume`/`rollback` never recheck
+date-margin/protected-review/process-scan/lock-identity before mutating). Astra explicitly states
+neither layer resolves the live Oct 8 `AUDIT_PINNED_SEQUENCE_MISSING` gate regardless of outcome.
+This is process/diagnosis, not evidence: no C/J/E/A transition. Launched two lanes to recycle idle
+capacity (both specialist lanes had gone idle -- Opus writer and Astra reviewer both exited 0
+hours earlier with no follow-up queued): (1) a Claude Sonnet implementation agent scoped exactly
+to R2-M1/R2-M2 inside the same disposable `/tmp/alpha-shadow-seed-r2-20261008` directory (sole
+writer, no duplication; frozen/disposable fixtures only, no live/root/network paths), per the
+cost rule that a senior model diagnoses and a smaller model implements the scoped fix afterward --
+not a second Opus escalation; (2) a disk-guarded full-regression retest of current main HEAD
+`8726704` (prior full-suite PASS was only confirmed for frozen `f02d26b`, several commits stale:
+the R89 chain closure, guardian SIGSTOP integration, and the a1a2-duplicate closure all landed
+since) reusing the existing clean `/tmp/alpha-release-retest-clean-20261008` worktree, detached
+tmux `alpha-release-retest-8726704`, 3 GiB disk-floor guard, no verdict yet. Verified no full-suite
+or duplicate seed-repair process was already running before launching either (host disk 8.8 GiB
+free, mem 6.3 GiB available). G3-L's only mechanical window today opens 14:00Z (not yet reached);
+no action taken there this pass per the standing instruction against repeated non-credit
+G3-L investigation. No provider, runtime/root/V10, financial, or acceptance transition. Gate-3
+**91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 12:08 UTC a1a2 readiness-CLI review closed: correct but confirmed duplicate, not integrated
 
 The independent Claude Sonnet review of the Codex a1a2 candidate (commit `5aa2e639...` on branch
