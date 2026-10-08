@@ -9,6 +9,7 @@ gate and regressions" requirement.
 """
 
 import ast
+import errno
 import fcntl
 import inspect
 import os
@@ -454,6 +455,95 @@ def test_short_read_is_unsupported(tmp_path, monkeypatch):
 def test_missing_path_is_unsupported(tmp_path):
     result = witness.read_file_witness(tmp_path / 'absent')
     check(result == witness.Unsupported('WITNESS_OPEN_FAILED'), f'{result}')
+
+
+@pytest.mark.parametrize('failed_close', [1, 2], ids=['child', 'parent'])
+def test_close_eio_after_release_is_typed_refusal(tmp_path, monkeypatch, failed_close):
+    path = tmp_path / 'f'
+    write(path, b'hello')
+    check(isinstance(witness.read_file_witness(path), witness.FileWitness),
+          'TEST_REQUIRES_SUCCESSFUL_WITNESS_BEFORE_FAULT')
+    real_close = os.close
+    closed = []
+
+    def close_then_fail(fd):
+        real_close(fd)
+        closed.append(fd)
+        if len(closed) == failed_close:
+            raise OSError(errno.EIO, 'injected close EIO after release')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(witness.os, 'close', close_then_fail)
+        result = witness.read_file_witness(path)
+
+    check(result == witness.Unsupported('WITNESS_OS_ERROR'), f'{result}')
+    check(len(closed) == 2 and len(set(closed)) == 2,
+          f'EXPECTED_ONE_CLOSE_PER_CHILD_AND_PARENT_{closed}')
+    check(witness.compare_witness(result, result)
+          == witness.Verdict('UNKNOWN', 'WITNESS_UNSUPPORTED_OR_MISSING'),
+          'CLOSE_FAILURE_MUST_NOT_PROVE_CONTINUITY')
+
+
+@pytest.mark.parametrize('failed_fstat, expected_code, expected_closes', [
+    (1, 'WITNESS_PARENT_STAT_FAILED', 1),
+    (2, 'WITNESS_OPEN_FAILED', 2),
+], ids=['parent', 'child'])
+def test_fstat_eio_retains_specific_refusal(tmp_path, monkeypatch, failed_fstat,
+                                            expected_code, expected_closes):
+    path = tmp_path / 'f'
+    write(path, b'hello')
+    real_fstat = os.fstat
+    real_close = os.close
+    fstat_calls = []
+    closed = []
+
+    def fstat_then_fail(fd):
+        fstat_calls.append(fd)
+        if len(fstat_calls) == failed_fstat:
+            raise OSError(errno.EIO, 'injected fstat EIO')
+        return real_fstat(fd)
+
+    def record_close(fd):
+        real_close(fd)
+        closed.append(fd)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(witness.os, 'fstat', fstat_then_fail)
+        patch.setattr(witness.os, 'close', record_close)
+        result = witness.read_file_witness(path)
+
+    check(result == witness.Unsupported(expected_code), f'{result}')
+    check(len(closed) == expected_closes and len(set(closed)) == expected_closes,
+          f'EXPECTED_CLOSES_{closed}')
+
+
+def test_parent_fstat_refusal_plus_parent_close_eio_is_typed(tmp_path, monkeypatch):
+    path = tmp_path / 'f'
+    write(path, b'hello')
+    real_close = os.close
+    closed = []
+    fstat_calls = []
+
+    def fail_parent_fstat(fd):
+        fstat_calls.append(fd)
+        raise OSError(errno.EIO, 'injected parent fstat EIO')
+
+    def close_then_fail(fd):
+        real_close(fd)
+        closed.append(fd)
+        raise OSError(errno.EIO, 'injected parent close EIO after release')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(witness.os, 'fstat', fail_parent_fstat)
+        patch.setattr(witness.os, 'close', close_then_fail)
+        result = witness.read_file_witness(path)
+
+    check(result == witness.Unsupported('WITNESS_OS_ERROR'), f'{result}')
+    check(len(fstat_calls) == 1 and closed == fstat_calls,
+          f'EXPECTED_ONE_PARENT_FSTAT_AND_CLOSE_{fstat_calls}_{closed}')
+    check(witness.compare_witness(result, result)
+          == witness.Verdict('UNKNOWN', 'WITNESS_UNSUPPORTED_OR_MISSING'),
+          'DOUBLE_FAILURE_MUST_NOT_PROVE_CONTINUITY')
 
 
 def test_hardlinked_file_is_unsupported(tmp_path):

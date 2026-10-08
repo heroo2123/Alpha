@@ -164,6 +164,10 @@ def read_file_witness(path):
         return _read_file_witness(path)
     except (ValueError, TypeError):
         return Unsupported('WITNESS_INVALID_INPUT')
+    except OSError:
+        # A cleanup close can fail after the inner reader has prepared either
+        # a witness or a specific refusal. Never expose the pending witness.
+        return Unsupported('WITNESS_OS_ERROR')
 
 
 def _read_file_witness(path):
