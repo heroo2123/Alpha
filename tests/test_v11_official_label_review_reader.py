@@ -1209,6 +1209,24 @@ def test_archived_malformed_rule_and_decision_id_raise_typed_refusals(rig, damag
         read_review_inputs(store=store, capture_id=archived["id"])
 
 
+@pytest.mark.parametrize(
+    ("digits", "refusal"),
+    [(100, "RULE_FINGERPRINT_INTEGRITY"),
+     (5000, "LABEL_REVIEW_READER_RULE_PREIMAGE_INVALID")],
+)
+def test_archived_rule_integer_parser_limit_refuses_by_boundary(rig, digits, refusal):
+    store, _ = rig
+    fixture = _build_simple_capture(store, label=f"integer-limit-{digits}")
+    details = copy.deepcopy(fixture["capture"]["body"]["details"])
+    details["rule"]["canonical_json"] = '{"n":' + "1" * digits + "}"
+    archived = store.audit(f"integer-limit-{digits}", event_id=fixture["event_id"],
+                           kind="MEASUREMENT", details=details)
+    before = store.pin_read_view()
+    with expect_refusal(refusal):
+        read_review_inputs(store=store, capture_id=archived["id"])
+    assert store.pin_read_view() == before
+
+
 # ==========================================================================
 # 22. Test-adequacy round (F8): one discriminating test per lineage refusal
 #     the author's suite left unexercised, plus contract test 6.

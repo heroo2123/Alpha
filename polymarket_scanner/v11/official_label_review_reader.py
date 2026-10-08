@@ -36,7 +36,6 @@ retained record could even be verified without risking fabricated authority.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from json import JSONDecodeError
 
 from .evidence import EvidenceError, EvidenceStore, digest
 from .learning_capture import TARGET as CAPTURE_TARGET, VERSION as CAPTURE_VERSION
@@ -354,7 +353,7 @@ def read_review_inputs(*, store: EvidenceStore, capture_id: str,
     rule = RuleFingerprint(**rule_dict)
     try:
         rule_payload = rule.payload  # keeps RULE_FINGERPRINT_INTEGRITY on digest mismatch.
-    except JSONDecodeError:
+    except (ValueError, RecursionError):
         raise EvidenceError("LABEL_REVIEW_READER_RULE_PREIMAGE_INVALID") from None
     _require(isinstance(rule_payload, dict), "RULE_PREIMAGE_INVALID")
     _require(rule_payload.get("event_id") == event_id, "RULE_EVENT_MISMATCH")
