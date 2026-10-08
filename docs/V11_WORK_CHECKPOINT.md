@@ -1,3 +1,44 @@
+## 2026-10-08 18:01 UTC Round-5 Opus review returned genuine PASS_IN_SCOPE on `8fe407a`; R3-M1 closed, three non-blocking LOW findings; two scoped follow-ups launched
+
+Did not take the review agent's hand-back summary on faith: independently read the actual
+`alpha-r08-contract-opus-review-8fe407a-20261008.verdict.json` and `.report.md` it wrote, and
+confirmed the `r08-opus-probe-round5/` artifacts directory contains real mutation-test output files
+(11 mutants, e.g. `mut_M4_add_frontier_tip_field.out`) and probe scripts, not just prose. Verdict:
+**PASS_IN_SCOPE**, R3-M1 genuinely CLOSED (fresh re-observe through `pin_read_view()` head correctly
+catches adverse-fill/unhealthy-stream/markout-only drift via reviewer probes B1/B2; benign unrelated
+appends still PROMOTE). Zero HIGH/MEDIUM findings. The `_page_prefix` extraction is confirmed
+behavior-preserving for R2-H1; frontier-field exclusion confirmed safe; `through_seq<=row.seq`
+early-return confirmed correct (one equivalent mutant, M6). Three LOW findings, all explicitly
+non-blocking per the reviewer, who recommended closing this review thread without another round:
+- **R5-L1**: the committed R3-L1 regression test is vacuous (decided by the tip-existence check, not
+  the guard it claims to cover); guard itself is correct and load-bearing. Reviewer's own probe B5
+  supplies the fix (claim the truncation-point tip instead).
+- **R5-L2**: no committed test exercises the fresh-head check actually running and still PROMOTING,
+  or markout-only drift; 5 mutants (M2,M3,M4,M5,M9) survive the committed suite but are killed by the
+  reviewer's own probes B1/B2.
+- **R5-L3**: `store.clock()` is read before `pin_read_view()`; an append landing in between can produce
+  a misleading `HEAD_DRIFT` (fail-closed, transient, but a liveness/false-demotion risk once wired to a
+  busy store). Reviewer explicitly flagged this as "should be fixed before wiring," i.e. relevant at
+  wiring time, not blocking the candidate itself.
+
+Rather than leaving these to be rediscovered during wiring, launched two genuinely independent scoped
+Sonnet follow-ups in parallel (different files, no shared writer, neither depends on the other's
+unfinished bytes): (1) a tightly scoped round-6 patch to `paper_execution_health_promotion.py` closing
+all three LOW findings using the reviewer's own probes as the regression tests, so the contract module
+itself has zero known residual findings before anything consults it from a real store; (2) the
+observation-writer wiring prep the earlier read-only map identified as code-only and ready once R3-M1
+closed (append-path for `observe()` results as a MEASUREMENT row, a discovery/key convention to read
+one back, and threading the one confirmed-non-rippling field through `katl_live_plan.py:348`) --
+explicitly instructed NOT to choose real production `ObservationPolicy` numeric windows or enable live
+EVENT/CAUTION gating from this data, since that sign-off is owner-gated per the map, not something this
+session may decide. Neither lane is merged; each needs its own independent review before closure,
+per this project's standing rule for every R08 contract change.
+
+This is process, not evidence: no selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 17:48 UTC Prior round-5 Opus review found orphaned (never actually executed); re-launched against the still-intact frozen intake
 
 Coordinator restart. Did not take the 17:28Z entry's "round-5 independent Opus review launched" on
