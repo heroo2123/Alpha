@@ -1,3 +1,7 @@
+## 2026-10-08 07:02 UTC quota recovery and sole-writer continuation
+
+Recorded Claude's directly observed session reset at 09:50 UTC in `provider_cooldowns.json` after both Sonnet R2 workers exited 1 at 06:59. Preserved the coordinator-accounting partial candidate and its original bytes; no live install/restart or approval. Preserved the daily transition's 10-line uncommitted diff in its original worktree and launched one Codex Sol/high same-worktree recovery with prompt, runner, output and terminal target at `/tmp/alpha-daily-v2-transition-r2-codex-recovery.*`. The G3-L final-byte/N5, next-window selector and Brain Gamma R3 exact reviews remain active. V10 and financial execution masks were checked; no provider, root/runtime, account/order/funding or acceptance action occurred.
+
 ## 2026-10-08 06:58 UTC Brain Gamma R3 exact review launched
 
 Recovered clean `e48c832` / tree `18d8a97`, exit-0 terminal and exact author handoff; launched a separate frozen Astra/high exact review in a clean detached worktree. The R3 author reports F1/F4 repairs, but no independent verdict or integration exists. Other active lanes remain isolated and main/runtime untouched by this dispatch. No qualification or financial transition.
