@@ -1,6 +1,10 @@
 """Bounded archived market/model inputs for the nonfinancial event-risk engine.
 
-Unobserved execution quality and settlement timing remain UNKNOWN. A point REST
+Settlement timing remains UNKNOWN (no settlement-finality provider is
+authorized). Own-execution adverse fills/markout stay UNKNOWN unless the caller
+explicitly configures an `ObservationPolicy`, in which case they are taken only
+from a `PROMOTED` result of `observe_and_promote_execution_health` over this
+store's genuine PAPER archive -- any other status leaves them UNKNOWN. A point REST
 book never proves websocket continuity. This is a data adapter, not a reviewed
 first-canary execution baseline, calibration, or independently running guardian.
 """
@@ -15,6 +19,10 @@ from .microstructure import MakerMicrostructure, MicrostructurePolicy
 from .model_artifacts import predict_with_bundle
 from .model_registry import ActiveModelRegistry
 from .paper_coordinator import ACCOUNT_KEY
+from .paper_execution_health_measurement import (
+    current_execution_health_record_id, observe_and_promote_execution_health,
+)
+from .paper_risk_observation import ObservationPolicy
 from .paper_runtime import Evaluation, VERSION as RUNTIME_VERSION
 from .probability import FINAL_EXTREME, UNRESOLVED_EXTREME
 from .request_assembly import RequestAssembler, TargetPlan, _single
@@ -43,21 +51,42 @@ class RiskInputPolicy:
 
 
 class EventRiskInputs:
-    def __init__(self, assembler, coordinator, policy):
+    def __init__(self, assembler, coordinator, policy, execution_health_policy=None):
         if (not isinstance(assembler,RequestAssembler) or not isinstance(policy,RiskInputPolicy)
+                or (execution_health_policy is not None and type(execution_health_policy) is not ObservationPolicy)
                 or assembler.store is not coordinator.store
                 or assembler.inputs.context.account_id != coordinator.policy.account_id
                 or policy.microstructure.collateral_asset != assembler.valuation_policy.collateral_asset):
             raise EvidenceError('RISK_INPUT_COMPONENT_SCOPE')
         self.assembler, self.coordinator, self.store, self.policy = assembler, coordinator, assembler.store, policy
+        self.execution_health_policy = execution_health_policy
         self.targets = tuple(TargetPlan(b['market_id'],side,'1','1',())
             for b in assembler.inputs.rule.payload['partition'] for side in ('YES','NO'))
         if len(self.targets) > policy.maximum_tokens: raise EvidenceError('RISK_INPUT_WHOLE_EVENT_TOKEN_BOUND')
         self.config = digest(self.description())
 
     def description(self):
-        return dict(assembler=self.assembler.config,account=self.coordinator.policy_sha,policy=asdict(self.policy),
-                    targets=[asdict(t) for t in self.targets])
+        result = dict(assembler=self.assembler.config,account=self.coordinator.policy_sha,policy=asdict(self.policy),
+                      targets=[asdict(t) for t in self.targets])
+        # Only present when configured, so every existing configuration digest is unchanged.
+        if self.execution_health_policy is not None:
+            result['execution_health_policy'] = asdict(self.execution_health_policy)
+        return result
+
+    def _execution_health(self, event):
+        """(adverse_fills, markout, record_id, summary); numbers only when PROMOTED."""
+        if self.execution_health_policy is None:
+            return None, None, None, dict(status='UNKNOWN', reason='EXECUTION_HEALTH_POLICY_NOT_CONFIGURED')
+        scope = dict(account_id=self.assembler.inputs.context.account_id, event_id=event,
+                     rule_fingerprint=self.assembler.inputs.rule.sha256,
+                     collateral_asset=self.policy.microstructure.collateral_asset)
+        promotion = observe_and_promote_execution_health(self.store, policy=self.execution_health_policy, **scope)
+        summary = dict(status=promotion.status, reason=promotion.reason)
+        if promotion.status != 'PROMOTED':
+            return None, None, None, summary
+        record_id = current_execution_health_record_id(
+            self.store, policy_sha256=self.execution_health_policy.policy_sha256, **scope)
+        return promotion.adverse_fills, promotion.recent_markout_per_share, record_id, summary
 
     def _model(self, claim):
         a = self.assembler; pin, leases = a.pin(claim); now = finite(self.store.clock())
@@ -186,8 +215,10 @@ class EventRiskInputs:
             new_model |= row['kind']=='MODEL' and right>left
             routine |= row['kind']=='OFFICIAL_OBSERVATION' and right>left
             revision |= row['kind'] in {'MODEL','OFFICIAL_OBSERVATION'} and right==left and prior['body']['payload']!=b['payload']
+        adverse_fills, markout, health_record, execution_health = self._execution_health(event)
+        if health_record is not None: refs.append(health_record)
         metrics = EventMetrics(now,dispersion,model_age,velocity,spread,depth_loss,motion,utilization,
-            None,None,None,sources_ok,sequence,clock,new_model_run=new_model,routine_observation=routine,source_revision=revision)
+            None,adverse_fills,markout,sources_ok,sequence,clock,new_model_run=new_model,routine_observation=routine,source_revision=revision)
         # Save a coherent source/account cut before publishing a state. Existing
         # queue completion and common-account CAS still reject subsequent races.
         measured = self.store.audit(key,event_id=event,kind='MEASUREMENT',details=dict(
@@ -197,7 +228,8 @@ class EventRiskInputs:
                 price_velocity='ABSOLUTE_PROBABILITY_PRICE_PER_SECOND',spread='PROBABILITY_PRICE',
                 depth_loss='FRACTION_OF_PREVIOUS_VISIBLE_DEPTH',cross_bucket_motion='MAXIMUM_ABSOLUTE_BUCKET_PRICE_CHANGE',
                 loss_utilization='COMMON_ACCOUNT_DAILY_LOSS_PLUS_OPEN_DOWNSIDE_OVER_FIXED_LIMIT'),
-            unknown_inputs=['SETTLEMENT_TIMING','OWN_EXECUTION_ADVERSE_FILLS','OWN_EXECUTION_MARKOUT'],
+            unknown_inputs=['SETTLEMENT_TIMING']+(['OWN_EXECUTION_ADVERSE_FILLS','OWN_EXECUTION_MARKOUT'] if adverse_fills is None else []),
+            **({} if self.execution_health_policy is None else dict(execution_health=execution_health)),
             declared_sequence_is_not_transport_commissioning=True,calibration_status='NOT_ATTESTED',
             settlement_finality=False,financial_authority=False),evidence_ids=tuple(dict.fromkeys(refs)),expected_heads=tuple(heads))
         state = EventRiskEngine(self.store).step(key+':state',context=a.inputs.context,policy=self.policy.event,binding=a.inputs.binding,
