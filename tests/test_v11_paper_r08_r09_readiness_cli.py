@@ -14,6 +14,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -39,12 +40,37 @@ from tools.v11_r09_pws_lead_readiness import (
 )
 
 CLI_PATH = __import__('tools.v11_paper_r08_r09_readiness_cli', fromlist=['x']).__file__
+REPO_ROOT = Path(CLI_PATH).resolve().parents[1]
+_SUBPROCESS_ENV = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
 
 
 def _sidecar_listing(path):
     """The store's own file plus any -wal/-shm/-journal sidecars next to it,
     ignoring unrelated files the shared fixture directory may also contain."""
     return sorted(p.name for p in path.parent.glob(path.name + '*'))
+
+
+def _wal_size(path):
+    wal = Path(str(path) + '-wal')
+    return wal.stat().st_size if wal.exists() else None
+
+
+def _assert_listing_unchanged_or_gained_only_empty_sidecars(path, before_listing, before_wal_size):
+    # The CLI never removes a `-wal`/`-shm` sidecar (removing one could
+    # destroy a concurrent writer's already-committed record -- see
+    # `_anchored_snapshot`'s docstring). A store that had none may gain an
+    # empty `-wal` plus a `-shm`, the same residue `EvidenceStore.__init__`'s
+    # own `mode=ro` inspection already leaves; it must never lose a sidecar
+    # or grow a non-empty one.
+    after_listing = _sidecar_listing(path)
+    allowed = set(before_listing) | {path.name + '-wal', path.name + '-shm'}
+    assert set(after_listing) <= allowed
+    assert set(before_listing) <= set(after_listing)
+    after_wal_size = _wal_size(path)
+    if before_wal_size is not None:
+        assert after_wal_size == before_wal_size
+    else:
+        assert after_wal_size in (None, 0)
 
 
 def _membership_dict(m):
@@ -83,6 +109,93 @@ def _forge_account_head(rig, c, state, record_id):
                        details=dict(version=COORDINATOR_VERSION, policy_sha256=c.policy_sha,
                                     request={}, state=state),
                        expected_previous_seq=head['seq'] if head else 0)
+
+
+def _bare_store_cfg(store_path, namespace='V11_PAPER'):
+    return {
+        "store": {"path": str(store_path), "namespace": namespace},
+        "account_policy": {"policy_version": "p", "account_id": "a", "collateral_asset": "C",
+                           "initial_hypothetical_cash": "10", "capital_limit": "10",
+                           "per_intent_cash_limit": "10", "daily_loss_limit": "10",
+                           "minimum_ev_per_share": ".01", "retained_cash": "0",
+                           "maximum_intent_lifetime_seconds": 60.0, "max_active_intents": 10},
+        "correlation": {"version": "v", "evidence_sha256": "a" * 64, "memberships": [
+            {"station": "KATL", "city": "Atlanta", "region": "SE", "weather_groups": ["W"],
+             "source_groups": ["S"], "model_groups": ["M"], "metadata_fingerprint": "b" * 64},
+        ]},
+        "scenario_limits": {"policy_version": "p", "per_event": "10", "per_city": "20", "per_region": "30",
+                           "per_weather_group": "30", "per_source_group": "30", "per_model_group": "30",
+                           "portfolio": "50", "max_position_units": "100"},
+    }
+
+
+def _wait_for(predicate, timeout=10.0):
+    # A bounded poll, not a correctness assertion: keeps a broken
+    # interleaving from hanging the test suite instead of failing it.
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() > deadline:
+            raise AssertionError('timed out waiting for condition')
+        time.sleep(0.001)
+
+
+class _SchemaReadHook:
+    """Run ``action()`` synchronously the first time any connection the CLI
+    module opens executes a read of ``sqlite_schema`` -- the anchored
+    snapshot's own first query against the caller's source store. This
+    forces a deterministic writer/CLI interleaving instead of a
+    timing-based sleep, so the concurrency regression tests below are not
+    flaky and see the same interleaving under both normal and `-O`
+    interpreters.
+    """
+    def __init__(self, action):
+        self.action = action
+        self.fired = False
+        self.real_connect = cli_module.sqlite3.connect
+
+    def __enter__(self):
+        hook = self
+
+        class _Connection(sqlite3.Connection):
+            def execute(self, sql, *args):
+                result = super().execute(sql, *args)
+                if not hook.fired and 'sqlite_schema' in sql:
+                    hook.fired = True
+                    hook.action()
+                return result
+
+        def connect(*args, **kwargs):
+            kwargs.setdefault('factory', _Connection)
+            return hook.real_connect(*args, **kwargs)
+
+        cli_module.sqlite3.connect = connect
+        return self
+
+    def __exit__(self, *exc_info):
+        cli_module.sqlite3.connect = self.real_connect
+
+
+_CONCURRENT_WRITER_SCRIPT = """
+import sys
+sys.path.insert(0, %r)
+from pathlib import Path
+from polymarket_scanner.v11.evidence import EvidenceStore
+store = EvidenceStore(Path(%r), %r)
+store.audit(%r, event_id='concurrent-writer-probe', kind='OPERATOR_EVENT', details={'n': 1})
+"""
+
+
+def _run_concurrent_writer(store_path, namespace, record_id):
+    script = _CONCURRENT_WRITER_SCRIPT % (str(REPO_ROOT), str(store_path), namespace, record_id)
+    subprocess.run([sys.executable, '-c', script], check=True, timeout=30, env=_SUBPROCESS_ENV)
+
+
+def _record_count(store_path, record_id):
+    con = sqlite3.connect(store_path.as_uri() + '?mode=ro', uri=True)
+    try:
+        return con.execute('SELECT COUNT(*) FROM v11_records WHERE record_id=?', (record_id,)).fetchone()[0]
+    finally:
+        con.close()
 
 
 # -- Config/file-level fail-closed behavior (no real evidence store needed) --
@@ -419,10 +532,13 @@ def test_rollback_journal_store_refusal_is_byte_and_mtime_identical(factory, tmp
     assert _sidecar_listing(c.store.path) == before_listing
 
 
-def test_wal_store_without_sidecars_gains_none_on_refusal(factory, tmp_path):
-    # Mirrors the review's P13: a plain WAL-mode store (no existing -wal/-shm)
-    # refused for a namespace mismatch must not leave new sidecar files
-    # behind even though inspecting it necessarily opens it briefly.
+def test_wal_store_without_sidecars_gains_only_empty_sidecars_on_refusal(factory, tmp_path):
+    # Revised after independent review F1: the CLI must never unlink a
+    # `-wal`/`-shm` sidecar, including one its own `mode=ro` inspection just
+    # created, because a concurrent writer could be relying on it (see
+    # `_anchored_snapshot`'s docstring). So a plain WAL-mode store that had
+    # no sidecars may gain an empty `-wal`/`-shm` pair, but never loses one
+    # and never gains a non-empty one.
     rig = factory()
     c = r08_coordinator(rig)
     assert not Path(str(c.store.path) + '-wal').exists()
@@ -434,10 +550,10 @@ def test_wal_store_without_sidecars_gains_none_on_refusal(factory, tmp_path):
     cfg_path.write_text(json.dumps(cfg))
     assert main([str(cfg_path)]) == 1
     assert c.store.path.read_bytes() == before_bytes
-    assert _sidecar_listing(c.store.path) == before_listing
+    _assert_listing_unchanged_or_gained_only_empty_sidecars(c.store.path, before_listing, None)
 
 
-def test_wal_store_without_sidecars_gains_none_on_success(factory, tmp_path):
+def test_wal_store_without_sidecars_gains_only_empty_sidecars_on_success(factory, tmp_path):
     rig = factory()
     c = r08_coordinator(rig)
     assert not Path(str(c.store.path) + '-wal').exists()
@@ -447,7 +563,7 @@ def test_wal_store_without_sidecars_gains_none_on_success(factory, tmp_path):
     cfg_path.write_text(json.dumps(_config(c)))
     assert main([str(cfg_path)]) == 0
     assert c.store.path.read_bytes() == before_bytes
-    assert _sidecar_listing(c.store.path) == before_listing
+    _assert_listing_unchanged_or_gained_only_empty_sidecars(c.store.path, before_listing, None)
 
 
 def test_live_uncheckpointed_wal_sidecars_are_neither_checkpointed_nor_deleted(factory, tmp_path, capsys):
@@ -615,3 +731,193 @@ def test_rollback_journal_store_byte_identical_under_subprocess(tmp_path, interp
     assert store_path.read_bytes() == before_bytes
     assert store_path.stat().st_mtime_ns == before_mtime
     assert _sidecar_listing(store_path) == before_listing
+
+
+# -- Concurrent-writer regression tests (independent review F1) ------------
+#
+# On 490a00d, `_anchored_snapshot`'s own `mode=ro` connection creates empty
+# `-wal`/`-shm` sidecars next to a store that has none, then unlinks them in
+# its `finally` block because they were "absent at check time". SQLite
+# identifies those files by path, not by creator, so a writer that attaches
+# during the snapshot shares exactly the sidecars the CLI just created and
+# is relying on them: the writer's commit returns success, but the record
+# lands only in the WAL (the CLI's held read transaction blocks the
+# writer's close-time checkpoint from folding it into the main file), and
+# the CLI's unlink then silently destroys it. Each test here forces that
+# exact interleaving deterministically, through `_SchemaReadHook`, rather
+# than relying on timing, so it fails the same way under both the normal
+# and the `-O` interpreter.
+
+def test_concurrent_writer_commit_during_snapshot_survives_on_success(tmp_path):
+    tmp_path.chmod(0o700)
+    store_path = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store_path, 'V11_PAPER')
+    assert not Path(str(store_path) + '-wal').exists()
+    before_bytes = store_path.read_bytes()
+    before_mtime = store_path.stat().st_mtime_ns
+    record_id = 'concurrent-commit-success'
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_bare_store_cfg(store_path)))
+
+    with _SchemaReadHook(lambda: _run_concurrent_writer(store_path, 'V11_PAPER', record_id)):
+        rc = main([str(cfg_path)])
+
+    if rc != 0:
+        raise AssertionError(f'CLI success path refused: {rc}')
+    if store_path.read_bytes() != before_bytes or store_path.stat().st_mtime_ns != before_mtime:
+        raise AssertionError('the source database main file changed during the snapshot')
+    if not _wal_size(store_path):
+        raise AssertionError('the concurrent writer\'s committed WAL frames were removed')
+    if _record_count(store_path, record_id) != 1:
+        raise AssertionError('a committed concurrent record was lost on the success path')
+
+
+def test_concurrent_writer_commit_during_snapshot_survives_on_refusal(tmp_path):
+    # Same interleaving, but the CLI's own evaluation refuses (namespace
+    # mismatch): a refusal must not be allowed to destroy evidence either.
+    tmp_path.chmod(0o700)
+    store_path = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store_path, 'V11_PAPER')
+    assert not Path(str(store_path) + '-wal').exists()
+    before_bytes = store_path.read_bytes()
+    before_mtime = store_path.stat().st_mtime_ns
+    record_id = 'concurrent-commit-refusal'
+    cfg = _bare_store_cfg(store_path, namespace='CHALLENGER:wrong')
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(cfg))
+
+    with _SchemaReadHook(lambda: _run_concurrent_writer(store_path, 'V11_PAPER', record_id)):
+        rc = main([str(cfg_path)])
+
+    if rc != 1:
+        raise AssertionError(f'CLI refusal path returned {rc}')
+    if store_path.read_bytes() != before_bytes or store_path.stat().st_mtime_ns != before_mtime:
+        raise AssertionError('the source database main file changed during the refusal')
+    if not _wal_size(store_path):
+        raise AssertionError('the concurrent writer\'s committed WAL frames were removed')
+    if _record_count(store_path, record_id) != 1:
+        raise AssertionError('a committed concurrent record was lost on the refusal path')
+
+
+def test_long_lived_and_fresh_writer_split_brain_all_records_survive(tmp_path):
+    # Mirrors the independent review's A3: a writer holds a connection open
+    # across the CLI's entire snapshot and commits once during it and once
+    # after the CLI has exited; a second, entirely separate writer process
+    # commits in between, after the CLI is gone but while the long-lived
+    # writer is still open. On 490a00d the long-lived writer kept writing to
+    # the inodes the CLI had already unlinked, while the fresh writer's
+    # commit landed on new ones created at the same path -- a split brain
+    # that silently dropped the fresh writer's record.
+    tmp_path.chmod(0o700)
+    store_path = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store_path, 'V11_PAPER')
+    assert not Path(str(store_path) + '-wal').exists()
+    ctl = tmp_path / 'ctl'
+    ctl.mkdir(mode=0o700)
+    long_lived_script = f"""
+import sqlite3, time
+from pathlib import Path
+ctl = Path({str(ctl)!r})
+c = sqlite3.connect({str(store_path)!r}, timeout=5)
+c.execute('PRAGMA journal_mode=WAL')
+c.execute('PRAGMA synchronous=FULL')
+c.execute("INSERT INTO v11_meta VALUES('lw-1', 'x')")
+c.commit()
+(ctl / 'committed1').touch()
+while not (ctl / 'go2').exists():
+    time.sleep(0.001)
+c.execute("INSERT INTO v11_meta VALUES('lw-2', 'x')")
+c.commit()
+(ctl / 'committed2').touch()
+while not (ctl / 'close').exists():
+    time.sleep(0.001)
+c.close()
+"""
+    long_lived_proc = []
+
+    def start_long_lived_writer():
+        long_lived_proc.append(subprocess.Popen([sys.executable, '-c', long_lived_script], env=_SUBPROCESS_ENV))
+        _wait_for(lambda: (ctl / 'committed1').exists())
+
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_bare_store_cfg(store_path)))
+    try:
+        with _SchemaReadHook(start_long_lived_writer):
+            rc = main([str(cfg_path)])
+        if rc != 0:
+            raise AssertionError(f'CLI success path refused: {rc}')
+
+        (ctl / 'go2').touch()
+        _wait_for(lambda: (ctl / 'committed2').exists())
+        fresh_writer_script = (
+            "import sqlite3;"
+            f"c = sqlite3.connect({str(store_path)!r}, timeout=5);"
+            "c.execute('PRAGMA journal_mode=WAL');"
+            "c.execute(\"INSERT INTO v11_meta VALUES('fresh-3', 'x')\");"
+            "c.commit(); c.close()"
+        )
+        subprocess.run([sys.executable, '-c', fresh_writer_script], check=True, timeout=30, env=_SUBPROCESS_ENV)
+    finally:
+        if long_lived_proc:
+            (ctl / 'go2').touch()
+            (ctl / 'close').touch()
+            try:
+                long_lived_proc[0].wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                long_lived_proc[0].kill()
+                long_lived_proc[0].wait(timeout=5)
+    if long_lived_proc[0].returncode != 0:
+        raise AssertionError(f'long-lived writer exited {long_lived_proc[0].returncode}')
+
+    con = sqlite3.connect(store_path.as_uri() + '?mode=ro', uri=True)
+    try:
+        keys = {row[0] for row in con.execute('SELECT key FROM v11_meta')}
+        integrity = con.execute('PRAGMA integrity_check').fetchone()[0]
+    finally:
+        con.close()
+    if integrity != 'ok':
+        raise AssertionError(f'SQLite integrity_check returned {integrity}')
+    missing = {'lw-1', 'lw-2', 'fresh-3'} - keys
+    if missing:
+        raise AssertionError(f'missing={missing} keys={keys}')
+
+
+# -- Regression test for F2 (identity anchor against a symlink swap) -------
+
+def test_symlink_swapped_in_right_after_identity_check_is_refused(tmp_path, monkeypatch):
+    # The window F2 covers is between `_check_source_identity` returning and
+    # `_anchored_snapshot`'s own first stat of the path: swap the real store
+    # out for a symlink to a *different*, otherwise-valid V11 store with the
+    # same name, and confirm the CLI refuses rather than silently evaluating
+    # the swapped-in store. `_check_source_identity` itself already rejects
+    # a symlinked path; this proves the window after that check is closed by
+    # the `lstat`-based before/after check in `_anchored_snapshot`, not just
+    # by the identity check that ran before the swap.
+    tmp_path.chmod(0o700)
+    real_path = tmp_path / 'evidence.sqlite'
+    EvidenceStore(real_path, 'V11_PAPER')
+    other_dir = tmp_path / 'other'
+    other_dir.mkdir(mode=0o700)
+    other_path = other_dir / 'other.sqlite'
+    EvidenceStore(other_path, 'V11_PAPER')
+    other = sqlite3.connect(other_path)
+    try:
+        other.execute("INSERT INTO v11_meta VALUES('marker-other','x')")
+        other.commit()
+    finally:
+        other.close()
+
+    original_check = cli_module._check_source_identity
+
+    def racing_check(path):
+        original_check(path)
+        moved = path.parent / 'moved-aside.sqlite'
+        os.replace(path, moved)
+        os.symlink(other_path, path)
+
+    monkeypatch.setattr(cli_module, '_check_source_identity', racing_check)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_bare_store_cfg(real_path)))
+    rc = main([str(cfg_path)])
+    if rc != 1:
+        raise AssertionError(f'symlink swap was evaluated: rc={rc}')

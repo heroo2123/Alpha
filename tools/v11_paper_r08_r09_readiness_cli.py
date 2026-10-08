@@ -43,18 +43,30 @@ which is deleted when this process exits the evaluation, win or lose.
 pure read), so pointing it at the caller's own path even once -- on a
 success path, a refusal path, or merely to inspect it -- would have changed
 that file's bytes or left new `-wal`/`-shm` sidecars behind. Routing every
-read through a private copy instead keeps the caller's own store file and
-directory listing byte- and mtime-identical on every outcome, including
-refusal, with one narrow documented exception: if the caller's file already
-has live, uncheckpointed `-wal`/`-shm` sidecars when this CLI runs, the
+read through a private copy instead keeps the caller's own store file
+byte- and mtime-identical on every outcome, including refusal, with two
+narrow documented exceptions. First, if the caller's file already has
+live, uncheckpointed `-wal`/`-shm` sidecars when this CLI runs, the
 anchored snapshot's own read-only connection may update bytes *inside* the
 pre-existing `-shm` file (standard SQLite reader bookkeeping; its size does
 not change and no file is added, removed, or renamed) without touching the
-main file or the `-wal` file. A store directory that forbids creating new
-files (e.g. read-only media) still cannot be read if the store has no
-pre-existing sidecars to reuse, because SQLite itself cannot open a
-WAL-mode database for any purpose without being able to create its
-wal-index; this CLI fails closed in that case rather than guessing.
+main file or the `-wal` file. Second, if the caller's file has *no*
+pre-existing `-wal`/`-shm` sidecars, this CLI's own `mode=ro` connection
+causes SQLite to create an empty `-wal` and a `-shm` next to it (the same
+thing `EvidenceStore.__init__`'s own `mode=ro` inspection already does),
+and this CLI deliberately never removes either one: a sidecar it just
+created is not necessarily one it owns alone, because SQLite identifies
+`-wal`/`-shm` files by path, not by which process created them, and a
+concurrent writer that attaches during this CLI's snapshot shares the very
+files it created. Removing one could delete a write that writer has
+already told its caller succeeded, with no error surfaced to anyone. So
+this CLI's directory listing is byte-identical except that it may grow an
+inert, empty `-wal`/`-shm` pair; it never shrinks and never loses a record.
+A store directory that forbids creating new files (e.g. read-only media)
+still cannot be read if the store has no pre-existing sidecars to reuse,
+because SQLite itself cannot open a WAL-mode database for any purpose
+without being able to create its wal-index; this CLI fails closed in that
+case rather than guessing.
 
 A result of `GENUINE_ZERO_AUTHORITY_SCENARIO_RESERVATION_DEMONSTRATED` or
 `PWS_OBSERVED_AND_NETTED_AS_LEAD_ONLY_DEMONSTRATED` confers no execution,
@@ -96,6 +108,7 @@ import argparse
 import os
 import shutil
 import sqlite3
+import stat
 import sys
 import tempfile
 import time
@@ -129,7 +142,6 @@ _CORRELATION_KEYS = frozenset({"version", "evidence_sha256", "memberships"})
 _STORE_KEYS = frozenset({"path", "namespace"})
 _R09_KEYS = frozenset({"preconfirmation_id", "context", "rule", "binding", "payout_admission_ids"})
 _FAIL_CLOSED_ERRORS = (EvidenceError, sqlite3.Error, OSError)
-_SIDECAR_SUFFIXES = ("-wal", "-shm")
 
 
 def _closed(value: object, keys: frozenset, label: str) -> dict:
@@ -164,10 +176,6 @@ def _build_correlation(value: object) -> CorrelationMap:
                           memberships=tuple(_build_membership(m) for m in memberships))
 
 
-def _sidecar_paths(path: Path) -> tuple[Path, Path]:
-    return tuple(Path(str(path) + suffix) for suffix in _SIDECAR_SUFFIXES)
-
-
 def _check_source_identity(path: Path) -> None:
     """Reject an unsafe or absent source path without ever opening it as a
     database. Mirrors `EvidenceStore.__init__`'s own path-safety checks (same
@@ -198,58 +206,70 @@ def _anchored_snapshot(path: Path):
 
     `EvidenceStore._connect()` always opens read-write (WAL pragma, possible
     checkpoint) even for a pure read, so the only way to guarantee the
-    caller's own store is byte- and sidecar-identical afterwards -- on
-    success *and* on refusal -- is to never let any evaluator touch it.
-    This pins a consistent read with a `mode=ro` connection and a held
-    transaction, copies it via the SQLite backup API (as
-    `tools/v11_snapshot.py` already does for V10 control snapshots) into a
-    fresh 0700 temporary directory, and removes that directory again on
-    every exit path. Any `-wal`/`-shm` sidecar this inspection itself causes
-    SQLite to create next to the caller's file (it does, when none already
-    exist) is removed again before returning; sidecars that already existed
-    are left exactly as found, since this CLI does not own them.
+    caller's own store is byte-identical afterwards -- on success *and* on
+    refusal -- is to never let any evaluator touch it. This pins a
+    consistent read with a `mode=ro` connection and a held transaction,
+    copies it via the SQLite backup API (as `tools/v11_snapshot.py` already
+    does for V10 control snapshots) into a fresh 0700 temporary directory,
+    and removes that directory again on every exit path.
+
+    This never unlinks a `-wal`/`-shm` sidecar next to the caller's file,
+    including one this inspection's own `mode=ro` connection causes SQLite
+    to create when none already exist. SQLite identifies those files by
+    path, not by which process created them, so a concurrent writer that
+    attaches during this snapshot shares exactly the sidecars this
+    inspection just created; removing one afterwards could delete a write
+    that writer has already been told succeeded, with the loss surfaced to
+    no one. The only accepted side effect on a store that had no sidecars
+    at all is therefore that it may keep an empty `-wal` and a `-shm` after
+    this call returns, the same residue `EvidenceStore.__init__`'s own
+    `mode=ro` inspection already leaves.
+
+    The identity anchor uses `lstat`, not `stat`, and requires a regular
+    file both before and after the backup: `_check_source_identity` already
+    refuses a symlinked path, but `stat()`/`sqlite3.connect()` both follow
+    symlinks, so a symlink swapped in during the narrow window after that
+    check runs would otherwise go undetected. `lstat` sees the symlink
+    itself rather than its target. A swap completed entirely within that
+    window (i.e. restored before this function's own `lstat` calls run) is
+    not detectable this way; that residual requires write access to the
+    0700 private parent directory, which is owner-equivalent access.
     """
     _check_source_identity(path)
-    before_stat = path.stat()
-    sidecars = _sidecar_paths(path)
-    sidecars_existed = [p.exists() for p in sidecars]
+    before_stat = os.lstat(path)
+    if not stat.S_ISREG(before_stat.st_mode):
+        raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
     scratch = Path(tempfile.mkdtemp(prefix=".v11-paper-readiness-snapshot-"))
     os.chmod(scratch, 0o700)
     try:
         copy_path = scratch / "store.sqlite"
         deadline = time.monotonic() + STORE_SNAPSHOT_DEADLINE_SECONDS
-        try:
-            with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as src:
-                src.execute("PRAGMA query_only=ON")
-                src.execute("BEGIN")
-                src.execute("SELECT COUNT(*) FROM sqlite_schema").fetchone()
-                page_count = src.execute("PRAGMA page_count").fetchone()[0]
-                page_size = src.execute("PRAGMA page_size").fetchone()[0]
-                if page_count * page_size > MAX_STORE_SNAPSHOT_BYTES:
+        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as src:
+            src.execute("PRAGMA query_only=ON")
+            src.execute("BEGIN")
+            src.execute("SELECT COUNT(*) FROM sqlite_schema").fetchone()
+            page_count = src.execute("PRAGMA page_count").fetchone()[0]
+            page_size = src.execute("PRAGMA page_size").fetchone()[0]
+            if page_count * page_size > MAX_STORE_SNAPSHOT_BYTES:
+                raise EvidenceError("STORE_SNAPSHOT_BYTES_LIMIT")
+            if shutil.disk_usage(scratch).free < page_count * page_size + STORE_SNAPSHOT_MINIMUM_FREE_BYTES:
+                raise EvidenceError("STORE_SNAPSHOT_DISK_HEADROOM")
+
+            def progress(status: int, remaining: int, total: int) -> None:
+                if time.monotonic() > deadline:
+                    raise EvidenceError("STORE_SNAPSHOT_DEADLINE")
+                if total * page_size > MAX_STORE_SNAPSHOT_BYTES:
                     raise EvidenceError("STORE_SNAPSHOT_BYTES_LIMIT")
-                if shutil.disk_usage(scratch).free < page_count * page_size + STORE_SNAPSHOT_MINIMUM_FREE_BYTES:
-                    raise EvidenceError("STORE_SNAPSHOT_DISK_HEADROOM")
 
-                def progress(status: int, remaining: int, total: int) -> None:
-                    if time.monotonic() > deadline:
-                        raise EvidenceError("STORE_SNAPSHOT_DEADLINE")
-                    if total * page_size > MAX_STORE_SNAPSHOT_BYTES:
-                        raise EvidenceError("STORE_SNAPSHOT_BYTES_LIMIT")
-
-                fd = os.open(copy_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                os.close(fd)
-                with closing(sqlite3.connect(copy_path, timeout=1.0)) as dst:
-                    src.backup(dst, pages=64, progress=progress, sleep=0.01)
-                src.rollback()
-        finally:
-            # Only ever remove a sidecar our own inspection just created;
-            # one that was already there before we ever opened the file is
-            # left completely alone (see function docstring).
-            for sidecar, existed in zip(sidecars, sidecars_existed):
-                if not existed:
-                    sidecar.unlink(missing_ok=True)
-        after_stat = path.stat()
-        if (before_stat.st_dev, before_stat.st_ino) != (after_stat.st_dev, after_stat.st_ino):
+            fd = os.open(copy_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.close(fd)
+            with closing(sqlite3.connect(copy_path, timeout=1.0)) as dst:
+                src.backup(dst, pages=64, progress=progress, sleep=0.01)
+            src.rollback()
+        after_stat = os.lstat(path)
+        if not stat.S_ISREG(after_stat.st_mode) or (
+            (before_stat.st_dev, before_stat.st_ino) != (after_stat.st_dev, after_stat.st_ino)
+        ):
             raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
         os.chmod(copy_path, 0o600)
         yield copy_path
