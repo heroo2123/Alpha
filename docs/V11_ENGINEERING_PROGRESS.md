@@ -1,3 +1,7 @@
+## 2026-10-08 01:29 UTC live workers and day-key reconciled
+
+Verified eight distinct live Claude specialist processes and pending terminal markers, plus the automatic coordinator. No finished lane is awaiting intake and the host remains above scheduling floors. Read-only root status keeps V10 disabled and V11 execution masked. The daily Shadow manager uses the America/New_York date, explaining its Oct 7 status during early Oct 8 UTC; no restart was warranted. Existing exact reviews and repairs continue without duplicate writers. No score, acceptance, provider or financial boundary changed.
+
 ## 2026-10-08 01:27 UTC review failures repaired in parallel
 
 Frozen Opus reviews returned `CHANGES_REQUIRED` for forward witness `a2fdc13` (untypeable OS error regression) and PAPER readiness `490a00d` (reproduced concurrent SQLite WAL record loss). Each original clean worktree now has one sole Sonnet repair author and requires successor exact review. Clean Brain reader successor `1266aad` entered a frozen Opus exact review after author-reported 278 adjacent tests per Python mode. Spare slots were assigned an unapplied coordinator process-accounting patch and a distinct forward writer-inventory fixture provenance audit. Gate-3 final-byte repin, binding N5 review and v3 transition map continue. Eight isolated Claude lanes are live at the sampled safe target, with >6 GiB disk free and ~5 GiB MemAvailable. No integration, provider, runtime/root/V10, credential, order, funding, or acceptance change followed.
