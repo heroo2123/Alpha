@@ -1,3 +1,7 @@
+## 2026-10-08 04:26 UTC daily-Shadow prerequisite candidates remain under review
+
+Future-seed R2 `95aceb5` and v2 active-review reader `21e7e66` are separate offline candidates in exact review. No protected review generation has been commissioned, no original Oct 8/9 archive has changed, and the audit gate remains intact. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No C/J/E/A or requirement crossing.
+
 ## 2026-10-08 04:21 UTC Shadow generation authority and seed candidate unqualified
 
 The read-only generation plan identified missing root-custodied daily Shadow selection/supersession authority; offline v2 reader work is in progress. Future-seed planner `d6c68cb` received independent `CHANGES_REQUIRED` for reproduced provenance, reference-closure and sidecar defects; one isolated repair is active. Neither candidate may deploy or qualify Oct 8/9. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No requirement or C/J/E/A row crossed.

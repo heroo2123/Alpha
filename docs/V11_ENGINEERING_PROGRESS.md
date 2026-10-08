@@ -1,3 +1,7 @@
+## 2026-10-08 04:26 UTC future seed R2 and v2 reader in exact review
+
+Sole writer sealed clean future-seed successor `95aceb5` with 12 offline socket-blocked tests per mode and launched fresh Astra/high exact re-review. Separate pure v2 review-selection reader `21e7e66` sealed with 86 synthetic tests per mode and is under independent Astra/high exact review. Both are provisional; no integration or runtime/root action occurred.
+
 ## 2026-10-08 04:21 UTC exact seed review routed to repair
 
 Offline seed candidate `d6c68cb` passed eight synthetic tests per mode, but independent Astra/high exact review reproduced R1 pathname-swap custody, R2 reference-closure, and R3 dangling-sidecar failures and sealed `CHANGES_REQUIRED`. One sole Sol/high R2 writer is repairing it in the original isolated worktree; fresh exact review remains required. Separate read-only Astra/high generation plan found a v1 registry/frontier collision and missing daily Shadow root gateway capability; a distinct offline v2 reader writer is active. No live archive/runtime or authority was modified.
