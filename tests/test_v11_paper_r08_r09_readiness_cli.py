@@ -921,3 +921,82 @@ def test_symlink_swapped_in_right_after_identity_check_is_refused(tmp_path, monk
     rc = main([str(cfg_path)])
     if rc != 1:
         raise AssertionError(f'symlink swap was evaluated: rc={rc}')
+
+
+@pytest.mark.parametrize('alias_kind', ('main-as-shm', 'foreign-as-shm', 'main-as-wal'))
+def test_hard_linked_sidecar_refuses_before_victim_changes(tmp_path, capsys, alias_kind):
+    tmp_path.chmod(0o700)
+    store_path = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store_path, 'V11_PAPER')
+    victim = store_path
+    if alias_kind == 'foreign-as-shm':
+        victim = tmp_path / 'foreign.sqlite'
+        with sqlite3.connect(victim) as connection:
+            connection.execute('CREATE TABLE preserve_me(x)')
+        victim.chmod(0o600)
+    suffix = '-wal' if alias_kind == 'main-as-wal' else '-shm'
+    sidecar = Path(str(store_path) + suffix)
+    os.link(victim, sidecar)
+    before_main = (store_path.read_bytes(), store_path.stat().st_mtime_ns)
+    before_victim = (victim.read_bytes(), victim.stat().st_mtime_ns)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_bare_store_cfg(store_path)))
+
+    capsys.readouterr()
+    rc = main([str(cfg_path)])
+    captured = capsys.readouterr()
+    if rc != 1 or captured.out or 'UNSAFE_STORE_SIDECAR_REFUSED' not in captured.err:
+        raise AssertionError(f'unsafe sidecar was not refused: rc={rc}, output={captured}')
+    if (store_path.read_bytes(), store_path.stat().st_mtime_ns) != before_main:
+        raise AssertionError('source main database changed before refusal')
+    if (victim.read_bytes(), victim.stat().st_mtime_ns) != before_victim:
+        raise AssertionError('hard-link victim changed before refusal')
+    if not sidecar.exists() or sidecar.stat().st_ino != victim.stat().st_ino:
+        raise AssertionError('CLI removed or replaced an unsafe sidecar')
+
+
+def test_persistent_ancestor_symlink_swap_is_refused(tmp_path, monkeypatch, capsys):
+    container = tmp_path / 'container'
+    container.mkdir(mode=0o777)
+    container.chmod(0o777)
+    original_dir = container / 'original'
+    replacement_dir = tmp_path / 'replacement'
+    original_dir.mkdir(mode=0o700)
+    replacement_dir.mkdir(mode=0o700)
+    source = original_dir / 'evidence.sqlite'
+    replacement = replacement_dir / source.name
+    EvidenceStore(source, 'V11_PAPER')
+    EvidenceStore(replacement, 'V11_PAPER')
+    with sqlite3.connect(replacement) as connection:
+        connection.execute("INSERT INTO v11_meta VALUES ('replacement-only', 'yes')")
+    original_bytes = source.read_bytes()
+    original_mtime = source.stat().st_mtime_ns
+    seen = []
+    real_evaluator = cli_module.evaluate_scenario_reservation_readiness
+
+    def observing_evaluator(coordinator):
+        with sqlite3.connect(coordinator.store.path) as connection:
+            seen.extend(connection.execute("SELECT value FROM v11_meta WHERE key='replacement-only'").fetchall())
+        return real_evaluator(coordinator)
+
+    real_check = cli_module._check_source_identity
+
+    def swap_after_check(path):
+        real_check(path)
+        original_dir.rename(container / 'saved-original')
+        original_dir.symlink_to(replacement_dir, target_is_directory=True)
+
+    monkeypatch.setattr(cli_module, '_check_source_identity', swap_after_check)
+    monkeypatch.setattr(cli_module, 'evaluate_scenario_reservation_readiness', observing_evaluator)
+    cfg_path = tmp_path / 'cfg.json'
+    cfg_path.write_text(json.dumps(_bare_store_cfg(source)))
+    capsys.readouterr()
+    rc = main([str(cfg_path)])
+    captured = capsys.readouterr()
+    if rc != 1 or captured.out or 'STORE_PATH_REPLACED_DURING_CAPTURE' not in captured.err:
+        raise AssertionError(f'ancestor substitution was not refused: rc={rc}, output={captured}')
+    if seen:
+        raise AssertionError(f'replacement store reached evaluator: {seen}')
+    saved = container / 'saved-original' / source.name
+    if not original_dir.is_symlink() or (saved.read_bytes(), saved.stat().st_mtime_ns) != (original_bytes, original_mtime):
+        raise AssertionError('persistent swap or original source was changed')

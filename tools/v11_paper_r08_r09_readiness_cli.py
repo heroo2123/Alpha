@@ -199,6 +199,36 @@ def _check_source_identity(path: Path) -> None:
         raise EvidenceError("PRIVATE_REGULAR_DATABASE_REQUIRED")
 
 
+def _source_chain(path: Path) -> tuple:
+    """Record each pathname component without following its final symlink."""
+    chain = []
+    for part in reversed((path, *path.parents)):
+        info = os.lstat(part)
+        chain.append((part, info.st_dev, info.st_ino, info.st_mode))
+    return tuple(chain)
+
+
+def _require_source_chain(path: Path, anchor: tuple) -> None:
+    try:
+        current = _source_chain(path)
+    except OSError as exc:
+        raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE") from exc
+    if current != anchor or any(not stat.S_ISDIR(mode) for _, _, _, mode in current[:-1]) or not stat.S_ISREG(current[-1][3]):
+        raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
+
+
+def _check_sidecars(parent_fd: int, name: str, main_identity: tuple) -> None:
+    """Refuse aliases before SQLite can map or write a source sidecar."""
+    for suffix in ("-wal", "-shm"):
+        try:
+            sidecar = os.stat(name + suffix, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        if (not stat.S_ISREG(sidecar.st_mode) or sidecar.st_nlink != 1 or
+                (sidecar.st_dev, sidecar.st_ino) == main_identity):
+            raise EvidenceError("UNSAFE_STORE_SIDECAR_REFUSED")
+
+
 @contextmanager
 def _anchored_snapshot(path: Path):
     """Yield a private, disposable copy of ``path`` instead of ever handing
@@ -225,26 +255,43 @@ def _anchored_snapshot(path: Path):
     this call returns, the same residue `EvidenceStore.__init__`'s own
     `mode=ro` inspection already leaves.
 
-    The identity anchor uses `lstat`, not `stat`, and requires a regular
-    file both before and after the backup: `_check_source_identity` already
-    refuses a symlinked path, but `stat()`/`sqlite3.connect()` both follow
-    symlinks, so a symlink swapped in during the narrow window after that
-    check runs would otherwise go undetected. `lstat` sees the symlink
-    itself rather than its target. A swap completed entirely within that
-    window (i.e. restored before this function's own `lstat` calls run) is
-    not detectable this way; that residual requires write access to the
-    0700 private parent directory, which is owner-equivalent access.
+    The path chain is anchored before validation and checked again before
+    release. SQLite opens through the anchored parent directory descriptor,
+    so a later ancestor rename cannot redirect it to a different store.
+    Sidecars are checked before SQLite can map them; owner-controlled swaps
+    of a file inside the 0700 parent during SQLite's open remain a residual.
     """
+    if ".." in path.parts:
+        raise EvidenceError("ABSOLUTE_PATH_REQUIRED")
+    if not path.exists() or not path.is_file():
+        raise EvidenceError("STORE_PATH_MUST_PREEXIST")
+    anchor = _source_chain(path)
     _check_source_identity(path)
-    before_stat = os.lstat(path)
-    if not stat.S_ISREG(before_stat.st_mode):
-        raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
+    _require_source_chain(path, anchor)
+    parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if (os.fstat(parent_fd).st_dev, os.fstat(parent_fd).st_ino) != anchor[-2][1:3]:
+            raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
+        main_identity = anchor[-1][1:3]
+        _check_sidecars(parent_fd, path.name, main_identity)
+        _require_source_chain(path, anchor)
+        with _copy_anchored_snapshot(path, anchor, parent_fd, main_identity) as copy_path:
+            yield copy_path
+    finally:
+        os.close(parent_fd)
+
+
+@contextmanager
+def _copy_anchored_snapshot(path: Path, anchor: tuple, parent_fd: int, main_identity: tuple):
     scratch = Path(tempfile.mkdtemp(prefix=".v11-paper-readiness-snapshot-"))
     os.chmod(scratch, 0o700)
     try:
         copy_path = scratch / "store.sqlite"
         deadline = time.monotonic() + STORE_SNAPSHOT_DEADLINE_SECONDS
-        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as src:
+        _check_sidecars(parent_fd, path.name, main_identity)
+        anchored_path = Path(f"/proc/self/fd/{parent_fd}") / path.name
+        with closing(sqlite3.connect(anchored_path.as_uri() + "?mode=ro", uri=True, timeout=1.0)) as src:
+            _check_sidecars(parent_fd, path.name, main_identity)
             src.execute("PRAGMA query_only=ON")
             src.execute("BEGIN")
             src.execute("SELECT COUNT(*) FROM sqlite_schema").fetchone()
@@ -266,11 +313,8 @@ def _anchored_snapshot(path: Path):
             with closing(sqlite3.connect(copy_path, timeout=1.0)) as dst:
                 src.backup(dst, pages=64, progress=progress, sleep=0.01)
             src.rollback()
-        after_stat = os.lstat(path)
-        if not stat.S_ISREG(after_stat.st_mode) or (
-            (before_stat.st_dev, before_stat.st_ino) != (after_stat.st_dev, after_stat.st_ino)
-        ):
-            raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
+        _check_sidecars(parent_fd, path.name, main_identity)
+        _require_source_chain(path, anchor)
         os.chmod(copy_path, 0o600)
         yield copy_path
     finally:
