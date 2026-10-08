@@ -1,6 +1,6 @@
 ## 2026-10-08 01:16 UTC independent Gate-3 v3 root-transition map launched
 
-Launched one read-only Sonnet/high worker from clean isolated `d67d482` at `/tmp/alpha-g3l-v3-root-transition-map-20261008`, PID recorded in the matching `.pid` and a required `.terminal`. It is mapping reviewed X1 schema-v3 operational consequences using repository code and synthetic fixtures only; no live/private evidence, root creation, integration or qualification is authorized by the task. Existing N5, forward, PAPER and Brain lanes remain separately owned. No gate or acceptance score changed.
+Launched one read-only Sonnet/high worker from clean isolated `d67d482` at `/tmp/alpha-g3l-v3-root-transition-map-20261008`, The initial `nohup` launcher exited without a terminal; recovered once in detached tmux `alpha-g3l-v3-root-map-20261008`, with its live runner PID recorded in `.pid` and a required `.terminal`. It is mapping reviewed X1 schema-v3 operational consequences using repository code and synthetic fixtures only; no live/private evidence, root creation, integration or qualification is authorized by the task. Existing N5, forward, PAPER and Brain lanes remain separately owned. No gate or acceptance score changed.
 
 ## 2026-10-08 01:14 UTC Gate-3 X1 exact PASS and scheduler-count caveat
 

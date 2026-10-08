@@ -1,6 +1,6 @@
 ## 2026-10-08 01:16 UTC Gate-3 v3 transition preparation dispatched
 
-A sole terminal-marked Sonnet/high read-only worker is live in `/tmp/alpha-g3l-v3-root-transition-map-20261008` at `d67d482`. Its scope is static/synthetic mapping of the X1 schema-v3 root transition and future adverse tests; it has no authority to edit live roots, merge code or grant G3-L credit. Other exact reviews and the Brain repair remain live. No safety or acceptance boundary changed.
+A sole Sonnet/high read-only worker was recovered after an initial `nohup` launcher exit and is live with a terminal-marked tmux runner in `/tmp/alpha-g3l-v3-root-transition-map-20261008` at `d67d482`. Its scope is static/synthetic mapping of the X1 schema-v3 root transition and future adverse tests; it has no authority to edit live roots, merge code or grant G3-L credit. Other exact reviews and the Brain repair remain live. No safety or acceptance boundary changed.
 
 ## 2026-10-08 01:14 UTC X1 review intake and coordinator accounting audit
 
