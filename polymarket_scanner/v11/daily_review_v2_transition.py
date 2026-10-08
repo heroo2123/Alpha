@@ -77,14 +77,20 @@ def _deny(code: str):
 
 
 def _leaf_strings(value):
-    if isinstance(value, dict):
-        for item in value.values():
-            yield from _leaf_strings(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _leaf_strings(item)
-    elif isinstance(value, str):
-        yield value
+    """Iterative (non-recursive) leaf-string walk: a canonical, hash-verified
+    object of bounded byte size can still nest thousands of levels deep, and
+    a recursive walk over that nesting raises an uncaught RecursionError
+    before any typed refusal is reached. An explicit stack has no such
+    depth-dependent failure mode."""
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+        elif isinstance(item, str):
+            yield item
 
 
 def _sorted_selections(entries):
@@ -277,31 +283,48 @@ def _validate_new_selection(value, operation):
 @dataclass(frozen=True)
 class VerifiedTransition:
     """A non-authorizing pin: internal graph consistency only. No field here
-    grants admission, approval authenticity or custody."""
+    grants admission, approval authenticity or custody. ``review_id``,
+    ``review_sha256``, ``commission_sha256`` and ``candidate_approval_sha256``
+    are the new selection pin for this edge; they are ``None`` for ``GATE``
+    (which has no new selection). ``commissioning_subject_sha256`` is the
+    digest of the transition content the commissioning approval is expected
+    to attest to (the transition with only its own
+    ``commissioning_approval_sha256`` field omitted) -- never a claim that
+    any approval was actually verified against it."""
     revision: int
     registry_sha256: str
     previous_registry_sha256: str
+    next_state_sha256: str
     transition_id: str
     transition_sha256: str
     operation: str
     reason: str
     semantic_key: tuple
     cutover_at: int
+    review_id: Optional[str]
+    review_sha256: Optional[str]
+    commission_sha256: Optional[str]
+    candidate_approval_sha256: Optional[str]
+    commissioning_subject_sha256: str
 
 
 def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
                        predecessor_bytes: bytes,
-                       predecessor_object_bytes: Mapping[str, bytes],
-                       now: int) -> VerifiedTransition:
+                       predecessor_object_bytes: Mapping[str, bytes]) -> VerifiedTransition:
     """Validate one transition edge from an explicitly supplied, already
     trusted predecessor to the supplied new index. This validates exactly one
-    edge; it does not walk or re-verify the predecessor's own transition."""
+    edge; it does not walk or re-verify the predecessor's own transition.
+
+    There is no caller-supplied current time: no freshness/clock check is
+    performed here (that remains a future publisher's responsibility). The
+    only time-ordering guarantee this module makes is content-internal --
+    ``cutover_at`` for the new selection, if any, must fall within
+    ``[max(approved_at, commissioned_at), expires_at)``."""
     if type(object_bytes) is not dict or len(object_bytes) > reader.MAX_REVIEWS * 2:
         _deny("OBJECT_MAP_BOUND")
     if (type(predecessor_object_bytes) is not dict
             or len(predecessor_object_bytes) > reader.MAX_REVIEWS * 2):
         _deny("OBJECT_MAP_BOUND")
-    reader._int(now)
 
     index = reader._parse(index_bytes, reader.MAX_INDEX_BYTES)
     reader._shape(index, EXT_INDEX_KEYS)
@@ -329,9 +352,9 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
 
     operation = transition["operation"]
     reason = transition["reason"]
-    if operation not in OPERATIONS:
+    if type(operation) is not str or operation not in OPERATIONS:
         _deny("UNKNOWN_OPERATION")
-    if reason not in REASONS:
+    if type(reason) is not str or reason not in REASONS:
         _deny("UNKNOWN_REASON")
     if reason not in PAIRING[operation]:
         _deny("OPERATION_REASON_PAIRING")
@@ -365,8 +388,10 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
         if legacy["manifest_sha256"] != reader.sha256(predecessor_bytes):
             _deny("LEGACY_MANIFEST_HASH_MISMATCH")
         members = manifest.get("reviews")
+        if type(members) is not list or len(members) != 1:
+            _deny("LEGACY_MANIFEST_MUST_HAVE_SINGLE_MEMBER")
         index_in_manifest = legacy["review_member_index"]
-        if type(members) is not list or not 0 <= index_in_manifest < len(members):
+        if not 0 <= index_in_manifest < len(members):
             _deny("LEGACY_MEMBER_INDEX_BOUND")
         member = members[index_in_manifest]
         if type(member) is not dict or member.get("review_id") != legacy["review_id"]:
@@ -400,14 +425,33 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
             if (new_selection["review_id"], new_selection["review_sha256"]) == (
                     existing["review_id"], existing["review_sha256"]):
                 _deny("SUPERSEDE_REQUIRES_CHANGE")
-            if (reason == "SPARSE_SEED_NEW_GENERATION"
-                    and new_selection["generation_id"] == existing["generation_id"]):
-                _deny("SPARSE_SEED_REQUIRES_NEW_GENERATION")
+            if reason == "SPARSE_SEED_NEW_GENERATION":
+                existing_review = predecessor_by_id[existing["review_id"]][1]
+                new_review_obj = by_id[new_selection["review_id"]][1]
+                if (new_selection["generation_id"] == existing["generation_id"]
+                        or new_review_obj["generation_descriptor_sha256"]
+                        == existing_review["generation_descriptor_sha256"]):
+                    _deny("SPARSE_SEED_REQUIRES_NEW_GENERATION")
         elif operation == "GATE":
             if existing is None or old_selection is None or old_selection[0] != "V2":
                 _deny("GATE_REQUIRES_PRIOR_SELECTION")
             if old_selection[1] != existing:
                 _deny("OLD_SELECTION_FORGED")
+
+        if new_selection is not None and (
+                new_selection["review_id"] in predecessor_by_id
+                or new_selection["review_sha256"] in
+                {digest for digest, _review in predecessor_by_id.values()}):
+            # A review that already has a history entry at this predecessor
+            # -- whether still active, superseded, or GATE-removed -- cannot
+            # become a fresh candidate again with its original commission
+            # and approval. Rollback/reselection needs a new monotonic
+            # review, not an automatic resumption of a historical one. The
+            # degenerate same-review no-op (new_selection already equal to
+            # the still-current selection) is caught above by
+            # SUPERSEDE_REQUIRES_CHANGE instead, which is the more specific
+            # diagnosis for that particular case.
+            _deny("HISTORICAL_REVIEW_REUSE")
 
         for rid, (digest, _rev) in predecessor_by_id.items():
             if rid not in by_id or by_id[rid][0] != digest:
@@ -443,7 +487,8 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
                     "seed_sha256", "runner_sha256", "config_sha256", "import_closure_sha256"):
             reader._hash(provenance[key])
         reader._int(provenance["seed_count"], minimum=0)
-        if not GIT_SHA.fullmatch(provenance["release_commit"]):
+        release_commit = provenance["release_commit"]
+        if type(release_commit) is not str or not GIT_SHA.fullmatch(release_commit):
             _deny("PROVENANCE_RELEASE_COMMIT_SCHEMA")
         for key in ("scheduler_identity", "audit_identity", "coordinator_identity"):
             reader._string(provenance[key])
@@ -474,11 +519,25 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
     end_at = reader._int(interval["end_at"])
     if start_at > end_at:
         _deny("INCOMPLETE_INTERVAL_ORDER")
-    if interval["status"] not in INTERVAL_STATUS:
+    if type(interval["status"]) is not str or interval["status"] not in INTERVAL_STATUS:
         _deny("INCOMPLETE_INTERVAL_STATUS")
     _walk_metadata(reader._hash(interval["evidence_sha256"]), object_bytes, budget)
 
     cutover_at = reader._int(transition["cutover_at"])
+
+    selection_review_id = selection_review_sha256 = selection_commission_sha256 = None
+    if new_selection is not None:
+        new_review_for_cutover = by_id[new_selection["review_id"]][1]
+        new_commission_for_cutover = reader._object(object_bytes, new_selection["commission_sha256"])
+        if not (max(new_review_for_cutover["approved_at"], new_commission_for_cutover["commissioned_at"])
+                <= cutover_at < new_review_for_cutover["expires_at"]):
+            _deny("CUTOVER_TIME_ORDER")
+        selection_review_id = new_selection["review_id"]
+        selection_review_sha256 = new_selection["review_sha256"]
+        selection_commission_sha256 = new_selection["commission_sha256"]
+
+    commissioning_subject_sha256 = reader.sha256(reader.canonical_bytes(
+        {key: value for key, value in transition.items() if key != "commissioning_approval_sha256"}))
 
     forbidden_self_refs = {transition_sha256, registry_sha256}
     for leaf in _leaf_strings(transition):
@@ -488,6 +547,10 @@ def verify_transition(*, index_bytes: bytes, object_bytes: Mapping[str, bytes],
     return VerifiedTransition(
         revision=index["revision"], registry_sha256=registry_sha256,
         previous_registry_sha256=index["previous_registry_sha256"],
+        next_state_sha256=next_state_sha256,
         transition_id=transition["transition_id"], transition_sha256=transition_sha256,
         operation=operation, reason=reason, semantic_key=semantic_key_tuple,
-        cutover_at=cutover_at)
+        cutover_at=cutover_at, review_id=selection_review_id,
+        review_sha256=selection_review_sha256, commission_sha256=selection_commission_sha256,
+        candidate_approval_sha256=candidate_approval_digest,
+        commissioning_subject_sha256=commissioning_subject_sha256)
