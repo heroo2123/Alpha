@@ -1,3 +1,15 @@
+## 2026-10-08 15:16 UTC R08 contract candidate launch and writer-inventory fixture fix launch add no new C/J/E/A credit
+
+The PAPER R08 execution-health/settlement-finality promotion-contract candidate (`fa8b5ef8`, fail-closed
+reader, `AUTHORIZED_SETTLEMENT_PROVIDERS` empty by design, not wired into `risk_inputs.py`) finished
+clean but unreviewed; commissioning its independent Opus review, and separately commissioning a scoped
+fix for the pre-existing stale `test_repository_writer_inventory` fixture (drift from already-reviewed
+`3ae3852`, confirmed by direct re-run, not a new regression), are both process -- launching reviewable
+work, not landed evidence -- until each returns a verdict/result. No selected-window identity,
+provider-rights evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND
+credit changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 14:54 UTC Shadow R3 independent Opus review PASS_IN_SCOPE adds no new C/J/E/A credit; root commissioning is OWNER_ACTION_REQUIRED
 
 The independent Claude Opus/high review of the frozen Shadow-seed R3 candidate (checksum-pinned,
