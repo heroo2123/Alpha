@@ -1,3 +1,7 @@
+## 2026-10-08 03:08 UTC Brain repair launched; review scratch reclaimed
+
+Intook independent `CHANGES_REQUIRED` for Brain `a42bfb6`, preserving exact verdict and synthetic probes. Started a sole Sol/high R3 author in the original clean isolated worktree with terminal marker. Gate-3 and PAPER exact reviewers remain live. Reclaimed 4.9 GiB of completed Gate-3 pytest basetemp only after outputs were retained and `lsof` showed no handles; disk free ~8.7 GiB. The temporary root gateway disk refusal was not bypassed. No code merge or acceptance transition: Gate-3 **91/200**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 03:04 UTC Gate-3 repair recycled into exact review
 
 Intook clean Gate-3 descriptor R2 `3a7dd98` / tree `395e057` and launched a distinct frozen Astra/high exact review with retained terminal/verdict targets at `/tmp/alpha-g3l-descriptor-r2-review-3a7dd98.*`. Author-side 16 focused unittest cases passed in both Python modes, with one existing skip; host pytest and final executable binding remain unverified/failed respectively. Brain and PAPER exact reviewers continue separately. No code merge, provider/root/runtime/V10/financial action or acceptance transition: Gate-3 **91/200**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
