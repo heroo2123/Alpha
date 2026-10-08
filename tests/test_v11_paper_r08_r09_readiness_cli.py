@@ -7,10 +7,12 @@ EvidenceStore file: every store path exercised here either already exists
 deliberately left absent to prove the CLI refuses rather than creating one.
 """
 from dataclasses import asdict, replace
+from contextlib import closing
 import json
 import os
 import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1067,6 +1069,155 @@ print(json.dumps({'rc': rc, 'stdout': out.getvalue(), 'stderr': err.getvalue(), 
     assert 'UNSAFE_STORE_SIDECAR_REFUSED' in result['stderr']
     assert (victim.read_bytes(), victim.stat().st_mtime_ns) == before
     assert Path(str(store) + '-shm').stat().st_ino == victim.stat().st_ino
+
+
+@pytest.mark.parametrize('interpreter_flags', [(), ('-O',)])
+@pytest.mark.parametrize('substitution,reason', [
+    ('main-fifo', 'STORE_PATH_REPLACED_DURING_CAPTURE'),
+    ('wal-fifo', 'UNSAFE_STORE_SIDECAR_REFUSED'),
+    ('wal-directory', 'UNSAFE_STORE_SIDECAR_REFUSED'),
+    ('wal-symlink', 'UNSAFE_STORE_SIDECAR_REFUSED'),
+    ('wal-hardlink', 'UNSAFE_STORE_SIDECAR_REFUSED'),
+    ('shm-fifo', 'UNSAFE_STORE_SIDECAR_REFUSED'),
+])
+def test_raced_nonregular_source_refuses_with_bounded_subprocess(
+        tmp_path, interpreter_flags, substitution, reason):
+    # The intercepted call delegates immediately to the real OS open. In
+    # particular, a raced FIFO must not wait for a writer before validation.
+    tmp_path.chmod(0o700)
+    store = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store, 'V11_PAPER')
+    before = (store.read_bytes(), store.stat().st_mtime_ns)
+    assert not Path(str(store) + '-wal').exists()
+    assert not Path(str(store) + '-shm').exists()
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir(mode=0o700)
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    script = '''
+import contextlib, io, json, os, pathlib, sys
+import tools.v11_paper_r08_r09_readiness_cli as cli
+store, cfg = map(pathlib.Path, sys.argv[1:3])
+substitution = sys.argv[3]
+real_open = os.open
+opened = []
+def open_racing(path, flags, *args, **kwargs):
+    name = str(path)
+    if kwargs.get('dir_fd') is not None and name == store.name + ('' if substitution == 'main-fifo' else '-wal') and not opened:
+        opened.append({'name': name, 'nonblock': bool(flags & os.O_NONBLOCK)})
+        if substitution == 'main-fifo':
+            store.rename(store.with_name('saved.sqlite'))
+            os.mkfifo(store, 0o600)
+        elif substitution == 'wal-fifo':
+            os.mkfifo(str(store) + '-wal', 0o600)
+        elif substitution == 'wal-directory':
+            pathlib.Path(str(store) + '-wal').mkdir(mode=0o700)
+        elif substitution == 'wal-symlink':
+            pathlib.Path(str(store) + '-wal').symlink_to(store)
+        elif substitution == 'wal-hardlink':
+            os.link(store, str(store) + '-wal')
+        else:
+            os.mkfifo(str(store) + '-shm', 0o600)
+    return real_open(path, flags, *args, **kwargs)
+cli.os.open = open_racing
+out, err = io.StringIO(), io.StringIO()
+with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    rc = cli.main([str(cfg)])
+print(json.dumps({'rc': rc, 'stdout': out.getvalue(), 'stderr': err.getvalue(), 'opened': opened}))
+'''
+    proc = subprocess.run([sys.executable, *interpreter_flags, '-B', '-c', script,
+                           str(store), str(cfg), substitution], cwd=REPO_ROOT,
+                          env=dict(_SUBPROCESS_ENV, TMPDIR=str(scratch)),
+                          capture_output=True, text=True, timeout=8)
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result['opened'] == [{'name': store.name + ('' if substitution == 'main-fifo' else '-wal'),
+                                 'nonblock': True}]
+    assert result['rc'] == 1 and not result['stdout']
+    assert reason in result['stderr']
+    original = store.with_name('saved.sqlite') if substitution == 'main-fifo' else store
+    assert (original.read_bytes(), original.stat().st_mtime_ns) == before
+    assert not list(scratch.iterdir())
+    sidecar = Path(str(store) + ('-shm' if substitution == 'shm-fifo' else '-wal'))
+    if substitution != 'main-fifo':
+        assert sidecar.exists() or sidecar.is_symlink()
+        if substitution == 'wal-hardlink':
+            assert sidecar.stat().st_ino == store.stat().st_ino
+    else:
+        assert stat.S_ISFIFO(store.stat().st_mode)
+
+
+@pytest.mark.parametrize('interpreter_flags', [(), ('-O',)])
+def test_scratch_cleanup_failure_is_reported_and_residue_identified(
+        tmp_path, interpreter_flags):
+    tmp_path.chmod(0o700)
+    store = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store, 'V11_PAPER')
+    before = (store.read_bytes(), store.stat().st_mtime_ns)
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir(mode=0o700)
+    script = '''
+import contextlib, io, json, pathlib, sys
+import tools.v11_paper_r08_r09_readiness_cli as cli
+cfg, scratch = map(pathlib.Path, sys.argv[1:])
+def fail_cleanup(path):
+    raise PermissionError('synthetic cleanup denial')
+cli.shutil.rmtree = fail_cleanup
+out, err = io.StringIO(), io.StringIO()
+with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    rc = cli.main([str(cfg)])
+print(json.dumps({'rc': rc, 'stdout': out.getvalue(), 'stderr': err.getvalue(),
+                  'residue': [str(p) for p in scratch.iterdir()]}))
+'''
+    proc = subprocess.run([sys.executable, *interpreter_flags, '-B', '-c', script,
+                           str(cfg), str(scratch)], cwd=REPO_ROOT,
+                          env=dict(_SUBPROCESS_ENV, TMPDIR=str(scratch)),
+                          capture_output=True, text=True, timeout=8)
+    try:
+        assert proc.returncode == 0, proc.stderr
+        result = json.loads(proc.stdout)
+        assert result['rc'] == 1 and not result['stdout']
+        assert len(result['residue']) == 1
+        assert 'STORE_SNAPSHOT_CLEANUP_FAILED' in result['stderr']
+        assert result['residue'][0] in result['stderr']
+        assert (store.read_bytes(), store.stat().st_mtime_ns) == before
+    finally:
+        for item in scratch.iterdir():
+            shutil.rmtree(item)
+
+
+@pytest.mark.parametrize('interpreter_flags', [(), ('-O',)])
+def test_preexisting_unrelated_btree_corruption_is_refused(
+        tmp_path, interpreter_flags):
+    tmp_path.chmod(0o700)
+    store = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store, 'V11_PAPER')
+    with closing(sqlite3.connect(store)) as connection:
+        connection.execute('CREATE TABLE unrelated(x)')
+        connection.execute('INSERT INTO unrelated VALUES(1)')
+        connection.commit()
+        page = connection.execute("SELECT rootpage FROM sqlite_schema WHERE name='unrelated'").fetchone()[0]
+        page_size = connection.execute('PRAGMA page_size').fetchone()[0]
+    with store.open('r+b') as stream:
+        stream.seek((page - 1) * page_size)
+        stream.write(b'\xff')
+    with closing(sqlite3.connect(store.as_uri() + '?mode=ro', uri=True)) as connection:
+        with pytest.raises(sqlite3.DatabaseError):
+            connection.execute('PRAGMA integrity_check').fetchall()
+    before = (store.read_bytes(), store.stat().st_mtime_ns, _sidecar_listing(store))
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir(mode=0o700)
+    proc = subprocess.run([sys.executable, *interpreter_flags, '-B', CLI_PATH, str(cfg)],
+                          cwd=REPO_ROOT, env=dict(_SUBPROCESS_ENV, TMPDIR=str(scratch)),
+                          capture_output=True, text=True, timeout=8)
+    assert proc.returncode == 1 and not proc.stdout
+    assert 'STORE_SNAPSHOT_INTEGRITY_REFUSED' in proc.stderr
+    assert (store.read_bytes(), store.stat().st_mtime_ns, _sidecar_listing(store)) == before
+    assert not list(scratch.iterdir())
 
 
 @pytest.mark.parametrize('bound,reason', [

@@ -34,6 +34,8 @@ that constructor run.
 
 This CLI reads the caller's store and WAL through read-only file descriptors
 into a private, bounded, 0700 scratch directory, then uses SQLite there.
+Its deadline is cooperative across copy, backup and integrity work; it cannot
+preempt a stalled filesystem call or a terminated process's scratch cleanup.
 Every database read -- including the identity/foreign-database/namespace checks inside
 `EvidenceStore.__init__` itself -- runs only against that disposable copy,
 which is deleted when this process exits the evaluation, win or lose.
@@ -224,7 +226,8 @@ def _anchored_snapshot(path: Path):
     checkpoint) even for a pure read, so no evaluator may touch the caller's
     own store. This makes a byte copy of the main database and WAL in a
     fresh 0700 directory, checks source stability, and uses SQLite's
-    backup API only on that disposable copy. The SHM index is rebuilt there.
+    backup API and integrity check only on that disposable copy. The SHM index
+    is rebuilt there.
     No source pathname is
     passed to SQLite, and no source sidecar is ever unlinked.
     """
@@ -254,17 +257,18 @@ def _anchored_snapshot(path: Path):
 @contextmanager
 def _copy_anchored_snapshot(path: Path, anchor: tuple, parent_fd: int, main_identity: tuple):
     scratch = Path(tempfile.mkdtemp(prefix=".v11-paper-readiness-snapshot-"))
-    os.chmod(scratch, 0o700)
     try:
+        os.chmod(scratch, 0o700)
         copy_path = scratch / "store.sqlite"
         staged_path = scratch / "source.sqlite"
         deadline = time.monotonic() + STORE_SNAPSHOT_DEADLINE_SECONDS
         _check_sidecars(parent_fd, path.name, main_identity)
         source_fds = {}
+        initial = {}
         try:
             for suffix in ("", "-wal"):
                 try:
-                    fd = os.open(path.name + suffix, os.O_RDONLY | os.O_NOFOLLOW,
+                    fd = os.open(path.name + suffix, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                                  dir_fd=parent_fd)
                 except FileNotFoundError:
                     if suffix:
@@ -273,15 +277,19 @@ def _copy_anchored_snapshot(path: Path, anchor: tuple, parent_fd: int, main_iden
                 except OSError as exc:
                     reason = "UNSAFE_STORE_SIDECAR_REFUSED" if suffix else "STORE_PATH_REPLACED_DURING_CAPTURE"
                     raise EvidenceError(reason) from exc
+                # A FIFO can appear after _check_sidecars and block an ordinary
+                # read-only open indefinitely. Validate before opening another
+                # source path; SHM is only statted and is never opened.
                 source_fds[suffix] = fd
-            initial = {suffix: os.fstat(fd) for suffix, fd in source_fds.items()}
-            if (not stat.S_ISREG(initial[""].st_mode) or
-                    (initial[""].st_dev, initial[""].st_ino) != main_identity):
-                raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
-            if any(not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
-                   (info.st_dev, info.st_ino) == main_identity
-                   for suffix, info in initial.items() if suffix):
-                raise EvidenceError("UNSAFE_STORE_SIDECAR_REFUSED")
+                info = os.fstat(fd)
+                if suffix:
+                    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                            (info.st_dev, info.st_ino) == main_identity):
+                        raise EvidenceError("UNSAFE_STORE_SIDECAR_REFUSED")
+                elif (not stat.S_ISREG(info.st_mode) or
+                      (info.st_dev, info.st_ino) != main_identity):
+                    raise EvidenceError("STORE_PATH_REPLACED_DURING_CAPTURE")
+                initial[suffix] = info
             expected_bytes = sum(info.st_size for info in initial.values())
             if expected_bytes > MAX_STORE_SNAPSHOT_BYTES:
                 raise EvidenceError("STORE_SNAPSHOT_BYTES_LIMIT")
@@ -338,13 +346,31 @@ def _copy_anchored_snapshot(path: Path, anchor: tuple, parent_fd: int, main_iden
             os.close(fd)
             with closing(sqlite3.connect(copy_path, timeout=1.0)) as dst:
                 src.backup(dst, pages=64, progress=progress, sleep=0.01)
+                if time.monotonic() > deadline:
+                    raise EvidenceError("STORE_SNAPSHOT_DEADLINE")
+                dst.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
+                try:
+                    integrity = dst.execute("PRAGMA integrity_check(1)").fetchall()
+                except sqlite3.DatabaseError as exc:
+                    if time.monotonic() > deadline:
+                        raise EvidenceError("STORE_SNAPSHOT_DEADLINE") from exc
+                    raise EvidenceError("STORE_SNAPSHOT_INTEGRITY_REFUSED") from exc
+                finally:
+                    dst.set_progress_handler(None, 0)
+                if time.monotonic() > deadline:
+                    raise EvidenceError("STORE_SNAPSHOT_DEADLINE")
+                if integrity != [("ok",)]:
+                    raise EvidenceError("STORE_SNAPSHOT_INTEGRITY_REFUSED")
             src.rollback()
         _check_sidecars(parent_fd, path.name, main_identity)
         _require_source_chain(path, anchor)
         os.chmod(copy_path, 0o600)
         yield copy_path
     finally:
-        shutil.rmtree(scratch, ignore_errors=True)
+        try:
+            shutil.rmtree(scratch)
+        except OSError as exc:
+            raise EvidenceError(f"STORE_SNAPSHOT_CLEANUP_FAILED: {scratch}") from exc
 
 
 def _sidecar_exists(parent_fd: int, name: str) -> bool:
