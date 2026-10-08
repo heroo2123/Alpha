@@ -1,3 +1,47 @@
+## 2026-10-08 12:58 UTC Release-collection bug fixed; R2-M1/R2-M2 repair actually launched (prior checkpoint overclaimed it)
+
+Host-state read found both lanes the 12:26Z checkpoint entry claimed to have launched had exited
+with no trace: `tmux ls` showed neither `alpha-seed-r2-opus-20261008`-style repair session nor
+`alpha-release-retest-8726704`; `/tmp/alpha-shadow-seed-r2-20261008` had no files newer than the
+original 11:38Z Opus run, and no process/runner script referencing "r2-m1" or similar exists
+anywhere on host. The announced Sonnet R2-M1/R2-M2 repair lane was never actually started --
+corrected by launching it for real this pass. Separately, `/tmp/alpha-release-retest-8726704.terminal.json`
+recorded `exit_code: 2`, `stop_reason: completed` from the prior attempt, which is not a real
+pass/fail verdict: its runner script invoked bare `pytest -q` with no path argument (unlike the
+only real prior full-suite PASS, which scoped to `tests`), so it also collected
+`docs/review-evidence/g3i-dc7f83b/test_adversarial.py`, an 8-day-old (2026-09-30) committed
+historical-evidence file that imports a fixture from `/tmp/alpha-v11-r09-gate3-strict-offline-20260930`
+-- a disposable review directory cleaned up long ago -- causing a collection-time
+`FileNotFoundError` that aborts the entire run before any test executes. Confirmed this is not
+specific to that one ad hoc runner: `.github/workflows/tests.yml:148` runs plain
+`python -m pytest -q --junitxml=test-results.xml` with no path argument either, so the project's
+own actual CI configuration has had this same collection crash for over a week. Verified exactly
+one test file exists anywhere under `docs/` (`find docs -name "test_*.py"`), confirmed it must
+stay byte-exact as frozen review evidence (not touched), and fixed the root cause instead: added
+`norecursedirs = ... docs` to `pytest.ini` (diff: one line). Verified directly:
+`pytest -q --collect-only` from repo root now collects cleanly, **9545 tests collected**, 0 errors
+(previously: 1 collection error, 0 tests runnable). This is a real, verified, scoped fix to an
+actual FOURTH-priority blocker -- infra/collection-config only, no behavior change to any test,
+no C/J/E/A transition. Committed and pushed alone as its own coherent unit. Relaunched two
+specialist lanes to fill otherwise-idle capacity (target 3, 0 active found at host-state-read
+time): (1) a Claude Sonnet repair agent, sole writer in the still-disposable
+`/tmp/alpha-shadow-seed-r2-20261008` copy, scoped exactly to Astra's two named HIGH findings
+(R2-M1 crash-idempotent rollback with inode/hash custody; R2-M2 commissioning-barrier
+precondition recheck on resume/rollback), instructed to reproduce each original crash window with
+real tests in both Python modes and explicitly not to integrate/commission -- independent review
+still mandatory before any merge; (2) a read-only full-regression retest of current HEAD in a
+fresh disposable `/tmp` worktree (not reusing the stale `clean-20261008` or the seed-r2 directory),
+using the now-fixed bare `pytest -q` invocation with the same disk-floor-guard pattern as before,
+to get an actual release verdict for current HEAD (prior genuine PASS was only confirmed for
+stale `f02d26b`; several commits landed since). Neither lane has reported a result yet. Checked
+InventoryTransform (THIRD PRIORITY): `supervisor-status.json` confirms `inputs_seen: 2`,
+`iteration: 1543`, timestamp current -- the Tokyo intake added last pass is still live and
+healthy, no action needed this pass (no new genuine local observation available to add without
+inventing one). G3-L window (14:00Z) not yet reached at read time (~12:55Z); no G3-L action taken
+per the standing instruction against non-credit repeated investigation. No provider, runtime/
+root/V10, financial, or acceptance transition. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L
+**NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 12:26 UTC Astra R2 verdict intake (CHANGES_REQUIRED); repair + full-regression lanes launched
 
 Host-state read found the Astra exact-byte R2 review of the Opus seed/provenance candidate

@@ -1,4 +1,15 @@
-## 2026-10-08 12:26 UTC Astra R2 CHANGES_REQUIRED intake and two new lanes add no C/J/E/A credit
+## 2026-10-08 12:58 UTC pytest-collection fix and relaunched repair/retest lanes add no new C/J/E/A credit
+
+Fixing a verified release-blocking pytest collection crash (`norecursedirs` now excludes `docs/`,
+confirmed `9545 tests collected` with 0 errors, previously 1 fatal collection error affecting both
+an ad hoc retest and the project's actual CI workflow) is infra/tooling correctness, not evidence:
+it supplies no selected-window identity, provider-rights evidence, PAPER real reservation/PWS
+evidence, Brain qualification, or READY_TO_FUND credit by itself -- it only makes the FOURTH
+priority release-verification path runnable again. The prior checkpoint's claim of having launched
+an R2-M1/R2-M2 repair lane did not match host state (no trace existed); relaunching it for real,
+and relaunching a corrected full-regression retest, are both process, not evidence, until each
+lands with a result. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L
+**NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
 
 Recording the Astra R2 verdict on the seed/provenance candidate (CHANGES_REQUIRED, two blocking
 findings in the prospective Oct 9/10 migration tool's crash-recovery contract; F1/F2/F3 themselves
