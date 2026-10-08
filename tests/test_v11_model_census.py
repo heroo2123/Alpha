@@ -240,7 +240,7 @@ def _forge(r,stage,p,key,**changes):
 @pytest.mark.parametrize('case,code',[
     ('digest','MODEL_CENSUS_CHAIN_DIGEST_MISMATCH'),('missing_previous','MODEL_CENSUS_CHAIN_GAP'),
     ('count','MODEL_CENSUS_CHAIN_GAP'),('duplicate','MODEL_CENSUS_CHAIN_DUPLICATE_FIELD'),
-    ('foreign','MODEL_CENSUS_CHAIN_FOREIGN_ROW'),('format','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),
+    ('foreign','MODEL_CENSUS_CHAIN_FOREIGN_ROW'),('foreign_preparation','MODEL_CENSUS_CHAIN_FOREIGN_ROW'),('format','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),
     ('inherited_after_genesis','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),
     ('non_advancing_middle','MODEL_CENSUS_CHAIN_FORMAT_INVALID'),('legacy_invalid','MODEL_CENSUS_LEGACY_STATE_INVALID')])
 def test_corrupted_census_chain_fails_closed(gefs,monkeypatch,case,code):
@@ -252,6 +252,12 @@ def test_corrupted_census_chain_fails_closed(gefs,monkeypatch,case,code):
     elif case=='count':_forge(r,stage,p,'f',count=c['count']+1)
     elif case=='duplicate':_forge(r,stage,p,'f',field_id=before[0],count=c['count']+1,digest=_chain_digest(c['digest'],before[0]))
     elif case=='foreign':_forge(r,stage,p,'f',chain_previous_id=barrier['id'])
+    elif case=='foreign_preparation':
+        head=stage._head(p['event_id'])
+        other=r['store'].audit('other-prep',event_id='model-census:'+p['event_id'],kind='RUNTIME_STATUS',
+            details=dict(head['body']['details'],preparation_id='other-preparation'),
+            evidence_ids=(p['id'],),expected_previous_seq=head['seq'])
+        _forge(r,stage,p,'f',chain_previous_id=other['id'])
     elif case=='format':_forge(r,stage,p,'f',format='alpha_v11_model_census_chain_v1')
     elif case=='inherited_after_genesis':_forge(r,stage,p,'f',inherited_field_ids=[])
     elif case=='non_advancing_middle':_forge(r,stage,p,'f1');_forge(r,stage,p,'f2')
