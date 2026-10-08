@@ -372,6 +372,38 @@ def test_ancestor_symlink_is_unsupported(tmp_path):
     check(result == witness.Unsupported('WITNESS_SYMLINK_REFUSED'), f'{result}')
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason='EACCES ancestor is not enforced for root')
+def test_eacces_ancestor_is_unsupported_not_raised(tmp_path):
+    # R1 regression: the lexical symlink walk's `is_symlink()` call raises
+    # PermissionError for a search-denied ancestor instead of returning a
+    # symlink verdict; the parent must convert that to Unsupported too.
+    locked = tmp_path / 'locked'
+    sub = locked / 'x'
+    sub.mkdir(parents=True)
+    target = sub / 'f'
+    write(target, b'hello')
+    os.chmod(locked, 0)
+    try:
+        result = witness.read_file_witness(target)
+    finally:
+        os.chmod(locked, 0o700)
+    check(result == witness.Unsupported('WITNESS_SYMLINK_CHECK_FAILED'), f'{result}')
+
+
+def test_ancestor_name_too_long_is_unsupported_not_raised(tmp_path):
+    # R1 regression: `is_symlink()` raises ENAMETOOLONG for an over-length
+    # path component instead of returning a symlink verdict.
+    long_component = 'a' * 300
+    result = witness.read_file_witness(tmp_path / long_component / 'f')
+    check(result == witness.Unsupported('WITNESS_SYMLINK_CHECK_FAILED'), f'{result}')
+
+
+def test_leaf_name_too_long_is_unsupported_not_raised(tmp_path):
+    long_component = 'a' * 300
+    result = witness.read_file_witness(tmp_path / long_component)
+    check(result == witness.Unsupported('WITNESS_SYMLINK_CHECK_FAILED'), f'{result}')
+
+
 def test_directory_path_is_unsupported(tmp_path):
     result = witness.read_file_witness(tmp_path)
     check(result == witness.Unsupported('WITNESS_NOT_REGULAR_FILE'), f'{result}')

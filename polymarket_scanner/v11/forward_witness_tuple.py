@@ -15,9 +15,9 @@ Two narrowly separated pieces:
   of exactly one plain regular file, and returns either a `FileWitness` or an
   `Unsupported(code)` sentinel. It must only ever be exercised against
   disposable tmpdir fixtures (see the paired test module); it is not reviewed
-  or safe for any protected or caller-selected path. It never raises: both
-  OS-level failures and malformed input (non-str path, embedded NUL, ...)
-  come back as `Unsupported(code)`.
+  or safe for any protected or caller-selected path. It never raises: OS-level
+  failures (including a denied or too-long ancestor path) and malformed input
+  (non-str path, embedded NUL, ...) come back as `Unsupported(code)`.
 - `compare_witness` / `evaluate_sequence` are pure: they take already-captured
   `FileWitness`/`Unsupported` values and never touch a filesystem.
 
@@ -168,8 +168,19 @@ def read_file_witness(path):
 
 def _read_file_witness(path):
     p = Path(path)
-    if p.is_symlink() or any(ancestor.is_symlink() for ancestor in p.parents):
-        return Unsupported('WITNESS_SYMLINK_REFUSED')
+    # Lexical and path-based: it narrows but does not close the window
+    # between this check and the parent-directory open below. A write-capable
+    # attacker on an ancestor directory who swaps it for a symlink in that
+    # window is a same-tick-class residual, not something this check proves
+    # closed; it is not treated as continuity proof either way. A denied or
+    # too-long ancestor path raises OSError from `is_symlink()` itself rather
+    # than returning a symlink verdict; both come back as `Unsupported` so
+    # this reader still never raises.
+    try:
+        if p.is_symlink() or any(ancestor.is_symlink() for ancestor in p.parents):
+            return Unsupported('WITNESS_SYMLINK_REFUSED')
+    except OSError:
+        return Unsupported('WITNESS_SYMLINK_CHECK_FAILED')
     name = p.name
     if not name:
         return Unsupported('WITNESS_INVALID_INPUT')
@@ -184,7 +195,10 @@ def _read_file_witness(path):
 
 
 def _read_file_witness_in_parent(parent_fd, name):
-    parent_stat = os.fstat(parent_fd)
+    try:
+        parent_stat = os.fstat(parent_fd)
+    except OSError:
+        return Unsupported('WITNESS_PARENT_STAT_FAILED')
     try:
         before = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     except OSError:
@@ -212,7 +226,10 @@ def _read_opened_file_witness(fd, parent_fd, name, before, parent_stat):
     # O_NONBLOCK above means a path swapped to a FIFO between the stat and
     # the open (above) cannot hang this open(); it returns immediately and
     # the S_ISREG check below refuses it instead.
-    opened = os.fstat(fd)
+    try:
+        opened = os.fstat(fd)
+    except OSError:
+        return Unsupported('WITNESS_OPEN_FAILED')
     if not stat_module.S_ISREG(opened.st_mode):
         return Unsupported('WITNESS_NOT_REGULAR_FILE')
     if opened.st_nlink != 1:
