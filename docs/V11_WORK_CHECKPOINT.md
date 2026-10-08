@@ -21870,3 +21870,7 @@ PAPER R08/R09 offline readiness CLI `2a08bd0` sealed clean and its author report
 ## 2026-10-08 00:22 UTC InventoryTransform successor under independent review
 
 The sole Sonnet InventoryTransform L-B repair sealed clean successor `7dd1aa0` in its original worktree, addressing the prior Opus F1 vacuous negative control and F2 dotted `_cffi_backend` alias gap. Its 71 focused/adjacent author tests passed in both Python modes; these are provisional. A distinct frozen Opus exact review is running in `/tmp/alpha-inventory-cffi-review-7dd1aa0` with retained prompt, runner, output and terminal targets. The observer remains dormant and unqualified. No acceptance or financial boundary changed.
+
+## 2026-10-08 00:24 UTC Gate-3 whole-closure review recycled to full target
+
+The recovered sole Sonnet Gate-3 whole-closure repair sealed clean `7ff3094` after 201/201 focused author tests in each Python mode. The author reports 21 wider-suite current-executable pin-drift failures and two isolated-passing RSS tests; those classifications remain provisional. A frozen independent Opus exact review is running in `/tmp/alpha-g3l-whole-review-7ff3094`, with prior R1/R3 findings and repin debt explicitly in scope. An isolated read-only PAPER R08/R09 automatic-collector map is also live in `/tmp/alpha-paper-r89-auto-collector-map-20261008`. Eight distinct specialist lanes occupy the safe target; no G3-L, PAPER or financial acceptance changes.
