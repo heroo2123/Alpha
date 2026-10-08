@@ -1,3 +1,36 @@
+## 2026-10-08 18:20 UTC Round-6 repair (`4057646`) independently verified real, not taken on the hand-back's word; final-close-out Opus review launched
+
+Did not take the repair agent's hand-back summary on faith. Independently confirmed in
+`/home/alphaadmin/AlphaV11_Reviews/alpha-r08-contract-repair-20261008`: `git log` shows real commit
+`4057646` on top of `8fe407a` on the same branch, worktree clean, diff stat (138 insertions, 23
+deletions across the module + its test file) matches the claim. Read the full `git diff
+8fe407a..4057646` myself rather than the report's description: confirmed the R5-L3 code fix is exactly
+what was asked -- `_verify_fresh_head` dropped its `now` parameter and now computes
+`view = store.pin_read_view()` first, then `now = finite(store.clock())` immediately after, with the
+call site no longer passing a stale caller-read `now`. Ran the real test suite myself (not the
+reporter's count): `tests/test_v11_paper_execution_health_promotion.py` +
+`tests/test_v11_paper_risk_observation.py`, 86/86 passed in both normal and `python -O` mode, matching
+the claim exactly. Went one step further than trusting the mutation-testing claim: personally reverted
+the R5-L1 completeness guard (`if not collected or collected[-1]['seq'] != through_seq:` ->
+`if not collected:`) in a disposable copy and reran just the rewritten R5-L1 regression test --
+it genuinely failed (`REPLAY_MISMATCH` instead of the expected `LINEAGE_UNKNOWN`), confirming that
+specific test is no longer vacuous; restored the file and verified it byte-identical to the original
+before moving on.
+
+This repair touches real logic (the R5-L3 clock/pin_read_view reordering), not just tests, so -- per
+this project's standing practice of independent-model review for every change in this specific
+contract thread -- froze a fresh byte-pinned intake of `4057646` (1771-file manifest, verified
+clean) and launched a final close-out Opus review scoped tightly to this one diff (not re-deriving the
+whole five-round history), explicitly handing it my own verification findings above as a starting point
+to challenge rather than copy, and asking it to adversarially probe the two R5-L2 tests I had not yet
+personally re-derived, check for any new issue the diff might have introduced, and give an explicit
+merge-ready verdict so this does not become an open-ended chain.
+
+This is process, not evidence: no selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 18:06 UTC Correction to the prior entry: only one follow-up is actually launched, not two; the contract candidate itself is still unmerged
 
 Self-correction before acting further, not a new result. The prior entry (below) said "two scoped
