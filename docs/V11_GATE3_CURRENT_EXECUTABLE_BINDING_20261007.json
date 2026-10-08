@@ -68,6 +68,14 @@
       {
         "classification": "preserve R1 denial on unencodable response header",
         "commit": "d806c11082fe81defd74993152906ee7454bce1d"
+      },
+      {
+        "classification": "fix F1/F2/F3 whole-closure findings in Gate3 runtime/ledgers coupling",
+        "commit": "fe311384953e01cc132ca8fe39f8b631b2f7c52a"
+      },
+      {
+        "classification": "fix R1/R3 replay-path gaps flagged by independent review of 0090c1f",
+        "commit": "7ff30948dfbcc0d164b6395e4749094472bfe134"
       }
     ],
     "tools/v11_gate3_evidence_preflight_real_intake.py": [
@@ -86,6 +94,22 @@
       {
         "classification": "RAW handoff mutex close and explicit clock phase custody",
         "commit": "dd529ee548a6752aa21d7c53f8f662f4fdb7f570"
+      },
+      {
+        "classification": "fix F1/F2/F3 whole-closure findings in Gate3 runtime/ledgers coupling",
+        "commit": "fe311384953e01cc132ca8fe39f8b631b2f7c52a"
+      },
+      {
+        "classification": "fix N1: SharedLedger.intent_closed could release an already-held intent",
+        "commit": "0090c1f7967aa45db360e47f31c297f5c534400d"
+      },
+      {
+        "classification": "fix R1/R3 replay-path gaps flagged by independent review of 0090c1f",
+        "commit": "7ff30948dfbcc0d164b6395e4749094472bfe134"
+      },
+      {
+        "classification": "fix X1: bump SHARED_LEDGER_SCHEMA_VERSION to refuse pre-intent_held v2 roots",
+        "commit": "23f11501d26b785c549e1568cca0d7d375ed4e5e"
       }
     ],
     "tools/v11_r09_gate3_runtime.py": [
@@ -128,6 +152,10 @@
       {
         "classification": "preserve R1 denial on unencodable response header",
         "commit": "d806c11082fe81defd74993152906ee7454bce1d"
+      },
+      {
+        "classification": "fix F1/F2/F3 whole-closure findings in Gate3 runtime/ledgers coupling",
+        "commit": "fe311384953e01cc132ca8fe39f8b631b2f7c52a"
       }
     ]
   },
@@ -493,9 +521,9 @@
       "sha256": "d90a3127bc6448064033d3b4afce3847e03d6e7626d3b1f6719aa7562e80c100"
     },
     "tests/test_v11_r09_gate3_ledgers.py": {
-      "byte_length": 46825,
-      "git_blob": "1d11239aa062687811a24bfd375e30dbe45025a9",
-      "sha256": "51b11b506e90f10373236eadd361f4ef08e72d9cb2f7bd88bf50c2951f68ba64"
+      "byte_length": 62101,
+      "git_blob": "7dbb3e94fb548be74ce1c99b5c7f447f86d3a9fd",
+      "sha256": "87d224a217da5318561ad24798ee28f9ef66d5abf1b9fd9c2f7f88b21e1633c8"
     },
     "tests/test_v11_r09_gate3_message_sizes.py": {
       "byte_length": 4190,
@@ -503,9 +531,9 @@
       "sha256": "633ee69f4567422a02ea4f53be4e47e39e4f3d867b733d30db7c6266a0ae645d"
     },
     "tests/test_v11_r09_gate3_runtime.py": {
-      "byte_length": 118968,
-      "git_blob": "01115565f1bcd1c12d73bf3d4340ae964f037dbd",
-      "sha256": "6d27ba0c3a26b923f6abb5c37eb18248cf9fcd56bd4624ee0082d0caf3158fc3"
+      "byte_length": 130880,
+      "git_blob": "03a899c42041e8341222bad93c8e9665b650cb22",
+      "sha256": "f7fe486ca637e512b844684e30f9742eb57141286e11c72a156bc893f11f922c"
     },
     "tools/v11_gate3_evidence_intake_guard.py": {
       "byte_length": 7192,
@@ -552,20 +580,25 @@
       "git_blob": "dfdac2bd3e5fee1c615caac7912696cb7583c01e",
       "sha256": "0cf745d9bf42b58698350479792fa4efad3b141e527e36f924a565d4a86f8637"
     },
+    "tools/v11_r09_gate3_eligibility.py": {
+      "byte_length": 2305,
+      "git_blob": "27528f4c3cf8d614f29aa98ab5632570f24963d7",
+      "sha256": "05184f2989e2393df56c7cae256ce4e94e840d75b992f88b3fa4cf591cd71c40"
+    },
     "tools/v11_r09_gate3_launch.py": {
-      "byte_length": 58430,
-      "git_blob": "dc8346bf63970fa003639e73a32836c0c1e7d887",
-      "sha256": "9174e37e929a98749a64d4fbee80430b6a9027088e709936474a1a2138e177d3"
+      "byte_length": 58419,
+      "git_blob": "f3b31b0bfac35c81be0d758795d3319db0dce136",
+      "sha256": "286e511cece07db45e22d18dd8e6c682675171a6e3ff4a949189413e70b724bc"
     },
     "tools/v11_r09_gate3_launch_v4.py": {
-      "byte_length": 47602,
-      "git_blob": "14f52ec73b4c8a54ac4506835f1f6d57ca20861f",
-      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+      "byte_length": 47591,
+      "git_blob": "ddd16ed298479d680366b9602492fcd0aff43c8e",
+      "sha256": "9bda17ec4b6a36a0d918d3a38b4fd513583665a185cabdeddffbcf4e3bbbde4a"
     },
     "tools/v11_r09_gate3_ledgers.py": {
-      "byte_length": 70442,
-      "git_blob": "50cc5e44da3338cfd2cc333b7961c222881bdfb2",
-      "sha256": "b7e8f77c7610050bef412dc4ae5d48a27f77e1128cd70689561cf4b14b40b01d"
+      "byte_length": 78546,
+      "git_blob": "b6b716c4af48b0602f3744e9c105a0a787d3223c",
+      "sha256": "481c1d80905d0b67aea22077cceec264139defc9488cd6389e69bf70446321d9"
     },
     "tools/v11_r09_gate3_message_sizes.py": {
       "byte_length": 6361,
@@ -578,9 +611,9 @@
       "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
     },
     "tools/v11_r09_gate3_runtime.py": {
-      "byte_length": 131019,
-      "git_blob": "9534e5821b12cd1f2669c811f755902f7d343d5a",
-      "sha256": "1ad36eeea10b4f001b1a7f922ee3ad99d5d0b64bbaffb5a08ffed2c93b35dfcb"
+      "byte_length": 133884,
+      "git_blob": "8a1e8d351f506ccc672b996ff8e6008d1d29ea91",
+      "sha256": "8723ba923e691de8cbcbd8ea749430dfa8153ce09ca22e9e64257e572d8f8b61"
     },
     "tools/v11_r09_gate3_store_v1.py": {
       "byte_length": 34815,
@@ -690,6 +723,6 @@
   "qualification_credit": 0,
   "review_limit": "Candidate byte binding only. Historical exact reviews remain scoped to their original commits. Independent exact review of this candidate and separate G3-L inventory/package entry review are required; no provider, capture, runtime launch, or financial authority.",
   "schema": "V11_GATE3_CURRENT_EXECUTABLE_BINDING_V1",
-  "source_commit": "d806c11082fe81defd74993152906ee7454bce1d",
-  "source_tree": "153752a33294f2531283bb78b6e77bb2235fd99a"
+  "source_commit": "fea59027cd3296e55db564a8aaece8975203706b",
+  "source_tree": "022fd9663ab2603639ab1451f596a170a0641d88"
 }
