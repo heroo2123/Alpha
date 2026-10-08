@@ -21,7 +21,9 @@ from tools.v11_r09_gate3_g3l_prep import ALL_IDS, PRE_REVIEW_IDS, RUN_SPECIFIC, 
 REPO = Path(__file__).resolve().parents[1]
 ARGS = dict(target_date="2026-10-04", now_utc=1790977200,
             free_disk_bytes=3_000_000_000, available_memory_bytes=1_000_000_000)
-EXPECTED_SEALED = frozenset(subject.SEAL_MAP)
+DRIFTED_MAPPING = "code.mapping_exact_commit_review"
+RETAINED_CONTROL = "protocol.g3i_composition_review_terminal"
+EXPECTED_SEALED = frozenset(subject.SEAL_MAP) - {DRIFTED_MAPPING}
 
 
 def test_seal_map_never_touches_run_or_window_scoped_identities():
@@ -40,10 +42,13 @@ def test_exact_missing_before_after_and_sealed_set(tmp_path):
     assert result["qualification_credit"] == 0
     assert result["launchable"] is False
     assert result["missing_before"] == 77
-    assert result["missing_after"] == 70
+    assert result["missing_after"] == 71
     assert set(result["sealed_identities"]) == EXPECTED_SEALED
-    assert len(result["sealed_identities"]) == 7
-    assert result["skipped_identities"] == []
+    assert len(result["sealed_identities"]) == 6
+    assert result["skipped_identities"] == [{
+        "id": DRIFTED_MAPPING,
+        "reason": f"category is {identity_audit.FUTURE}, not retained",
+    }]
     missing_ids = {f["id"] for f in result["findings"]}
     assert missing_ids == set(PRE_REVIEW_IDS) - EXPECTED_SEALED
     assert missing_ids.isdisjoint(EXPECTED_SEALED)
@@ -88,8 +93,8 @@ def test_refuses_unknown_identity(tmp_path):
 
 
 def test_refuses_path_not_in_identitys_own_verified_refs(tmp_path):
-    fake_map = {"code.mapping_exact_commit_review": (
-        "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+    fake_map = {RETAINED_CONTROL: (
+        "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md",
         "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md")}
     with pytest.raises(ValueError, match="not in this identity's own verified source_refs"):
         subject.sealed_evidence(REPO, object_root=tmp_path, seal_map=fake_map, **ARGS)
@@ -101,7 +106,7 @@ def test_drifted_bytes_are_skipped_not_sealed(tmp_path, monkeypatch):
     # reviewed baseline, and confirm the sealing tool skips exactly that
     # identity instead of sealing stale/wrongful credit.
     actual = identity_audit._repo_ref
-    drifted_path = "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md"
+    drifted_path = "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md"
 
     def changed(repo, rel_path, commit=None):
         result = actual(repo, rel_path, commit)
@@ -112,11 +117,11 @@ def test_drifted_bytes_are_skipped_not_sealed(tmp_path, monkeypatch):
 
     monkeypatch.setattr(identity_audit, "_repo_ref", changed)
     evidence, sealed, skipped = subject.sealed_evidence(REPO, object_root=tmp_path, **ARGS)
-    assert "code.mapping_exact_commit_review" not in sealed
-    assert evidence["code.mapping_exact_commit_review"] is None
-    assert any(row["id"] == "code.mapping_exact_commit_review" for row in skipped)
+    assert RETAINED_CONTROL not in sealed
+    assert evidence[RETAINED_CONTROL] is None
+    assert any(row["id"] == RETAINED_CONTROL for row in skipped)
     # Every other, undrifted identity still seals normally.
-    assert set(sealed) == EXPECTED_SEALED - {"code.mapping_exact_commit_review"}
+    assert set(sealed) == EXPECTED_SEALED - {RETAINED_CONTROL}
 
 
 def test_tampered_sealed_object_is_caught_by_check_inventory_not_silently_trusted(tmp_path):
@@ -125,7 +130,7 @@ def test_tampered_sealed_object_is_caught_by_check_inventory_not_silently_truste
     # proving the schema is not merely trusting the sealer's own claim.
     from tools.v11_r09_gate3_g3l_prep import SCHEMA, check_inventory
     evidence, sealed, _ = subject.sealed_evidence(REPO, object_root=tmp_path, **ARGS)
-    target = "code.mapping_exact_commit_review"
+    target = RETAINED_CONTROL
     assert target in sealed
     tampered_path = tmp_path / evidence[target]["ref"]["path"]
     data = bytearray(tampered_path.read_bytes())
@@ -143,7 +148,7 @@ def test_no_network_access(tmp_path, monkeypatch):
     monkeypatch.setattr(socket.socket, "connect",
                         lambda *args: pytest.fail("socket access"))
     result = subject.build_pre_review_inventory(REPO, object_root=tmp_path, **ARGS)
-    assert result["sealed_identity_count"] == 7
+    assert result["sealed_identity_count"] == 6
 
 
 def test_sealed_objects_are_exact_byte_copies(tmp_path):
@@ -165,11 +170,11 @@ def test_build_inventory_self_check_raises_if_check_inventory_disagrees(tmp_path
 
     def lying(inventory, **kwargs):
         findings = actual(inventory, **kwargs)
-        return findings + [{"id": "code.mapping_exact_commit_review", "state": "MISSING",
+        return findings + [{"id": RETAINED_CONTROL, "state": "MISSING",
                             "reason": "forced for test"}]
 
     monkeypatch.setattr(subject, "check_inventory", lying)
-    with pytest.raises(ValueError, match=r"not clean.*code\.mapping_exact_commit_review=MISSING"):
+    with pytest.raises(ValueError, match=rf"not clean.*{RETAINED_CONTROL}=MISSING"):
         subject.build_pre_review_inventory(REPO, object_root=tmp_path, **ARGS)
 
 
@@ -255,7 +260,7 @@ def test_tamper_after_seal_via_hardlink_alias_surfaces_as_invalid(tmp_path):
     from tools.v11_r09_gate3_g3l_prep import SCHEMA, check_inventory
 
     evidence, sealed, _ = subject.sealed_evidence(REPO, object_root=tmp_path, **ARGS)
-    target = "code.mapping_exact_commit_review"
+    target = RETAINED_CONTROL
     assert target in sealed
     sealed_path = tmp_path / evidence[target]["ref"]["path"]
     alias = tmp_path / "attacker-alias.bin"
@@ -277,7 +282,7 @@ def test_build_refuses_when_consumer_reports_sealed_identity_invalid(tmp_path, m
     from tools import v11_r09_gate3_g3l_prep as prep
 
     actual = prep.check_inventory
-    target = "code.mapping_exact_commit_review"
+    target = RETAINED_CONTROL
 
     def lying(inventory, **kwargs):
         findings = [f for f in actual(inventory, **kwargs) if f["id"] != target]

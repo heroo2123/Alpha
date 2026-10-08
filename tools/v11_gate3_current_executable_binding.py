@@ -16,8 +16,8 @@ from functools import cache
 from pathlib import Path
 
 MANIFEST = "docs/V11_GATE3_CURRENT_EXECUTABLE_BINDING_20261007.json"
-SOURCE_COMMIT = "d806c11082fe81defd74993152906ee7454bce1d"
-SOURCE_TREE = "153752a33294f2531283bb78b6e77bb2235fd99a"
+SOURCE_COMMIT = "fea59027cd3296e55db564a8aaece8975203706b"
+SOURCE_TREE = "022fd9663ab2603639ab1451f596a170a0641d88"
 HISTORICAL = {
     # Prior observations remain scoped to their own frozen source commits.
     "polymarket_scanner/v11/evidence.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
@@ -56,7 +56,9 @@ DRIFT_COMMITS = {
         "ef4f534eaae442dd0aac149c9850f0ef3c76d78f",),
     "tests/test_v11_r09_gate3_runtime.py": (
         "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
-        "d806c11082fe81defd74993152906ee7454bce1d"),
+        "d806c11082fe81defd74993152906ee7454bce1d",
+        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",
+        "7ff30948dfbcc0d164b6395e4749094472bfe134"),
     "tools/v11_gate3_evidence_preflight_real_intake.py": (
         "a582a005d08c0bcb62a9061946aa0bf096657360",),
     "tools/v11_r09_gate3_collector.py": (
@@ -71,9 +73,14 @@ DRIFT_COMMITS = {
         "5a0ce218c2815512ee592e9203d718cfc458b43a",
         "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",
         "7adbd18b0fcd0ae1e970264334e1b477c980e5aa",
-        "d806c11082fe81defd74993152906ee7454bce1d"),
+        "d806c11082fe81defd74993152906ee7454bce1d",
+        "fe311384953e01cc132ca8fe39f8b631b2f7c52a"),
     "tools/v11_r09_gate3_ledgers.py": (
-        "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",),
+        "dd529ee548a6752aa21d7c53f8f662f4fdb7f570",
+        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",
+        "0090c1f7967aa45db360e47f31c297f5c534400d",
+        "7ff30948dfbcc0d164b6395e4749094472bfe134",
+        "23f11501d26b785c549e1568cca0d7d375ed4e5e"),
 }
 DEPENDENCIES = frozenset({
     "polymarket_scanner/__init__.py",
@@ -145,6 +152,7 @@ DEPENDENCIES = frozenset({
     "tools/v11_multimodel_panel.py",
     "tools/v11_multimodel_stacking.py",
     "tools/v11_r09_gate3_a7_decoder.py",
+    "tools/v11_r09_gate3_eligibility.py",
     "tools/v11_r09_gate3_launch_v4.py",
     "tools/v11_r09_gate3_offline_io.py",
     "tools/v11_trajectory_contract.py",
@@ -172,9 +180,23 @@ SHA = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _git(repo: Path, *args: str) -> bytes:
-    env = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_GRAFT_FILE": os.devnull}
-    proc = subprocess.run(["git", "--no-replace-objects", *args], cwd=repo,
-                          env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    # core.commitGraph=false: a locally forged `.git/objects/info/commit-graph`
+    # cache file can lie about a commit's parent edges to any Git subcommand
+    # that consults it as a shortcut (e.g. `merge-base --is-ancestor`) instead
+    # of independently walking the real parent-hash chain. Strip ambient
+    # GIT_TEST_* (e.g. GIT_TEST_COMMIT_GRAPH), since Git's own test knobs can
+    # force that cache back on even under -c core.commitGraph=false. This is
+    # defense in depth only, not a substitute for `_raw_ancestor`: a
+    # loose-object forgery (see `_commit`) can still fool a merge-base-style
+    # shortcut even with the commit-graph fully disabled, because Git does
+    # not re-hash loose objects on ordinary reads. No caller in this module
+    # may treat `_git`'s output as a verified ancestry witness -- only
+    # `_raw_ancestor`/`_commit`, which re-derive hashes from object bytes,
+    # are trusted for that.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_TEST_")}
+    env.update(GIT_NO_REPLACE_OBJECTS="1", GIT_GRAFT_FILE=os.devnull)
+    proc = subprocess.run(["git", "--no-replace-objects", "-c", "core.commitGraph=false", *args],
+                          cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           check=False, timeout=30)
     if proc.returncode:
         raise ValueError(f"unavailable Git object: {args!r}")
@@ -186,6 +208,8 @@ def _commit(repo: Path, oid: str) -> tuple[str, tuple[str, ...]]:
     if not isinstance(oid, str) or not OID.fullmatch(oid):
         raise ValueError("commit must be an exact SHA-1 object ID")
     raw = _git(repo, "cat-file", "commit", oid)
+    if hashlib.sha1(b"commit " + str(len(raw)).encode() + b"\0" + raw).hexdigest() != oid:
+        raise ValueError(f"Git commit content mismatch: {oid}")
     headers = raw.split(b"\n\n", 1)[0].splitlines()
     trees = [line[5:].decode("ascii") for line in headers if line.startswith(b"tree ")]
     parents = tuple(line[7:].decode("ascii") for line in headers if line.startswith(b"parent "))
@@ -194,20 +218,48 @@ def _commit(repo: Path, oid: str) -> tuple[str, tuple[str, ...]]:
     return trees[0], parents
 
 
+@cache
+def _tree(repo: Path, oid: str) -> tuple[tuple[bytes, bytes, str], ...]:
+    # Hash-verify the raw tree object ourselves instead of trusting `git
+    # ls-tree`'s recursive path resolution: a loose tree object tampered in
+    # place under its original oid (same threat model as the loose-commit
+    # forgery in `_commit`) would otherwise rebind a pinned path to attacker
+    # bytes without `_commit`'s per-commit hash check ever noticing.
+    raw = _git(repo, "cat-file", "tree", oid)
+    if hashlib.sha1(b"tree " + str(len(raw)).encode() + b"\0" + raw).hexdigest() != oid:
+        raise ValueError(f"Git tree content mismatch: {oid}")
+    entries = []
+    pos = 0
+    while pos < len(raw):
+        space = raw.index(b" ", pos)
+        nul = raw.index(b"\0", space + 1)
+        mode, name, child = raw[pos:space], raw[space + 1:nul], raw[nul + 1:nul + 21]
+        if len(child) != 20:
+            raise ValueError(f"malformed tree object: {oid}")
+        entries.append((mode, name, child.hex()))
+        pos = nul + 21
+    return tuple(entries)
+
+
 def _blob(repo: Path, commit: str, path: str) -> tuple[str, bytes]:
     if path not in PATHS:
         raise ValueError("path outside fixed current-executable coverage")
-    rows = _git(repo, "ls-tree", commit, "--", path).splitlines()
-    if len(rows) != 1:
-        raise ValueError(f"missing exact tree path: {path}")
-    meta, named = rows[0].split(b"\t", 1)
-    mode, kind, oid = meta.split()
-    if named.decode() != path or mode not in (b"100644", b"100755") or kind != b"blob":
-        raise ValueError(f"non-regular tree path: {path}")
-    data = _git(repo, "cat-file", "blob", oid.decode())
-    if hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() != oid.decode():
+    oid = _commit(repo, commit)[0]
+    parts = path.split("/")
+    for index, part in enumerate(parts):
+        match = next((entry for entry in _tree(repo, oid) if entry[1] == part.encode()), None)
+        if match is None:
+            raise ValueError(f"missing exact tree path: {path}")
+        mode, _, oid = match
+        if index < len(parts) - 1:
+            if mode != b"40000":
+                raise ValueError(f"non-directory tree path: {path}")
+        elif mode not in (b"100644", b"100755"):
+            raise ValueError(f"non-regular tree path: {path}")
+    data = _git(repo, "cat-file", "blob", oid)
+    if hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() != oid:
         raise ValueError(f"Git blob content mismatch: {path}")
-    return oid.decode(), data
+    return oid, data
 
 
 def _live(repo: Path, path: str) -> bytes:
@@ -244,6 +296,10 @@ def _live(repo: Path, path: str) -> bytes:
 def _raw_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     # Walk immutable parent headers, so replace refs and local grafts cannot
     # invent source ancestry. Bounded to prevent pathological object graphs.
+    # Deliberately never shortcuts to `git merge-base --is-ancestor` or any
+    # other revision-walk command: those can consult the commit-graph cache
+    # (disabled defensively in `_git`, but still not an independent witness)
+    # instead of re-deriving parents from hashed commit bytes via `_commit`.
     pending, seen = [descendant], set()
     while pending:
         oid = pending.pop()
