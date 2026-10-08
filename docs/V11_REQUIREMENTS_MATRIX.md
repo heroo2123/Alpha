@@ -1,3 +1,7 @@
+## 2026-10-08 05:49 UTC scheduler review adds no requirement credit
+
+The coordinator accounting patch is under independent exact-byte review and remains unapplied. Daily v2 consumer mapping is read-only preparation; the active daily Shadow manager still refuses audit on missing pinned sequence. Gate-3 **91/200 (formal 1/50)**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No requirement or C/J/E/A crossing.
+
 ## 2026-10-08 05:46 UTC PAPER source plan confirms missing inputs
 
 A clean read-only plan maps R08/R09 CLI to genuine reservation/PWS evidence and confirms the three event engine metrics and seven prospective cost categories remain unknown or missing. One pure offline manifest author is active; this is preparation, not requirement satisfaction. Gate-3 **91/200 (formal 1/50)**, 77 identities unqualified, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A crossing.
