@@ -283,7 +283,7 @@
   "critical_source": {
     "host_trust/v11-daily-review-authority/authority.py": {"class":"third, repository-only manifest publisher","sha256":"4752776d82e85dcb078dc244446117d3fefdc340b0b9d5c543e1123cd476b889"},
     "host_trust/v11-model-authority/authority.py": {"class":"protected model-state replacement","sha256":"104576c39b10c5f25b7dd3bea33bfd36044642fa57f155ff618e8f7cc7090bfb"},
-    "polymarket_scanner/v11/evidence.py": {"class":"ledger API: create, WAL, append","sha256":"792d4d32d9996cc6581ef771507b0f8ccad1ec975d9c32292ba64f3e7497270f"},
+    "polymarket_scanner/v11/evidence.py": {"class":"ledger API: create, WAL, append","sha256":"98c865e5c5306adf38bb6f18c659edff191d6975d477ddc8482ddb7ce1b46d6e"},
     "polymarket_scanner/v11/model_artifacts.py": {"class":"generic artifact object writer","sha256":"4a5116458a936b3f98705cabe47eff788af11a876cc6db31f2186ab4e396f49c"},
     "polymarket_scanner/v11/paper_guardian.py": {"class":"config-selected EvidenceStore","sha256":"1eb759b70854ea5e2747e583e449011299769fc1f65e41f5a4e060a04bc89f50"},
     "polymarket_scanner/v11/shadow_commission.py": {"class":"caller-selected EvidenceStore","sha256":"49155c3d201575e547e10cdd5af9ea0d5c22b6e247cb6da00467773f74e6305b"},
