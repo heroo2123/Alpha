@@ -8265,3 +8265,7 @@ Recovered clean `344bd6b` / tree `881c333`, verified its three-file diff and aut
 ## 2026-10-08 00:49 UTC live host and watcher reconciliation
 
 Verified eight distinct pending tmux workers and healthy nonfinancial Shadow services; no finished candidate is awaiting intake. Read-only gateway reports V10 inactive/disabled and execution inactive/masked; forward observer financial authority is false. Stopped only the duplicate banked-reset watcher and confirmed the pidfile-designated watcher remains live. Disk free ~16.0 GiB, MemAvailable ~5.0 GiB. No provider, deployment, account, order, funding or safety-gate change; Gate-3 91/200, G3-L NO-GO, PAPER 9/11, READY_TO_FUND=false.
+
+## 2026-10-08 01:49 UTC quota-interrupted Gate-3 review resumed
+
+Launched a frozen, clean, different-model Codex Astra/high exact review of Sonnet `f4fba2e`, with independent adverse-control scope and retained `/tmp/alpha-g3l-binding-n5-codex-review-f4fba2e.*` terminal artifacts. Claude's earlier attempt stopped on a documented 04:50 UTC session cooldown without verdict. Two existing Codex repair writers continue in separate Gate-3 and PAPER worktrees; their dirty state was preserved. Root gateway safety masks and nonfinancial Shadow remain intact. No merge, provider request, acceptance credit, V10 change or financial action.
