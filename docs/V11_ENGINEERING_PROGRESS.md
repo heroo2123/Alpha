@@ -1,3 +1,7 @@
+## 2026-10-08 03:32 UTC next Brain residual assigned
+
+Started one isolated Sol/medium sole writer under `/tmp/alpha-brain-reader-r6b-20261008.{prompt,runner.sh,out,final,terminal}` to reproduce and narrowly repair the reviewed R6b parser-limit typed-refusal gap. It is independent of the held Gate-3/PAPER reviews and grants no Brain qualification. No merge or acceptance change.
+
 ## 2026-10-08 03:30 UTC Brain R3 reviewed integration completed
 
 Intook sealed Astra/high `PASS_IN_SCOPE` for `ffe7917` / tree `5cd2343`, retaining low-severity R6b parser-limit residual. Replayed its four-commit chain onto newer clean main in isolated worktree; three file blobs match exact reviewed SHA-1 objects. Adjacent tests passed 302/302 in normal and optimized Python; fast-forwarded main to `bd27086` and verified focused 68/68 per mode on actual main. This grants offline reader availability only, not Brain source/label/financial qualification. PAPER FIFO candidate remains `NO_VERDICT` after tool refusal and has an alternate-provider handoff after 04:50 UTC. Gate-3 remains 91/200, G3-L NO-GO; PAPER 9/11; READY_TO_FUND=false.
