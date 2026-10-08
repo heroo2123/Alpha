@@ -10,13 +10,22 @@ this module does not have a retained capture of -- that comparator is reported
 as a separate, explicit NOT_CAPTURED block, never silently substituted.
 
 Nothing here grants PAPER/Gate3/R09 qualification. Every reported lead is
-`candidate_*` and diagnostic. "Lead" means Alpha's own PWS receipt timestamp
-precedes Alpha's own official-capture receipt timestamp for the same event --
-never that the PWS *sensor* timestamp is merely earlier than the official
-*sensor* timestamp (source-measurement time is not a substitute for Alpha
-receive time, and no timezone/day-boundary reasoning is used to manufacture a
-lead). No network import exists in this module; it only opens files already
-present on disk.
+`candidate_*` and diagnostic, and deliberately never called "causal" --
+physical causality is never established, only a receipt-time ordering. A
+candidate requires: (1) Alpha's own PWS receipt timestamp strictly precedes
+Alpha's own official-capture receipt timestamp for the same event (never that
+the PWS *sensor* timestamp is merely earlier than the official *sensor*
+timestamp -- source-measurement time is not a substitute for Alpha receive
+time); (2) a confirmed AWC "straddle" -- the AWC poll immediately preceding
+the official instant's first-containing capture must demonstrably NOT yet
+have contained it, with no excessive inter-poll gap, so the lead window is
+pinned to that narrow bracket rather than an arbitrary lookback; and (3) the
+PWS observation time is not from before Xweather's own collection began (no
+credit for the collector's own startup backfill). The headline
+`any_candidate_lead_exists` flag is restricted to near (<=30km) stations; an
+any-distance count is reported separately as a secondary diagnostic only. No
+timezone/day-boundary reasoning is used to manufacture a lead, and no network
+import exists in this module; it only opens files already present on disk.
 """
 from __future__ import annotations
 
@@ -26,6 +35,7 @@ import gzip
 import hashlib
 import json
 import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,6 +53,10 @@ LOOKBACK_SECONDS = 3600.0       # Candidate PWS observations must be no older th
 MAX_ARTIFACT_BYTES = 2_000_000
 MAX_AWC_BYTES = 1_310_720
 AWC_MAX_AGE_SECONDS = 10800.0
+MAX_STRADDLE_GAP_SECONDS = 1800.0   # AWC poll cadence is ~416-615s; a wider gap means the two polls
+                                    # bracketing an instant don't reliably pin its publish moment, so
+                                    # that instant is excluded rather than treated as a lead window.
+XWEATHER_ARTIFACT_NAME_RE = re.compile(r"^xweather-[0-9]{8}T[0-9]{6}-[0-9a-f]{6,}\.json$")
 
 DEFAULT_XWEATHER_ROOT = Path("/home/alphaadmin/AlphaV11_XweatherEvaluation")
 DEFAULT_AWC_ROOT = Path("/home/alphaadmin/AlphaV11_OfficialObservationWatch")
@@ -110,7 +124,28 @@ def _load_journal(root: Path) -> list[dict]:
         row.setdefault("key_slot", 1)
         if row["key_slot"] not in (1, 2):
             raise EvidenceError("XWEATHER_JOURNAL_UNRECOGNIZED_SLOT")
+        if (type(row["artifact"]) is not str or not XWEATHER_ARTIFACT_NAME_RE.match(row["artifact"])
+                or "/" in row["artifact"] or "\\" in row["artifact"]):
+            raise EvidenceError("XWEATHER_JOURNAL_ARTIFACT_NAME_REJECTED:" + str(row["artifact"]))
         rows.append(row)
+    return rows
+
+
+def _load_awc_journal(root: Path) -> dict[str, dict]:
+    path = root / "journal.jsonl"
+    rows: dict[str, dict] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if type(row) is not dict:
+            raise EvidenceError("AWC_JOURNAL_ROW_SHAPE")
+        for key in ("artifact", "artifact_sha256", "raw_sha256", "receipt_time"):
+            if key not in row:
+                raise EvidenceError("AWC_JOURNAL_ROW_MISSING_FIELD:" + key)
+        if type(row["artifact"]) is not str or "/" in row["artifact"] or row["artifact"] in (".", ".."):
+            raise EvidenceError("AWC_JOURNAL_ARTIFACT_NAME_REJECTED:" + str(row["artifact"]))
+        rows[row["artifact"]] = row
     return rows
 
 
@@ -281,6 +316,8 @@ def summarize_xweather(snapshots: list[XweatherSnapshot], *, redact: bool) -> di
 
     near_stations = {label for label, dists in distance_by_station.items() if min(dists) <= NEAR_DISTANCE_KM}
     far_stations = set(distance_by_station) - near_stations
+    qc_passing_station_count = len(observed_by_station)
+    collection_started_at = min((snap.received_epoch for snap in snapshots), default=None)
 
     return {
         "near_station_labels": near_stations,
@@ -288,101 +325,199 @@ def summarize_xweather(snapshots: list[XweatherSnapshot], *, redact: bool) -> di
         "distinct_raw_payload_count": len(distinct_raw),
         "duplicate_snapshot_count": len(snapshots) - len(distinct_raw),
         "distinct_station_count": len(distance_by_station),
+        "distinct_station_count_qc_passing": qc_passing_station_count,
         "distinct_station_count_near_katl": len(near_stations),
         "distinct_station_count_farther": len(far_stations),
         "distinct_observation_pair_count": len(earliest_receipt),
         "distance_drift_flagged_stations": [_redact(s) if redact else s for s in distance_drift],
         "station_cadence": cadence,
         "earliest_receipt_by_observation": earliest_receipt,
+        "collection_started_at": collection_started_at,
         "caveat": (
-            "Station count reflects whatever the provider labels QC10/trust>=80 in "
-            "this single capture window; it is NOT independent proof of 97 distinct "
-            "genuine outdoor sensors (station identity/ownership is unverified here)."
+            f"distinct_station_count ({len(distance_by_station)}) is every station seen in this "
+            f"capture window at any QC/trust level, NOT independent proof of distinct genuine "
+            f"outdoor sensors (station identity/ownership is unverified here); only "
+            f"distinct_station_count_qc_passing ({qc_passing_station_count}) reflects stations the "
+            "provider labelled QC10/trust>=80 at least once."
         ),
     }
 
 
-def load_official_captures(root: Path) -> list[dict]:
-    """Independently re-verify retained AWC KATL captures and parse them with
-    the already-reviewed `parse_awc_metar` adapter (reused, not re-derived)."""
+def load_official_captures(root: Path) -> dict:
+    """Independently re-verify retained AWC KATL captures, binding every file to
+    the AWC journal (artifact SHA + declared receipt time), and parse each with
+    the already-reviewed `parse_awc_metar` adapter (reused, not re-derived).
+
+    Fail-closed: any file not present in the journal, or whose artifact SHA,
+    raw SHA, or declared receipt time disagrees with the journal's recorded
+    value, aborts the whole read -- same style as the Xweather-side journal
+    check in this module. Returns one row per capture *file* (not per parsed
+    observation) so later straddle/gap reasoning can see the full AWC poll
+    timeline, including polls that did not yet contain any usable observation.
+    """
     import datetime as dt
 
-    official = []
+    journal = _load_awc_journal(root)
+    captures = []
+    skipped_unverified_identity_count = 0
+    rejected_item_count = 0
     for path in sorted(root.glob("awc-katl-*.json")):
+        journal_row = journal.get(path.name)
+        if journal_row is None:
+            raise EvidenceError("AWC_ARTIFACT_NOT_JOURNALED:" + path.name)
         blob = _read_bounded(path, MAX_AWC_BYTES)
+        if _sha256(blob) != journal_row["artifact_sha256"]:
+            raise EvidenceError("AWC_ARTIFACT_SHA_JOURNAL_MISMATCH:" + path.name)
         record = json.loads(blob)
         if type(record) is not dict:
             raise EvidenceError("AWC_ARTIFACT_SHAPE")
         raw = base64.b64decode(record["raw_body_b64"], validate=True)
         if _sha256(raw) != record.get("raw_sha256") or len(raw) != record.get("raw_byte_length"):
             raise EvidenceError("AWC_RAW_SHA_OR_LENGTH_MISMATCH:" + path.name)
+        if record.get("raw_sha256") != journal_row["raw_sha256"]:
+            raise EvidenceError("AWC_RAW_SHA_JOURNAL_MISMATCH:" + path.name)
+        if record.get("response_received_utc") != journal_row["receipt_time"]:
+            raise EvidenceError("AWC_RECEIPT_TIME_JOURNAL_MISMATCH:" + path.name)
         if record.get("station_identity_verified") is not True:
+            skipped_unverified_identity_count += 1
             continue
         receipt = dt.datetime.fromisoformat(record["response_received_utc"].replace("Z", "+00:00")).timestamp()
         payload = json.loads(raw)
         parsed = parse_awc_metar(payload, station="KATL", received_at=receipt, max_age_seconds=AWC_MAX_AGE_SECONDS)
-        for obs in parsed["observations"]:
-            official.append({
-                "observed_at": obs["observed_at"], "received_at": receipt,
-                "temperature_c": obs["temperature_c"], "source_file": path.name,
-                "raw_sha256": record["raw_sha256"],
-            })
-    return official
+        rejected_item_count += sum(parsed["rejections"].values())
+        captures.append({
+            "source_file": path.name,
+            "received_at": receipt,
+            "raw_sha256": record["raw_sha256"],
+            "observations": [{"observed_at": obs["observed_at"], "temperature_c": obs["temperature_c"]}
+                              for obs in parsed["observations"]],
+        })
+    captures.sort(key=lambda c: c["received_at"])
+    return {"captures": captures,
+            "skipped_unverified_identity_capture_count": skipped_unverified_identity_count,
+            "rejected_item_count": rejected_item_count}
 
 
-def summarize_official(official: list[dict]) -> dict:
+def summarize_official(official: dict) -> dict:
+    """Build the first-receipt table, and for each official instant determine
+    whether the AWC poll immediately preceding its first-containing capture
+    confirms a genuine straddle: that poll must exist (collector was already
+    running -- no credit for the collector's own startup/warm-up gap), must not
+    already contain the observation, and must not be separated from the
+    first-containing capture by an abnormally large AWC poll gap. An instant
+    that fails any of those is `straddle_confirmed=False` and is excluded from
+    lead evaluation entirely rather than silently treated as a lead window."""
+    ordered = sorted(official["captures"], key=lambda c: c["received_at"])
     first_receipt: dict[float, dict] = {}
-    for row in official:
-        key = row["observed_at"]
-        prior = first_receipt.get(key)
-        if prior is None or row["received_at"] < prior["received_at"]:
-            first_receipt[key] = row
-    return {"distinct_official_observation_count": len(first_receipt),
-            "official_capture_count": len(official), "by_observed_at": first_receipt}
+    official_capture_count = 0
+    for idx, cap in enumerate(ordered):
+        official_capture_count += len(cap["observations"])
+        for obs in cap["observations"]:
+            key = obs["observed_at"]
+            prior = first_receipt.get(key)
+            if prior is None or cap["received_at"] < prior["received_at"]:
+                first_receipt[key] = {"received_at": cap["received_at"],
+                                       "temperature_c": obs["temperature_c"], "capture_index": idx}
+
+    by_observed_at = {}
+    for observed_at, row in first_receipt.items():
+        idx = row["capture_index"]
+        straddle_confirmed, straddle_lower_bound, censored_reason = False, None, None
+        if idx == 0:
+            censored_reason = "NO_PRECEDING_AWC_CAPTURE_COLLECTOR_STARTUP"
+        else:
+            preceding = ordered[idx - 1]
+            if any(o["observed_at"] == observed_at for o in preceding["observations"]):
+                censored_reason = "PRECEDING_CAPTURE_ALREADY_CONTAINED_OBSERVATION"
+            elif row["received_at"] - preceding["received_at"] > MAX_STRADDLE_GAP_SECONDS:
+                censored_reason = "AWC_POLL_GAP_TOO_LARGE"
+            else:
+                straddle_confirmed = True
+                straddle_lower_bound = preceding["received_at"]
+        by_observed_at[observed_at] = {
+            "observed_at": observed_at, "received_at": row["received_at"],
+            "temperature_c": row["temperature_c"], "straddle_confirmed": straddle_confirmed,
+            "straddle_lower_bound": straddle_lower_bound, "censored_reason": censored_reason,
+        }
+
+    return {"distinct_official_observation_count": len(by_observed_at),
+            "official_capture_count": official_capture_count, "by_observed_at": by_observed_at,
+            "skipped_unverified_identity_capture_count": official["skipped_unverified_identity_capture_count"],
+            "rejected_item_count": official["rejected_item_count"]}
 
 
 def pair_forward_evidence(xweather_summary: dict, official_summary: dict, *, redact: bool) -> dict:
-    """Score candidate causal lead: Alpha's PWS receipt strictly before Alpha's
-    own first receipt of the official instant. Source/observation timestamps
-    are only used to scope which PWS readings are even relevant in time; the
-    pass/fail test itself is receipt-time vs receipt-time, never
-    observation-time vs observation-time, and never a timezone/day-boundary
-    substitute for an actual receipt comparison."""
+    """Score candidate receipt lead: Alpha's PWS receipt strictly after the
+    confirmed straddle's lower bound (the preceding AWC poll that did NOT yet
+    contain the official observation) and strictly before Alpha's own first
+    receipt of the official instant. This is deliberately not called a
+    "causal" lead -- causality in the physical sense is never established,
+    only receipt-time ordering bounded by a confirmed AWC straddle. Source/
+    observation timestamps only scope which PWS readings are even relevant in
+    time; the pass/fail test itself is receipt-time vs receipt-time."""
     earliest = xweather_summary["earliest_receipt_by_observation"]
     near_labels = xweather_summary["near_station_labels"]
+    collection_started_at = xweather_summary["collection_started_at"]
     rows = []
     for observed_at, official_row in sorted(official_summary["by_observed_at"].items()):
         official_received_at = official_row["received_at"]
+        if not official_row["straddle_confirmed"] or collection_started_at is None:
+            rows.append({
+                "official_observed_at": observed_at,
+                "official_received_at": official_received_at,
+                "official_temperature_c": official_row["temperature_c"],
+                "lead_evaluation_excluded": True,
+                "lead_evaluation_excluded_reason": (
+                    official_row["censored_reason"] or "NO_XWEATHER_COLLECTION_HISTORY"),
+                "candidate_receipt_lead_count": 0,
+                "candidate_within_near_distance_count": 0,
+                "candidate_lead_exists": False,
+                "candidate_near_lead_exists": False,
+                "candidate_station_ids": [],
+            })
+            continue
+        lower_bound = official_row["straddle_lower_bound"]
         candidates = [(label, obs_time, alpha_receipt)
                       for (label, obs_time), alpha_receipt in earliest.items()
                       if observed_at - LOOKBACK_SECONDS <= obs_time <= observed_at
-                      and alpha_receipt < official_received_at]
+                      and obs_time >= collection_started_at
+                      and lower_bound < alpha_receipt < official_received_at]
         near_candidates = [c for c in candidates if c[0] in near_labels]
         rows.append({
             "official_observed_at": observed_at,
             "official_received_at": official_received_at,
             "official_temperature_c": official_row["temperature_c"],
-            "candidate_causal_pws_count": len(candidates),
+            "lead_evaluation_excluded": False,
+            "lead_evaluation_excluded_reason": None,
+            "candidate_receipt_lead_count": len(candidates),
             "candidate_within_near_distance_count": len(near_candidates),
             "candidate_lead_exists": bool(candidates),
             "candidate_near_lead_exists": bool(near_candidates),
             "candidate_station_ids": sorted({(_redact(label) if redact else label) for label, _, _ in candidates}),
         })
     return {"official_comparison": rows,
-            "any_candidate_lead_exists": any(r["candidate_lead_exists"] for r in rows),
-            "note": "candidate_* fields only; receipt-time comparison, not observation-time substitution"}
+            "any_candidate_lead_exists": any(r["candidate_near_lead_exists"] for r in rows),
+            "any_candidate_any_distance_lead_exists_secondary_diagnostic_only": any(
+                r["candidate_lead_exists"] for r in rows),
+            "note": ("any_candidate_lead_exists is the near (<=30km) headline flag, gated on a confirmed "
+                     "AWC straddle; the any-distance field is a secondary, non-headline diagnostic only. "
+                     "candidate_* fields are receipt-time comparisons, not observation-time substitution, "
+                     "and are not evidence of physical causality.")}
 
 
 def build_report(xweather_root: Path, awc_root: Path, *, redact: bool = True) -> dict:
     snapshots = load_xweather_snapshots(xweather_root)
     xweather_summary = summarize_xweather(snapshots, redact=redact)
-    official_rows = load_official_captures(awc_root)
-    official_summary = summarize_official(official_rows)
+    official_loaded = load_official_captures(awc_root)
+    official_summary = summarize_official(official_loaded)
     pairing = pair_forward_evidence(xweather_summary, official_summary, redact=redact)
 
     xweather_report = dict(xweather_summary)
     xweather_report.pop("earliest_receipt_by_observation")
     xweather_report.pop("near_station_labels")
+
+    receipts = [snap.received_epoch for snap in snapshots]
+    capture_span_minutes = round((max(receipts) - min(receipts)) / 60.0, 1) if receipts else 0.0
 
     return {
         "version": VERSION,
@@ -390,12 +525,14 @@ def build_report(xweather_root: Path, awc_root: Path, *, redact: bool = True) ->
         "official_awc_comparator": {
             "distinct_official_observation_count": official_summary["distinct_official_observation_count"],
             "official_capture_count": official_summary["official_capture_count"],
+            "skipped_unverified_identity_capture_count": official_summary["skipped_unverified_identity_capture_count"],
+            "rejected_item_count": official_summary["rejected_item_count"],
             "comparator_role": "DIAGNOSTIC_LEAD_SCOPE_ONLY_NOT_SETTLEMENT_SOURCE",
         },
         "wrh_hourly_comparator": WRH_HOURLY_COMPARATOR,
         "forward_lead_pairing": pairing,
         "limitations": [
-            "Single evaluation session, ~35 minutes of Xweather capture history: "
+            f"Single evaluation session, ~{capture_span_minutes} minutes of Xweather capture history: "
             "insufficient for temporal-stability or quality qualification.",
             "Xweather-reported station QC10/trust>=80 count is not independent "
             "proof of genuinely distinct, independently sited outdoor sensors.",
