@@ -1,3 +1,44 @@
+## 2026-10-08 17:48 UTC Prior round-5 Opus review found orphaned (never actually executed); re-launched against the still-intact frozen intake
+
+Coordinator restart. Did not take the 17:28Z entry's "round-5 independent Opus review launched" on
+faith. Checked actual host state: `tmux ls` shows only the two persistent infra processes
+(`alpha-daily-shadow`, `alpha-forward-observer`, both genuinely running, confirmed via
+`/proc/<pid>/cmdline`); `ps auxww` shows no Opus/review process anywhere; no `.terminal`, `.verdict.json`,
+or `.report.md` exists for `8fe407a` under `/tmp` or `/home/alphaadmin/AlphaV11_Reviews` (only the
+read-only frozen intake dir, its 1540-entry sha256 manifest, and a writable scratch copy, all dated
+17:17-17:20Z, nothing after). Conclusion: the previously-reported review launch did not produce a
+running process or any output and must be treated as lost, not pending. Independently re-verified the
+frozen intake is still byte-exact (`sha256sum -c` against the 1540-entry manifest: exit 0, 0 mismatches)
+before reusing it. Re-launched the round-5 independent Opus review fresh (background agent, not yet
+returned as of this entry) with the full `dce1f95`->`8fe407a` diff, the prior round-3/`dce1f95` verdict
+for context, and explicit instructions to independently re-verify integrity, read the real diff itself
+(not the repair's self-description), adversarially probe the five specific concerns already identified
+in the 17:28Z entry (page_prefix extraction behavior-preservation, frontier_tip_sha256/frontier_sha256
+exclusion safety, pin_read_view/page_through sequencing, through_seq<=row['seq'] early-return
+correctness, and the new reason code's own failure modes), run real tests plus its own mutations in the
+existing writable scratch copy, and give an explicit merge-readiness recommendation rather than another
+open-ended round.
+
+Also independently confirmed, read-only, that no other genuinely ready non-duplicate critical-path lane
+exists right now: the second independent PAPER R08 lane (`alpha-paper-execution-contract-20261008`)
+already exited clean at 14:58:42Z (folded into this same R08 contract thread, not a separate open lane);
+INVENTORYTRANSFORM's supervisor (`pid 1003`, running since Oct 7) has genuinely diversified past the
+single Singapore fixture -- `supervisor-status.json` shows `inputs_seen=2` including a real Tokyo intake
+file from a dedicated `intake/` directory, iteration 1831, timestamp matching current wall clock, no new
+action needed; all G3 clock/storage witnesses and the NOAA AWC/offline-PWS cron jobs are current
+(freshest files within the last 0-5 minutes) and confirmed the offline PWS comparator makes zero network
+calls (greped its source: it only globs retained `madis-guest-one-shot-*.json` files, confirming the
+"no automatic MADIS guest request is scheduled" constraint actually holds in the deployed cron, not just
+in prose). Did not relaunch any of these. Per this project's adaptive-parallelism guidance, did not force
+additional lanes merely to approach the stated target of 3 -- the only concrete, ready, unblocked, named
+work was this one review; R08 wiring remains correctly blocked pending its result, and G3-L/Xweather/NOAA
+MADIS remain genuinely owner- or rights-gated (see escalation markers below), not code-blocked.
+
+This is process, not evidence: no selected-window identity, provider-rights evidence, PAPER real
+reservation/PWS evidence, Brain qualification, or READY_TO_FUND credit changes. `R89-2` remains
+UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**;
+**READY_TO_FUND=false**.
+
 ## 2026-10-08 17:28 UTC Round-5 Sonnet repair of R3-M1 independently verified and landed (`8fe407a`); round-5 independent Opus review launched
 
 Did not take the repair lane's hand-back on faith. Independently confirmed via `git log`/`git status`
