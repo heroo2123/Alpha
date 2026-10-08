@@ -5633,6 +5633,6 @@ Frozen Gate-3 final-byte `da29ff1` entered a fresh independent Claude exact revi
 ## 2026-10-08 05:00 UTC offline six-record candidate under exact review
 
 Clean `b4078f9` is a historical-evidence seed candidate with only provisional author tests; frozen different-model exact review is live at `/tmp/alpha-future-daily-six-record-review-b4078f9.*`. It does not establish current-day rule/source proof, invalidating-history clearance, protected generation review, root commissioning or active daily audit. Oct 8/9 originals remain gapped. Gate-3 **91/200 (formal 1/50)** with 77 unqualified identities and G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No requirement or C/J/E/A credit changes.
-## 2026-10-08 05:02 UTC Gate-3 descriptor and daily generation map
+## 2026-10-08 05:01 UTC Gate-3 descriptor and daily generation map
 
 `3a7dd98` has independent `PASS_IN_SCOPE` for the F1 offline custody fix, while current-executable F2 pin drift remains a hard integration/qualification blocker. The daily v2 publisher/consumer map is read-only and identifies unresolved supersession schema and root commissioning work. Gate-3 **91/200 (formal 1/50)**, 77 unqualified identities, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**. No C/J/E/A or requirement crossing.
