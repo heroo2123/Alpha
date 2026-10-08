@@ -530,6 +530,50 @@ def test_latest_ready_run_selected_at_conservative_bound(tmp_path, monkeypatch):
         validate(payload, repo, root, start)
 
 
+@pytest.mark.parametrize('field,value', [
+    ('run_utc', True), ('ready_upper_utc', True),
+])
+def test_run_candidate_rejects_bool_as_int(tmp_path, monkeypatch, field, value):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['runs_and_slots']['candidates'][0][field] = value
+    with expect_refusal('RUN_CANDIDATE_VALUE'):
+        validate(payload, repo, root, start)
+
+
+def test_run_candidate_rejects_missing_key(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    del payload['runs_and_slots']['candidates'][0]['ready_upper_utc']
+    with expect_refusal('RUN_CANDIDATE_SCHEMA'):
+        validate(payload, repo, root, start)
+
+
+def test_run_candidates_rejects_duplicate_entry(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['runs_and_slots']['candidates'].append(
+        dict(payload['runs_and_slots']['candidates'][0]))
+    with expect_refusal('RUN_CANDIDATES'):
+        validate(payload, repo, root, start)
+
+
+def test_run_candidates_rejects_missing_entry(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['runs_and_slots']['candidates'].pop()
+    with expect_refusal('RUN_CANDIDATES'):
+        validate(payload, repo, root, start)
+
+
+@pytest.mark.parametrize('key,delta', [
+    ('effective_run_start_utc', 1), ('effective_run_end_utc', -1),
+])
+def test_run_time_rejects_run_outside_effective_range(tmp_path, monkeypatch, key, delta):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    provider = next(iter(payload['runs_and_slots']['run_utc']))
+    run = payload['runs_and_slots']['run_utc'][provider]
+    payload['sources'][provider][key] = run + delta
+    with expect_refusal('RUN_TIME'):
+        validate(payload, repo, root, start)
+
+
 def test_schedule_rejects_cross_provider_reuse_and_unknown_prerequisites(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['schedule']['attempt_slots'].append(775)
