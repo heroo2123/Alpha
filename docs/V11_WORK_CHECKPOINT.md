@@ -1,3 +1,54 @@
+## 2026-10-08 18:48 UTC InventoryTransform intake diversified beyond the single looping Singapore fixture; two engineering lanes launched/managed, adds no new C/J/E/A credit
+
+Third-priority task: the `inventory_supervisor.py` loop (PID 1003, iteration ~1889) was looping every
+60s on one static Singapore fixture plus one Tokyo file added earlier today -- both already-reviewed
+extracts of the *same single* already-retained saved Polymarket Data-API v2 `/activity` page
+(`/home/alphaadmin/donthackme-research-20261001/activity_v2_page0.json`, confirmed by SHA-256
+`dec9803a...` matching the value already declared inside the accepted Singapore fixture). That raw
+page contains dozens of distinct `event_slug` values beyond the two already extracted, including
+several more `highest-temperature-in-*` weather markets. Mechanically repeated the exact
+already-accepted extraction method (verbatim event_slug filter, byte-for-byte subset, full provenance
+note) for four more: Atlanta (8 rows), Madrid (26), Paris (27), Milan (30) -- genuinely new intake
+variety from already-retained bytes, zero network, zero account access, zero new code. Did this
+directly rather than via an agent since it is a mechanical repeat of an already-reviewed method, not a
+judgment call.
+
+First attempt at each new fixture failed closed correctly: `inventory_shadow_start` refused with
+`DECLARED_COVERAGE_MISMATCH` because the first draft omitted the `pagination` block nested inside
+`payload` (present in the accepted Singapore/Tokyo fixtures) -- without it, `structural_evidence.py`'s
+`_page_rows` cannot determine `has_more` and falls back to `Coverage.UNKNOWN` instead of matching the
+declared `INCOMPLETE`. Fixed by including the identical `pagination` dict from the same source page;
+re-ran `python3 -m polymarket_scanner.v11.inventory_shadow_start` against each of the four new intake
+files directly (not just waiting for the 60s supervisor loop) and confirmed all four now produce
+`coverage: INCOMPLETE`, `created: true`, `qualification: false`, `financial_authority: false` --
+matching the Singapore/Tokyo precedent exactly, no fabricated completeness, no account/order effects.
+Files live in `/home/alphaadmin/AlphaV11_InventoryShadow/intake/` (private, non-repo, mode 0700/0600),
+each with its own `*.PROVENANCE.txt` following the existing Tokyo note's format. This is diagnostic
+intake diversity only -- `qualification` and `financial_authority` are hardcoded `false` throughout
+this pipeline regardless of input; it is not Brain calibration, not PAPER evidence, not Gate-3
+evidence, and grants no credit.
+
+Two specialist lanes active against the live adaptive-parallelism target (3; currently 2 filled,
+checked via `tmux ls` + `ps aux` before launching, no duplicates):
+- `alpha-r08-measurement-writer-20261008` (Claude Sonnet/high, tmux session + worktree
+  `/tmp/alpha-r08-measurement-writer-20261008`, frozen at `1790863`): still in progress (untracked
+  `paper_execution_health_measurement.py` + its test file present, not yet committed by the agent);
+  not duplicated.
+- NEW: independent Opus/high adversarial review of the already-completed R09 Xweather-forward
+  diagnostic candidate (`alpha-r09-xweather-forward-20261008`, commit `67f31c4`, exit_code=0,
+  handoff at `/tmp/alpha-r09-xweather-forward-20261008.handoff.md`). Froze a byte-pinned clone at
+  `/home/alphaadmin/AlphaV11_Reviews/r09-xweather-forward-opus-review-20261008` (sha256 of the new
+  module verified identical to the `/tmp` worktree before handing it to the reviewer, per this
+  project's standing practice of never reviewing a moving target). The candidate itself is new code,
+  not yet reviewed, not merged, not pushed; it hardcodes every qualification flag false and its own
+  real-data smoke run already found `any_candidate_lead_exists: false` (correctly -- the Xweather
+  collector is too new relative to AWC's longer retained history for a genuine lead to exist yet).
+  Review verdict pending.
+
+No selected-window identity, provider-rights evidence, PAPER real reservation/PWS evidence, Brain
+qualification, or READY_TO_FUND credit changes. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal
+1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 18:34 UTC R08 PAPER execution-health promotion contract merged into main (`c9b3687`) after six independently-reviewed rounds; still inert, zero C/J/E/A credit
 
 The final close-out Opus review of `4057646` returned PASS_IN_SCOPE with an explicit merge
