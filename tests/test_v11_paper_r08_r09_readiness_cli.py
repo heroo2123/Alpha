@@ -50,29 +50,6 @@ def _sidecar_listing(path):
     return sorted(p.name for p in path.parent.glob(path.name + '*'))
 
 
-def _wal_size(path):
-    wal = Path(str(path) + '-wal')
-    return wal.stat().st_size if wal.exists() else None
-
-
-def _assert_listing_unchanged_or_gained_only_empty_sidecars(path, before_listing, before_wal_size):
-    # The CLI never removes a `-wal`/`-shm` sidecar (removing one could
-    # destroy a concurrent writer's already-committed record -- see
-    # `_anchored_snapshot`'s docstring). A store that had none may gain an
-    # empty `-wal` plus a `-shm`, the same residue `EvidenceStore.__init__`'s
-    # own `mode=ro` inspection already leaves; it must never lose a sidecar
-    # or grow a non-empty one.
-    after_listing = _sidecar_listing(path)
-    allowed = set(before_listing) | {path.name + '-wal', path.name + '-shm'}
-    assert set(after_listing) <= allowed
-    assert set(before_listing) <= set(after_listing)
-    after_wal_size = _wal_size(path)
-    if before_wal_size is not None:
-        assert after_wal_size == before_wal_size
-    else:
-        assert after_wal_size in (None, 0)
-
-
 def _membership_dict(m):
     return dict(station=m.station, city=m.city, region=m.region,
                weather_groups=list(m.weather_groups), source_groups=list(m.source_groups),
@@ -141,12 +118,9 @@ def _wait_for(predicate, timeout=10.0):
 
 class _SchemaReadHook:
     """Run ``action()`` synchronously the first time any connection the CLI
-    module opens executes a read of ``sqlite_schema`` -- the anchored
-    snapshot's own first query against the caller's source store. This
-    forces a deterministic writer/CLI interleaving instead of a
-    timing-based sleep, so the concurrency regression tests below are not
-    flaky and see the same interleaving under both normal and `-O`
-    interpreters.
+    module opens reads ``sqlite_schema`` from its private staged copy. This
+    forces a deterministic writer/CLI interleaving before the CLI returns,
+    with no SQLite connection to the caller's source store.
     """
     def __init__(self, action):
         self.action = action
@@ -532,13 +506,7 @@ def test_rollback_journal_store_refusal_is_byte_and_mtime_identical(factory, tmp
     assert _sidecar_listing(c.store.path) == before_listing
 
 
-def test_wal_store_without_sidecars_gains_only_empty_sidecars_on_refusal(factory, tmp_path):
-    # Revised after independent review F1: the CLI must never unlink a
-    # `-wal`/`-shm` sidecar, including one its own `mode=ro` inspection just
-    # created, because a concurrent writer could be relying on it (see
-    # `_anchored_snapshot`'s docstring). So a plain WAL-mode store that had
-    # no sidecars may gain an empty `-wal`/`-shm` pair, but never loses one
-    # and never gains a non-empty one.
+def test_wal_store_without_sidecars_stays_sidecar_free_on_refusal(factory, tmp_path):
     rig = factory()
     c = r08_coordinator(rig)
     assert not Path(str(c.store.path) + '-wal').exists()
@@ -550,10 +518,10 @@ def test_wal_store_without_sidecars_gains_only_empty_sidecars_on_refusal(factory
     cfg_path.write_text(json.dumps(cfg))
     assert main([str(cfg_path)]) == 1
     assert c.store.path.read_bytes() == before_bytes
-    _assert_listing_unchanged_or_gained_only_empty_sidecars(c.store.path, before_listing, None)
+    assert _sidecar_listing(c.store.path) == before_listing
 
 
-def test_wal_store_without_sidecars_gains_only_empty_sidecars_on_success(factory, tmp_path):
+def test_wal_store_without_sidecars_stays_sidecar_free_on_success(factory, tmp_path):
     rig = factory()
     c = r08_coordinator(rig)
     assert not Path(str(c.store.path) + '-wal').exists()
@@ -563,7 +531,7 @@ def test_wal_store_without_sidecars_gains_only_empty_sidecars_on_success(factory
     cfg_path.write_text(json.dumps(_config(c)))
     assert main([str(cfg_path)]) == 0
     assert c.store.path.read_bytes() == before_bytes
-    _assert_listing_unchanged_or_gained_only_empty_sidecars(c.store.path, before_listing, None)
+    assert _sidecar_listing(c.store.path) == before_listing
 
 
 def test_live_uncheckpointed_wal_sidecars_are_neither_checkpointed_nor_deleted(factory, tmp_path, capsys):
@@ -606,13 +574,12 @@ def test_live_uncheckpointed_wal_sidecars_are_neither_checkpointed_nor_deleted(f
     assert sorted(after) == before_listing  # no file added, removed, or renamed
     assert after[retained_store.name] == before[retained_store.name]  # main bytes untouched
     assert after[retained_store.name + '-wal'] == before[retained_store.name + '-wal']  # WAL untouched
+    assert after[retained_store.name + '-shm'] == before[retained_store.name + '-shm']  # SHM untouched
 
 
-def test_read_only_media_fails_closed_without_mutation(factory, tmp_path):
-    # Mirrors the review's P4: a store on genuinely read-only media (no
-    # pre-existing sidecars to reuse) cannot be opened at all -- SQLite
-    # itself cannot attach a WAL-mode database without creating a wal-index
-    # -- but that must fail closed, never partially mutate the source.
+def test_read_only_media_is_captured_without_mutation(factory, tmp_path):
+    # SQLite only opens the private staged copy, so the source needs read
+    # permission but its directory need not allow sidecar creation.
     rig = factory()
     c = r08_coordinator(rig)
     cfg_path = tmp_path / 'cfg.json'
@@ -622,7 +589,7 @@ def test_read_only_media_fails_closed_without_mutation(factory, tmp_path):
     os.chmod(c.store.path, 0o400)
     os.chmod(parent, 0o500)
     try:
-        assert main([str(cfg_path)]) == 1
+        assert main([str(cfg_path)]) == 0
     finally:
         os.chmod(parent, 0o700)
         os.chmod(c.store.path, 0o600)
@@ -741,20 +708,15 @@ def test_rollback_journal_store_byte_identical_under_subprocess(tmp_path, interp
 # identifies those files by path, not by creator, so a writer that attaches
 # during the snapshot shares exactly the sidecars the CLI just created and
 # is relying on them: the writer's commit returns success, but the record
-# lands only in the WAL (the CLI's held read transaction blocks the
-# writer's close-time checkpoint from folding it into the main file), and
-# the CLI's unlink then silently destroys it. Each test here forces that
-# exact interleaving deterministically, through `_SchemaReadHook`, rather
-# than relying on timing, so it fails the same way under both the normal
-# and the `-O` interpreter.
+# lands only in the WAL and the CLI's unlink then silently destroys it.
+# These tests retain the committed-record check with a writer triggered
+# while the CLI reads its private copy.
 
 def test_concurrent_writer_commit_during_snapshot_survives_on_success(tmp_path):
     tmp_path.chmod(0o700)
     store_path = tmp_path / 'evidence.sqlite'
     EvidenceStore(store_path, 'V11_PAPER')
     assert not Path(str(store_path) + '-wal').exists()
-    before_bytes = store_path.read_bytes()
-    before_mtime = store_path.stat().st_mtime_ns
     record_id = 'concurrent-commit-success'
     cfg_path = tmp_path / 'cfg.json'
     cfg_path.write_text(json.dumps(_bare_store_cfg(store_path)))
@@ -764,10 +726,8 @@ def test_concurrent_writer_commit_during_snapshot_survives_on_success(tmp_path):
 
     if rc != 0:
         raise AssertionError(f'CLI success path refused: {rc}')
-    if store_path.read_bytes() != before_bytes or store_path.stat().st_mtime_ns != before_mtime:
-        raise AssertionError('the source database main file changed during the snapshot')
-    if not _wal_size(store_path):
-        raise AssertionError('the concurrent writer\'s committed WAL frames were removed')
+    # With no CLI reader holding a source transaction, the writer may
+    # legitimately checkpoint its own WAL into the main file.
     if _record_count(store_path, record_id) != 1:
         raise AssertionError('a committed concurrent record was lost on the success path')
 
@@ -779,8 +739,6 @@ def test_concurrent_writer_commit_during_snapshot_survives_on_refusal(tmp_path):
     store_path = tmp_path / 'evidence.sqlite'
     EvidenceStore(store_path, 'V11_PAPER')
     assert not Path(str(store_path) + '-wal').exists()
-    before_bytes = store_path.read_bytes()
-    before_mtime = store_path.stat().st_mtime_ns
     record_id = 'concurrent-commit-refusal'
     cfg = _bare_store_cfg(store_path, namespace='CHALLENGER:wrong')
     cfg_path = tmp_path / 'cfg.json'
@@ -791,10 +749,6 @@ def test_concurrent_writer_commit_during_snapshot_survives_on_refusal(tmp_path):
 
     if rc != 1:
         raise AssertionError(f'CLI refusal path returned {rc}')
-    if store_path.read_bytes() != before_bytes or store_path.stat().st_mtime_ns != before_mtime:
-        raise AssertionError('the source database main file changed during the refusal')
-    if not _wal_size(store_path):
-        raise AssertionError('the concurrent writer\'s committed WAL frames were removed')
     if _record_count(store_path, record_id) != 1:
         raise AssertionError('a committed concurrent record was lost on the refusal path')
 
@@ -1000,3 +954,196 @@ def test_persistent_ancestor_symlink_swap_is_refused(tmp_path, monkeypatch, caps
     saved = container / 'saved-original' / source.name
     if not original_dir.is_symlink() or (saved.read_bytes(), saved.stat().st_mtime_ns) != (original_bytes, original_mtime):
         raise AssertionError('persistent swap or original source was changed')
+
+
+@pytest.mark.parametrize('interpreter_flags', [(), ('-O',)])
+@pytest.mark.parametrize('alias_kind', ('plain', 'foreign-shm', 'main-shm', 'same-main-foreign-shm'))
+def test_late_ancestor_swap_refuses_before_replacement_victim_changes(
+        tmp_path, interpreter_flags, alias_kind):
+    # Adapted from the retained independent late_ancestor.py probe. SQLite
+    # once resolved source sidecars after connect, through a swapped ancestor.
+    # The final path check refused only after writing a hard-linked SHM victim.
+    container = tmp_path / 'public'
+    container.mkdir(mode=0o777)
+    container.chmod(0o777)
+    original_dir = container / 'original'
+    replacement_dir = tmp_path / 'replacement'
+    original_dir.mkdir(mode=0o700)
+    replacement_dir.mkdir(mode=0o700)
+    source = original_dir / 'evidence.sqlite'
+    replacement = replacement_dir / source.name
+    EvidenceStore(source, 'V11_PAPER')
+    EvidenceStore(replacement, 'V11_PAPER')
+    victim = replacement_dir / 'victim.sqlite'
+    with sqlite3.connect(victim) as connection:
+        connection.execute('CREATE TABLE preserve_me(x)')
+    victim.chmod(0o600)
+    if alias_kind == 'main-shm':
+        victim = replacement
+    if alias_kind == 'same-main-foreign-shm':
+        replacement.unlink()
+        os.link(source, replacement)
+    if alias_kind != 'plain':
+        os.link(victim, Path(str(replacement) + '-shm'))
+    before_source = (source.read_bytes(), source.stat().st_mtime_ns)
+    before_victim = (victim.read_bytes(), victim.stat().st_mtime_ns)
+    before_original = sorted(p.name for p in original_dir.iterdir())
+    before_replacement = sorted(p.name for p in replacement_dir.iterdir())
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(source)))
+    script = '''
+import contextlib, io, json, pathlib, sqlite3, sys
+from unittest.mock import patch
+import tools.v11_paper_r08_r09_readiness_cli as cli
+container, original, replacement, cfg = map(pathlib.Path, sys.argv[1:])
+real_connect = sqlite3.connect
+swapped = False
+def connect(*args, **kwargs):
+    global swapped
+    connection = real_connect(*args, **kwargs)
+    if not swapped:
+        original.rename(container / 'saved-original')
+        original.symlink_to(replacement, target_is_directory=True)
+        swapped = True
+    return connection
+out, err = io.StringIO(), io.StringIO()
+with patch.object(sqlite3, 'connect', connect), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    rc = cli.main([str(cfg)])
+print(json.dumps({'rc': rc, 'stdout': out.getvalue(), 'stderr': err.getvalue(), 'swapped': swapped}))
+'''
+    proc = subprocess.run([sys.executable, *interpreter_flags, '-B', '-c', script,
+                           str(container), str(original_dir), str(replacement_dir), str(cfg)],
+                          cwd=REPO_ROOT, env=_SUBPROCESS_ENV, capture_output=True,
+                          text=True, timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result['swapped'] and result['rc'] == 1 and not result['stdout']
+    assert 'STORE_PATH_REPLACED_DURING_CAPTURE' in result['stderr']
+    saved = container / 'saved-original' / source.name
+    assert (saved.read_bytes(), saved.stat().st_mtime_ns) == before_source
+    assert (victim.read_bytes(), victim.stat().st_mtime_ns) == before_victim
+    assert sorted(p.name for p in saved.parent.iterdir()) == before_original
+    assert sorted(p.name for p in replacement_dir.iterdir()) == before_replacement
+
+
+@pytest.mark.parametrize('interpreter_flags', [(), ('-O',)])
+def test_sidecar_alias_appearing_during_source_copy_refuses_before_victim_changes(
+        tmp_path, interpreter_flags):
+    store = tmp_path / 'evidence.sqlite'
+    tmp_path.chmod(0o700)
+    EvidenceStore(store, 'V11_PAPER')
+    victim = tmp_path / 'victim.sqlite'
+    with sqlite3.connect(victim) as connection:
+        connection.execute('CREATE TABLE preserve_me(x)')
+    victim.chmod(0o600)
+    before = (victim.read_bytes(), victim.stat().st_mtime_ns)
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    script = '''
+import contextlib, io, json, os, pathlib, sys
+import tools.v11_paper_r08_r09_readiness_cli as cli
+store, victim, cfg = map(pathlib.Path, sys.argv[1:])
+real_read = cli.os.read
+added = False
+def read(fd, count):
+    global added
+    data = real_read(fd, count)
+    if not added:
+        os.link(victim, pathlib.Path(str(store) + '-shm'))
+        added = True
+    return data
+out, err = io.StringIO(), io.StringIO()
+cli.os.read = read
+with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    rc = cli.main([str(cfg)])
+print(json.dumps({'rc': rc, 'stdout': out.getvalue(), 'stderr': err.getvalue(), 'added': added}))
+'''
+    proc = subprocess.run([sys.executable, *interpreter_flags, '-B', '-c', script,
+                           str(store), str(victim), str(cfg)], cwd=REPO_ROOT,
+                          env=_SUBPROCESS_ENV, capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result['added'] and result['rc'] == 1 and not result['stdout']
+    assert 'UNSAFE_STORE_SIDECAR_REFUSED' in result['stderr']
+    assert (victim.read_bytes(), victim.stat().st_mtime_ns) == before
+    assert Path(str(store) + '-shm').stat().st_ino == victim.stat().st_ino
+
+
+@pytest.mark.parametrize('bound,reason', [
+    ('bytes', 'STORE_SNAPSHOT_BYTES_LIMIT'),
+    ('disk', 'STORE_SNAPSHOT_DISK_HEADROOM'),
+    ('time', 'STORE_SNAPSHOT_DEADLINE'),
+])
+def test_staging_resource_bounds_refuse_without_source_mutation(tmp_path, monkeypatch, capsys,
+                                                                bound, reason):
+    tmp_path.chmod(0o700)
+    store = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store, 'V11_PAPER')
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    before = (store.read_bytes(), store.stat().st_mtime_ns, _sidecar_listing(store))
+    if bound == 'bytes':
+        monkeypatch.setattr(cli_module, 'MAX_STORE_SNAPSHOT_BYTES', 1)
+    elif bound == 'disk':
+        usage = shutil.disk_usage(tmp_path)
+        monkeypatch.setattr(cli_module.shutil, 'disk_usage',
+                            lambda path: usage._replace(free=0))
+    else:
+        monkeypatch.setattr(cli_module, 'STORE_SNAPSHOT_DEADLINE_SECONDS', -1)
+    capsys.readouterr()
+    assert main([str(cfg)]) == 1
+    output = capsys.readouterr()
+    assert not output.out and reason in output.err
+    assert (store.read_bytes(), store.stat().st_mtime_ns, _sidecar_listing(store)) == before
+
+
+def test_rollback_journal_refuses_before_sqlite_reads_main(tmp_path, capsys):
+    tmp_path.chmod(0o700)
+    store = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store, 'V11_PAPER')
+    journal = Path(str(store) + '-journal')
+    journal.write_bytes(b'synthetic rollback journal marker')
+    before = (store.read_bytes(), store.stat().st_mtime_ns, journal.read_bytes())
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    capsys.readouterr()
+    assert main([str(cfg)]) == 1
+    output = capsys.readouterr()
+    assert not output.out and 'ACTIVE_STORE_JOURNAL_REFUSED' in output.err
+    assert (store.read_bytes(), store.stat().st_mtime_ns, journal.read_bytes()) == before
+
+
+def test_wal_commit_during_file_copy_refuses_without_losing_writer_record(
+        tmp_path, monkeypatch, capsys):
+    tmp_path.chmod(0o700)
+    store = tmp_path / 'evidence.sqlite'
+    EvidenceStore(store, 'V11_PAPER')
+    idle = sqlite3.connect(store)
+    idle.execute('PRAGMA journal_mode=WAL')
+    with sqlite3.connect(store) as writer:
+        writer.execute("INSERT INTO v11_meta VALUES('before-copy', 'yes')")
+    assert Path(str(store) + '-wal').stat().st_size > 0
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps(_bare_store_cfg(store)))
+    real_read = cli_module.os.read
+    fired = False
+
+    def write_during_copy(fd, count):
+        nonlocal fired
+        data = real_read(fd, count)
+        if not fired:
+            fired = True
+            with sqlite3.connect(store) as writer:
+                writer.execute("INSERT INTO v11_meta VALUES('during-copy', 'yes')")
+        return data
+
+    monkeypatch.setattr(cli_module.os, 'read', write_during_copy)
+    try:
+        capsys.readouterr()
+        assert main([str(cfg)]) == 1
+        output = capsys.readouterr()
+        assert fired and not output.out and 'STORE_CHANGED_DURING_CAPTURE' in output.err
+    finally:
+        idle.close()
+    with sqlite3.connect(store) as reader:
+        assert reader.execute("SELECT value FROM v11_meta WHERE key='during-copy'").fetchone() == ('yes',)
