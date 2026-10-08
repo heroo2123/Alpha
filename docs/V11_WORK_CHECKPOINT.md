@@ -1,3 +1,41 @@
+## 2026-10-08 12:00 UTC Two finished repair candidates sent to independent review; real collectors confirmed healthy
+
+Host-state intake found both outstanding FIRST-PRIORITY candidates already finished since the
+last entry, neither reviewed yet. (1) The Opus seed/provenance R2 candidate at
+`/tmp/alpha-shadow-seed-r2-20261008` exited 0 at 11:38Z (98 passed/6 skipped author tests) with a
+HANDOFF.md claiming genuine F1 (durable crash-safe seeding), F2 (mixed-epoch race, user-side layer
+live-deployable without root; root-side layer proposed but **not deployed**), and F3 (seed
+closure, master seq 1..6 verified against the readiness claim's transitive closure) closure, and
+explicitly states offline PASS here is not acceptance. Per the standing instruction to commission
+independent different-model review once this candidate lands, launched Codex Astra/high as a
+NEW review (distinct from the R1 review this same candidate already superseded) in detached tmux
+`alpha-seed-r2-astra-review-20261008`, scoped to `/tmp/alpha-shadow-seed-r2-20261008` only, with
+byte-pin verification, independent crash-window reruns in both Python modes, and adversarial
+re-reproduction of the F2 bypasses against both installed and proposed-patched root scripts; no
+verdict yet. (2) The Codex a1a2 PAPER-readiness-CLI repair (commit `5aa2e639...`, worktree
+`/tmp/alpha-paper-r89-readiness-cli-20261007`) had already finished earlier (02:23Z) with
+**CANDIDATE_READY**, 347/347 adjacent plus 29/29 independent adverse-matrix in both Python modes,
+also explicitly awaiting a mandatory different-model review before integration; launched a Claude
+Sonnet agent as that independent reviewer, instructed to work in a disposable clone (the live
+worktree has since advanced two more commits, `7c39a0a`/`5405add`, out of this review's scope) and
+to flag whether this fix duplicates the separately-already-merged FIFO-race chain on main
+(`09ab391`); no verdict yet. (3) Verified host collector health directly from today's artifacts
+rather than trusting the prior handoff's prose: AWC KATL retention has six genuine 10-minute
+receipts 11:03Z-11:50Z (`AlphaV11_OfficialObservationWatch/journal.jsonl`), the one-shot MADIS CWOP
+guest capture at 11:12:58Z returned HTTP 200 with 10 real parsed PWS observations
+(`madis-guest-one-shot-20261008T111258-58b49c83.json`), and the offline causal-PWS comparator
+correctly reports `PWS_lead_accepted/PAPER_R08_accepted/PAPER_R09_accepted/Gate3_qualification` all
+false with an honest `limitations` list (one capture is insufficient for temporal
+stability/qualification) -- this is genuine real-input collection, not a qualifying result, and is
+reported as such. Confirmed (code inspection: `madis_public_guest_once.py`'s filename/docstring/
+`automated_continuous_rights:false` field, and host `crontab -l`/`ps aux`) there is no scheduled or
+repeated MADIS guest call anywhere on this host, so the standing NOAA recurring-access restriction
+is not being violated. `R89-2` (MADIS `madisPublic1` anonymous-entitlement rights basis itself, as
+opposed to this project's own no-recurring-calls discipline) was not independently re-verified
+against NOAA's published terms text this session and remains UNKNOWN; not overclaimed as closed.
+No provider request, runtime/root/V10, financial, or acceptance transition. Gate-3 **91/200
+(formal 1/50)**, 77 missing, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
+
 ## 2026-10-08 11:33 UTC G3-L confirmed still HELD; INVENTORYTRANSFORM broke the single-fixture loop
 
 Two read-only/bounded specialist lanes filled otherwise-idle capacity (target 3; the Opus
