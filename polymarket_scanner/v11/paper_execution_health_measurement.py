@@ -31,24 +31,34 @@ or the archive-byte ceiling before genuinely reaching the store's real
 tip -- see `_page_prefix`'s own postcondition, reused unmodified from the
 promotion module, never reimplemented here), and always timestamped at
 that prefix's own last row's `recorded_at` (never a fresh wall-clock
-read). That second choice is the "conservative watermark": it makes a
-rerun against an unchanged tip fully idempotent (the appended body is
-byte-identical, so `EvidenceStore`'s own record-id dedup absorbs it for
-free, with no spurious `RECORD_ID_CONFLICT` just because time passed), and
-it means the resulting `valid_until` ages against the archive's own
-evidence, never an operator's wall-clock drift relative to it.
+read). That second choice is the "conservative watermark": the observed
+body depends only on archive contents, never on when the writer ran, and
+the resulting `valid_until` ages against the archive's own evidence, never
+an operator's wall-clock drift relative to it.
 
 A MEASUREMENT row is itself a new append, which would otherwise move the
 store's literal tip on every single rerun -- including this writer's own
 previous row, or any other kind of audit/telemetry append entirely
-unrelated to execution health. `_effective_tip` closes that: the real tip
-this module cares about is the latest row of a kind `observe()` actually
-inspects (`RULE_STATE`, `COORDINATOR_EVENT`, `BOOK`, `TRADE`), never a
-trailing `MEASUREMENT`/`RUNTIME_STATUS`/etc. row that is structurally
-inert to it. Without that trim, a rerun against genuinely unchanged fills
-and books would still see its own prior write as new upstream evidence and
-append an unbounded, ever-growing self-referential chain of rows that
-never settles.
+unrelated to execution health. Two different tips are therefore used, for
+two different purposes (R08-01/R08-03):
+
+* the observation itself is always computed over the COMPLETE real literal
+  prefix through the store's current tip, because that is exactly the
+  prefix `promote_execution_health` independently replays (`row['seq'] - 1`)
+  -- trimming anything here would make an honest row fail its own replay;
+* the deterministic record id is keyed on the *effective* tip: the latest
+  row of a kind `observe()` actually inspects (`RULE_STATE`,
+  `COORDINATOR_EVENT`, `BOOK`, `TRADE`). A trailing `MEASUREMENT`/
+  `RUNTIME_STATUS`/etc. row is structurally inert to the diagnostic, so a
+  rerun with no new relevant evidence recomputes the same id and reuses the
+  existing row instead of appending an unbounded self-referential chain.
+
+An existing row at that id is reused only after it passes the promotion
+module's own exact replay against its real predecessor prefix, inside the
+requested scope (R08-02); anything else is a typed conflict, never success.
+Locating the effective tip pages the archive under the module-wide
+`MAX_ROWS`/byte ceiling only to find it; a NEW write additionally requires
+the complete literal prefix to fit inside `policy.complete_history_scan_bound`.
 
 This module never touches settlement finality. `AUTHORIZED_SETTLEMENT_PROVIDERS`
 stays empty in `paper_execution_health_promotion.py`; nothing here names a
@@ -60,7 +70,8 @@ separate contracts, as the promotion module's own docstring requires.
 from .evidence import EvidenceError, finite, identity, sha
 from .event_risk import _key
 from .paper_execution_health_promotion import (
-    MAXIMUM_OBSERVATION_AGE_SECONDS, _page_prefix, _unknown, promote_execution_health,
+    MAXIMUM_OBSERVATION_AGE_SECONDS, _page_prefix, _replay_observation, _unknown,
+    promote_execution_health,
 )
 from .paper_risk_observation import MAX_ROWS, ObservationPolicy, observe
 
@@ -71,36 +82,30 @@ _SCOPE_FAMILY = 'exec-health-obs'
 _RELEVANT_KINDS = frozenset({'RULE_STATE', 'COORDINATOR_EVENT', 'BOOK', 'TRADE'})
 
 
-def _effective_tip(store, scan_bound):
-    """The real complete prefix `observe()` would actually see, minus any
-    trailing row of a kind `observe()` never inspects.
+def _effective_tip(store):
+    """The complete real literal prefix plus its effective (relevant) tip.
 
     `observe()` only ever selects `RULE_STATE`, `COORDINATOR_EVENT`, `BOOK`,
     and `TRADE` rows for anything (rule/account heads, fill proofs, book
     continuity) -- every other kind, including this module's own
-    previously-appended `MEASUREMENT` rows, is structurally inert to it.
-    Treating the store's raw literal tip as "the tip" regardless of kind
-    would make every rerun see its own (or any other scope's, or any other
-    audit/telemetry writer's) prior append as new upstream evidence --
-    producing a fresh, non-idempotent row every call, and an unbounded
-    self-referential chain, even when nothing about the real underlying
-    fills/books/rules changed. Trimming the trailing run of irrelevant
-    kinds restores the real external tip this writer's freshness and
-    idempotency are actually about.
+    previously-appended `MEASUREMENT` rows, is structurally inert to its
+    diagnostic. The effective tip is the last row of a relevant kind; it is
+    what the record id (idempotency) is keyed on. The literal prefix is
+    returned untrimmed, because the observation and its replay commit to it.
 
-    Returns the trimmed, still-complete prefix tuple, or `None` if no real
-    prefix is available at all (an empty store, one truncated by
-    `scan_bound`/the archive-byte ceiling before reaching the real tip, or
-    one where every row so far is of an irrelevant kind).
+    Returns `(collected, effective_tip_row)`, or `None` if no real prefix is
+    available at all (an empty store, one truncated by the `MAX_ROWS`/
+    archive-byte ceiling before reaching the real tip, or one with no
+    relevant row yet).
     """
     through_seq = store.pin_read_view()['through_seq']
-    collected = _page_prefix(store, through_seq, scan_bound)
+    collected = _page_prefix(store, through_seq, MAX_ROWS)
     if collected is None:
         return None
-    end = len(collected)
-    while end > 0 and collected[end - 1]['kind'] not in _RELEVANT_KINDS:
-        end -= 1
-    return collected[:end] or None
+    for item in reversed(collected):
+        if item['kind'] in _RELEVANT_KINDS:
+            return collected, item
+    return None
 
 
 def _record_id(*, account_id, event_id, rule_fingerprint, collateral_asset, policy_sha256, tip_sha256):
@@ -138,59 +143,97 @@ def current_execution_health_record_id(store, *, account_id, event_id, rule_fing
     `promote_execution_health`. Returns `None` when the store has no real
     tip yet (nothing has ever been appended).
     """
-    collected = _effective_tip(store, MAX_ROWS)
-    if collected is None:
+    found = _effective_tip(store)
+    if found is None:
         return None
     return _record_id(account_id=account_id, event_id=event_id, rule_fingerprint=rule_fingerprint,
                       collateral_asset=collateral_asset, policy_sha256=policy_sha256,
-                      tip_sha256=collected[-1]['sha256'])
+                      tip_sha256=found[1]['sha256'])
 
 
-def record_execution_health_observation(store, *, account_id, event_id, rule_fingerprint, collateral_asset,
-                                        policy):
-    """Append one genuine `observe()` result over the store's real current tip.
-
-    Returns the appended `MEASUREMENT` row, or `None` if no real, fully
-    collected archive prefix is currently available right now (an empty
-    store, or one truncated by `policy.complete_history_scan_bound`/the
-    archive-byte ceiling before reaching the real tip) -- never a write
-    built on a partial or merely-plausible prefix. Raises `EvidenceError`
-    only for a caller-level argument problem (bad scope identity, wrong
-    policy type) or a genuine storage-layer conflict (an existing row under
-    the same deterministic id with different content -- see module
-    docstring on why that should not happen from this writer's own
-    ordinary reruns).
-    """
+def _validate_arguments(*, account_id, event_id, rule_fingerprint, collateral_asset, policy):
     if type(policy) is not ObservationPolicy:
         raise EvidenceError('EXECUTION_HEALTH_MEASUREMENT_POLICY_REQUIRED')
     sha(policy.policy_sha256)
     identity(account_id); identity(event_id); identity(collateral_asset); sha(rule_fingerprint)
+
+
+def _verified_existing(store, row, *, effective_tip, account_id, event_id, rule_fingerprint,
+                       collateral_asset, policy):
+    """True only if `row` is a genuine observation for exactly this scope.
+
+    The deterministic id is public, so anyone able to append can preclaim it
+    (R08-02). Reuse therefore requires the same exact replay the promotion
+    module performs, plus that the row sits after the effective tip it is
+    keyed on (so no relevant row can lie between its frontier and now).
+    """
+    if (row['kind'] != 'MEASUREMENT' or row['event_id'] != event_id or row['seq'] <= effective_tip['seq']
+            or row['body'].get('namespace') != store.namespace):
+        return False
+    details = row['body'].get('details')
+    if (type(details) is not dict or details.get('account_id') != account_id
+            or details.get('event_id') != event_id or details.get('rule_fingerprint') != rule_fingerprint
+            or details.get('collateral_asset') != collateral_asset
+            or details.get('policy_sha256') != policy.policy_sha256):
+        return False
+    try:
+        recomputed = _replay_observation(store, row, details, policy=policy, account_id=account_id,
+                                         event_id=event_id, rule_fingerprint=rule_fingerprint,
+                                         collateral_asset=collateral_asset,
+                                         observed_at=finite(details.get('observed_at')))
+    except EvidenceError:
+        return False
+    return recomputed is not None and recomputed == details
+
+
+def record_execution_health_observation(store, *, account_id, event_id, rule_fingerprint, collateral_asset,
+                                        policy):
+    """Append (or genuinely reuse) one `observe()` result over the real current tip.
+
+    Returns the `MEASUREMENT` row, or `None` if no real, fully collected
+    archive prefix is currently available right now (an empty store, or one
+    truncated by `policy.complete_history_scan_bound`/the archive-byte
+    ceiling before reaching the real tip) -- never a write built on a
+    partial or merely-plausible prefix. Raises `EvidenceError` for a
+    caller-level argument problem (bad scope identity, wrong policy type),
+    for `EXECUTION_HEALTH_MEASUREMENT_RECORD_CONFLICT` (a row already holds
+    this deterministic id but is not a verified observation for this exact
+    scope), or for a storage-layer failure such as `AUDIT_CLOCK_REGRESSION`.
+    """
+    _validate_arguments(account_id=account_id, event_id=event_id, rule_fingerprint=rule_fingerprint,
+                        collateral_asset=collateral_asset, policy=policy)
     scan_bound = policy.complete_history_scan_bound
     if type(scan_bound) is not int or not 1 <= scan_bound <= MAX_ROWS:
         return None
-    collected = _effective_tip(store, scan_bound)
-    if collected is None:
+    found = _effective_tip(store)
+    if found is None:
         return None
-    tip_sha256 = collected[-1]['sha256']
+    collected, effective_tip = found
     record_id = _record_id(account_id=account_id, event_id=event_id, rule_fingerprint=rule_fingerprint,
                            collateral_asset=collateral_asset, policy_sha256=policy.policy_sha256,
-                           tip_sha256=tip_sha256)
+                           tip_sha256=effective_tip['sha256'])
     try:
         # Check-then-write, exactly the `_existing()` idiom `event_risk.py`
         # already uses for its own CAS-guarded audit rows: a genuine rerun
-        # against an unchanged effective tip must short-circuit here, never
-        # reach `store.audit` again. `store.audit`'s own envelope
-        # `recorded_at`/`available_at` always reflects a fresh `store.clock()`
-        # read, which real wall-clock drift between calls would otherwise
-        # make differ from the first call's envelope -- a genuine
-        # `RECORD_ID_CONFLICT` for a would-be rerun that changed nothing
-        # about the real diagnostic itself.
-        return store.get(record_id)
+        # with no new relevant evidence must short-circuit here, never reach
+        # `store.audit` again (whose envelope `recorded_at` would differ).
+        existing = store.get(record_id)
     except EvidenceError as exc:
         if str(exc) != 'EVIDENCE_MISSING':
             raise
-    at = finite(collected[-1]['body']['recorded_at'])
-    result = observe(collected, tip_sha256=tip_sha256, at=at, policy=policy, account_id=account_id,
+    else:
+        if not _verified_existing(store, existing, effective_tip=effective_tip, account_id=account_id,
+                                  event_id=event_id, rule_fingerprint=rule_fingerprint,
+                                  collateral_asset=collateral_asset, policy=policy):
+            raise EvidenceError('EXECUTION_HEALTH_MEASUREMENT_RECORD_CONFLICT')
+        return existing
+    # A new write must observe the complete literal prefix within the
+    # policy's own scan bound -- never a truncated one.
+    if len(collected) > scan_bound:
+        return None
+    tip = collected[-1]
+    at = finite(tip['body']['recorded_at'])
+    result = observe(collected, tip_sha256=tip['sha256'], at=at, policy=policy, account_id=account_id,
                      event_id=event_id, rule_fingerprint=rule_fingerprint, collateral_asset=collateral_asset)
     # The envelope `event_id` is the literal real event -- required exactly
     # as-is by `promote_execution_health`'s own scope check (see `_record_id`'s
@@ -201,20 +244,23 @@ def record_execution_health_observation(store, *, account_id, event_id, rule_fin
 
 def observe_and_promote_execution_health(store, *, account_id, event_id, rule_fingerprint, collateral_asset,
                                          policy, maximum_observation_age_seconds=MAXIMUM_OBSERVATION_AGE_SECONDS):
-    """Write a fresh observation, then immediately independently re-verify it.
+    """Write (or reuse) an observation, then immediately independently re-verify it.
 
-    This is the single call a future caller would make; see module
-    docstring for why a fresh write-then-promote on every call is the safe
-    minimum here, not a separately scheduled job. Always returns an
-    `ExecutionHealthPromotion` -- a write-side problem (no complete prefix
-    available right now) is reported the same way any other UNKNOWN reason
-    already is, never raised past this function for an ordinary data
-    reason. Caller-level argument problems and genuine storage conflicts
-    still raise, exactly as `record_execution_health_observation` does.
+    This is the single call a future caller would make. Always returns an
+    `ExecutionHealthPromotion` for any data or storage reason: no complete
+    prefix (`EXECUTION_HEALTH_MEASUREMENT_SCAN_INCOMPLETE`), a preclaimed or
+    foreign row at the deterministic id, or a write-side storage failure
+    (R08-04) are all typed UNKNOWN. Only caller-level argument problems
+    raise, checked before anything touches the store.
     """
-    row = record_execution_health_observation(store, account_id=account_id, event_id=event_id,
-                                               rule_fingerprint=rule_fingerprint, collateral_asset=collateral_asset,
-                                               policy=policy)
+    _validate_arguments(account_id=account_id, event_id=event_id, rule_fingerprint=rule_fingerprint,
+                        collateral_asset=collateral_asset, policy=policy)
+    try:
+        row = record_execution_health_observation(store, account_id=account_id, event_id=event_id,
+                                                   rule_fingerprint=rule_fingerprint,
+                                                   collateral_asset=collateral_asset, policy=policy)
+    except EvidenceError as exc:
+        return _unknown(str(exc))
     if row is None:
         return _unknown('EXECUTION_HEALTH_MEASUREMENT_SCAN_INCOMPLETE')
     return promote_execution_health(store, row['id'], account_id=account_id, event_id=event_id,

@@ -226,3 +226,87 @@ def test_discovery_read_never_appends(basket_rig, monkeypatch):
     before = store.pin_read_view()
     current_id(basket_rig)
     assert store.pin_read_view() == before, 'a pure discovery read must never append'
+
+
+def test_trailing_unrelated_measurement_still_replays_and_promotes(basket_rig, monkeypatch):
+    """R08-01: the written frontier must be the real predecessor promotion replays."""
+    sequenced_fill(basket_rig, monkeypatch)
+    store = basket_rig['store']
+    event_id = basket_rig['rule'].payload['event_id']
+    store.audit('unrelated-measurement', event_id=event_id, kind='MEASUREMENT', details={'unrelated': 1})
+    row = record_execution_health_observation(store, **scope(basket_rig))
+    assert row['body']['details']['execution_status'] == 'OBSERVED_SYNTHETIC_DIAGNOSTIC'
+    promoted = promote(basket_rig, row['id'])
+    assert promoted.status == 'PROMOTED', promoted.reason
+    combined = observe_and_promote_execution_health(store, **scope(basket_rig))
+    assert combined == promoted
+    store.audit('later-unrelated', event_id=event_id, kind='MEASUREMENT', details={'unrelated': 2})
+    before = store.pin_read_view()
+    again = record_execution_health_observation(store, **scope(basket_rig))
+    assert again['id'] == row['id'] and store.pin_read_view() == before
+
+
+def test_preclaimed_deterministic_id_is_a_conflict_never_success(basket_rig, monkeypatch):
+    """R08-02: a foreign row at the deterministic id is never returned as success."""
+    sequenced_fill(basket_rig, monkeypatch)
+    store = basket_rig['store']
+    event_id = basket_rig['rule'].payload['event_id']
+    record_id = current_id(basket_rig)
+    store.audit(record_id, event_id='wrong-event', kind='MEASUREMENT', details={'forged': 999})
+    with pytest.raises(EvidenceError) as exc:
+        record_execution_health_observation(store, **scope(basket_rig))
+    assert str(exc.value) == 'EXECUTION_HEALTH_MEASUREMENT_RECORD_CONFLICT'
+    combined = observe_and_promote_execution_health(store, **scope(basket_rig))
+    assert combined.status == 'UNKNOWN' and combined.adverse_fills is None
+    assert combined.reason == 'EXECUTION_HEALTH_MEASUREMENT_RECORD_CONFLICT'
+
+
+def test_preclaimed_id_in_right_event_with_forged_details_is_a_conflict(basket_rig, monkeypatch):
+    sequenced_fill(basket_rig, monkeypatch)
+    store = basket_rig['store']
+    event_id = basket_rig['rule'].payload['event_id']
+    store.audit(current_id(basket_rig), event_id=event_id, kind='MEASUREMENT',
+                details={'account_id': ACCOUNT_ID, 'forged': 999})
+    combined = observe_and_promote_execution_health(store, **scope(basket_rig))
+    assert combined.status == 'UNKNOWN'
+    assert combined.reason == 'EXECUTION_HEALTH_MEASUREMENT_RECORD_CONFLICT'
+
+
+def test_own_append_crossing_scan_bound_stays_idempotent(basket_rig, monkeypatch):
+    """R08-03: the writer's own irrelevant append must not break the identical rerun."""
+    sequenced_fill(basket_rig, monkeypatch)
+    store = basket_rig['store']
+    exact = observation_policy(complete_history_scan_bound=store.pin_read_view()['through_seq'])
+    first = observe_and_promote_execution_health(store, **scope(basket_rig, policy=exact))
+    assert first.status == 'PROMOTED', first.reason
+    before = store.pin_read_view()
+    second = observe_and_promote_execution_health(store, **scope(basket_rig, policy=exact))
+    assert second == first and store.pin_read_view() == before
+
+
+def test_new_relevant_row_beyond_scan_bound_never_writes(basket_rig, monkeypatch):
+    sequenced_fill(basket_rig, monkeypatch)
+    store = basket_rig['store']
+    exact = observation_policy(complete_history_scan_bound=store.pin_read_view()['through_seq'])
+    store.capture('extra-book-touch', event_id=basket_rig['rule'].payload['event_id'], kind='BOOK',
+                 provider='basket-fixture', source_identity=basket_rig['rule'].payload['partition'][1]['yes_token'],
+                 revision='2', observed_at=basket_rig['now'][0], evidence_class='PUBLIC_OBSERVED',
+                 payload={'stream_healthy': True, 'bids': [{'price': '.1', 'size': '1'}],
+                          'asks': [{'price': '.9', 'size': '1'}]})
+    before = store.pin_read_view()
+    assert record_execution_health_observation(store, **scope(basket_rig, policy=exact)) is None
+    assert store.pin_read_view() == before
+
+
+def test_write_side_clock_regression_is_typed_unknown(basket_rig, monkeypatch):
+    """R08-04: storage failures from the write must not escape the combined API."""
+    sequenced_fill(basket_rig, monkeypatch)
+    store = basket_rig['store']
+    basket_rig['now'][0] -= 1000.
+    combined = observe_and_promote_execution_health(store, **scope(basket_rig))
+    assert combined.status == 'UNKNOWN' and combined.adverse_fills is None
+    assert combined.reason == 'AUDIT_CLOCK_REGRESSION'
+    args = scope(basket_rig); args['policy'] = 'not-a-policy'
+    with pytest.raises(EvidenceError) as exc:
+        observe_and_promote_execution_health(store, **args)
+    assert str(exc.value) == 'EXECUTION_HEALTH_MEASUREMENT_POLICY_REQUIRED'
