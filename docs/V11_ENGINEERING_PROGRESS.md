@@ -8195,3 +8195,7 @@ Reconciled clean main `75f28d2`, all eight live isolated lanes and their pending
 ## 2026-10-08 00:09 UTC finished slots recycled safely
 
 Intook the old Gate-3 whole-closure worker's premature exit-0 marker: no handoff or commit, three dirty files, and no remaining writer. Launched one detached Sonnet recovery in the same worktree, preserving all bytes; successor still needs different-model exact review. Intook Opus `CHANGES_REQUIRED` for InventoryTransform L-B `e5f67f5`, confirmed the original author tree clean, and launched one sole Sonnet repair for the vacuous F1 negative control and dotted-alias F2 guard gap. The two new runners have distinct worktrees and terminal targets; eight specialist lanes remain live. No merge, provider, runtime, V10 or financial action.
+
+## 2026-10-08 00:16 UTC Gate-3 binding candidate review launched
+
+The interrupted same-worktree binding repair was recovered and sealed as `157968b` after 42/42 focused tests in normal and optimized Python. A frozen independent Opus exact review is active at `/tmp/alpha-g3l-binding-review-157968b`; merge and repin remain dependent on its verdict and reconciliation with newer main. Nonfinancial Shadow continues, V10 is inactive/disabled, V11 execution is masked. No Gate-3/PAPER/READY_TO_FUND or C/J/E/A credit changed.
