@@ -1,3 +1,7 @@
+## 2026-10-08 03:30 UTC Brain reader code integrated without qualification
+
+Independent `PASS_IN_SCOPE` for Brain `ffe7917` and exact-byte local integration `bd27086` passed 302 adjacent cases per mode on integration and 68 focused cases per mode on actual main. R6b parser-limit typed-refusal residual remains open; official source/label inputs and downstream packet/comparator remain unqualified. PAPER `5405add` and Gate-3 `3a7dd98` remain `NO_VERDICT`. No requirement or C/J/E/A row crosses: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
 ## 2026-10-08 03:25 UTC PAPER reviewer refusal grants no credit
 
 `5405add` remains unreviewed after a tool refusal; explicit `NO_VERDICT` and alternate-provider handoff are retained. Brain `ffe7917` remains under exact review. No requirement or C/J/E/A row crosses: Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.

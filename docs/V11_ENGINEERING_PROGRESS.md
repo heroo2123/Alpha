@@ -1,3 +1,7 @@
+## 2026-10-08 03:30 UTC Brain R3 reviewed integration completed
+
+Intook sealed Astra/high `PASS_IN_SCOPE` for `ffe7917` / tree `5cd2343`, retaining low-severity R6b parser-limit residual. Replayed its four-commit chain onto newer clean main in isolated worktree; three file blobs match exact reviewed SHA-1 objects. Adjacent tests passed 302/302 in normal and optimized Python; fast-forwarded main to `bd27086` and verified focused 68/68 per mode on actual main. This grants offline reader availability only, not Brain source/label/financial qualification. PAPER FIFO candidate remains `NO_VERDICT` after tool refusal and has an alternate-provider handoff after 04:50 UTC. Gate-3 remains 91/200, G3-L NO-GO; PAPER 9/11; READY_TO_FUND=false.
+
 ## 2026-10-08 03:25 UTC PAPER reviewer refusal preserved
 
 Codex Astra/high `5405add` exact review exited 1 with a content-risk refusal before a verdict. Frozen candidate and original artifacts are retained; `/tmp/alpha-paper-r89-fifo-r1-review-5405add.verdict.json` is `NO_VERDICT`. A Claude Opus/high handoff waits for the recorded 04:50 UTC reset. Brain exact review continues; no integration or acceptance change.
