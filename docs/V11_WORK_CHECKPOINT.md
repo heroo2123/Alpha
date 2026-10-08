@@ -1,3 +1,40 @@
+## 2026-10-08 18:34 UTC R08 PAPER execution-health promotion contract merged into main (`c9b3687`) after six independently-reviewed rounds; still inert, zero C/J/E/A credit
+
+The final close-out Opus review of `4057646` returned PASS_IN_SCOPE with an explicit merge
+recommendation and zero HIGH/MEDIUM findings; did not take that on the hand-back's word either --
+independently re-read the actual `alpha-r08-contract-opus-review-4057646-20261008.verdict.json` and
+confirmed its two reviewer-named key claims myself before merging: `git merge-base
+weather-v11-profitability-upgrade-2026-09-23 4057646` -> `cc750af`, and `git log --oneline
+cc750af..HEAD -- polymarket_scanner/v11/ tests/` on the real main branch shows exactly one touching
+commit (`f7c4782`, the already-known writer-inventory fixture repin, confirmed by `git show --stat` to
+touch only `tests/test_v11_forward_writer_inventory.py` -- genuinely unrelated, no overlap). Merged
+`alpha-r08-contract-repair-20261008` (`fa8b5ef8..4057646`) into
+`weather-v11-profitability-upgrade-2026-09-23` with `--no-ff`: clean merge, exactly the two expected
+new files (`polymarket_scanner/v11/paper_execution_health_promotion.py`,
+`tests/test_v11_paper_execution_health_promotion.py`), no conflicts. Re-ran the real test suite myself
+on the merged main tree (not trusting the pre-merge candidate run): 86/86 passed in both normal and
+`python -O` mode; full-repo `--collect-only` still finds 9610 tests with no import/collection errors
+from the new module. Verified no private-input, credential, or database paths were staged before
+pushing. Pushed; local `c9b3687` == remote.
+
+Two LOW findings carry forward as known, explicitly non-blocking residue, each with a ready-made
+reviewer probe to fold into regression tests when this gets wired: **R6-L1** (the R5-L3
+clock/pin_read_view-ordering fix itself has no committed regression test yet, though the fix is
+correct and independently confirmed) and **R6-L2** (pre-existing: a mutant that turns
+`HEAD_SCAN_INCOMPLETE` into a silent pass survives the committed suite, though the real code paths
+fail closed correctly).
+
+This module is still completely inert: `AUTHORIZED_SETTLEMENT_PROVIDERS` remains `frozenset()` by
+design, and no call site in `risk_inputs.py`/`event_risk.py`/`katl_live_plan.py` consults it yet --
+merging changes no running behavior. This is process, not evidence: no selected-window identity,
+provider-rights evidence, PAPER real reservation/PWS evidence, Brain qualification, or READY_TO_FUND
+credit change. `R89-2` remains UNKNOWN. Gate-3 **91/200 (formal 1/50)**, 77 missing, G3-L **NO-GO**;
+PAPER **9/11**; **READY_TO_FUND=false**. The next unfinished action is the observation-writer wiring
+prep the earlier read-only map identified as code-only and ready now that the contract itself is
+finally in main -- still bounded by the owner-gated items (real production `ObservationPolicy`
+numeric windows, and sign-off that this data may drive live EVENT/CAUTION gating) that this session
+may not decide.
+
 ## 2026-10-08 18:20 UTC Round-6 repair (`4057646`) independently verified real, not taken on the hand-back's word; final-close-out Opus review launched
 
 Did not take the repair agent's hand-back summary on faith. Independently confirmed in
