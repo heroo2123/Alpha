@@ -1,3 +1,7 @@
+## 2026-10-08 04:38 UTC offline v2 reader integrated without qualification
+
+Exact-reviewed v2 reader `e3cb7ab` was reconciled to local main `c936ee0`; 88 adjacent tests per mode passed before merge and 44 focused tests per mode passed on main. It is unconnected to root-custodied authority or live Shadow. Real baseline closure and commissioning remain open. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No C/J/E/A or requirement crossing.
+
 ## 2026-10-08 04:38 UTC daily Shadow seed candidate remains unqualified
 
 R2 exact review of `95aceb5` is `CHANGES_REQUIRED`. Current retained MASTER baseline records show the three-ID seed cannot claim dependency closure: readiness references two additional records, and the raw capture payload is outside the candidate's reviewed payload whitelist. An architecture/acceptance decision is required before selecting a future-day genesis repair. The separate v2 review reader successor `e3cb7ab` awaits exact review; neither candidate grants protected review or runtime admission. Gate-3 **91/200 (formal 1/50)**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**. No requirement or C/J/E/A row crossed.
