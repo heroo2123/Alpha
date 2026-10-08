@@ -1,3 +1,7 @@
+## 2026-10-08 04:47 UTC R3 refusal-only exact review
+
+Independent Astra/high exact review sealed `PASS_IN_SCOPE` for `c9270eb` / tree `55937d1` only as an offline synthetic refusal planner. It does not qualify the real six-record MASTER baseline, protected generation, active daily audit or commissioning. The separate six-record candidate remains under sole-writer implementation and will require its own exact review; Gate-3, PAPER and READY_TO_FUND values below do not change.
+
 ## 2026-10-08 04:45 UTC daily Shadow genesis dependency
 
 Read-only closure and consumer reports support a conditional six-record historical prefix, with source positions 1..6 preserved, but do not constitute a sealed source snapshot, current-event proof, protected review, or commissioning. Offline exact-profile implementation is active in a single isolated worktree. The R3 three-row planner remains refusal-only and awaits independent exact review. Oct 8/9 originals retain sequence gaps; a new generation requires complete invalidating-history assessment, fresh generation-bound review/frontier, and an authorized daily commissioning path. Gate-3 remains **91/200 (formal 1/50)** with 77 unqualified identities and G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
