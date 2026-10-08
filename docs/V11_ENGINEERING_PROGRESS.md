@@ -1,3 +1,7 @@
+## 2026-10-08 06:25 UTC two reviewed offline integrations and three spare-lane maps
+
+Intook Sol `PASS_IN_SCOPE` for `9200acb` and Opus `PASS_IN_SCOPE` for `c7b15f6`; reconciled separately in isolated worktrees, byte-matched reviewed files, integrated onto clean local main as `c5799eb` and `50dc063`, and passed bounded post-main normal/optimized suites (PAPER 60/60 per mode; daily seed 51/51 plus nine skipped private-snapshot tests per mode). Started separate read-only Gate-3 restriction-lineage, PAPER source-attestation and READY_TO_FUND gap-audit workers, each in a frozen clean worktree with retained prompt/runner/output/terminal target. Seven distinct specialists remain active; the Gate-3 exact review and three unrelated repairs continue. No runtime/root/V10, provider, money, order or authority action.
+
 ## 2026-10-08 06:18 UTC live capacity and safety audit
 
 Verified eight independent active specialist sessions with no new completed terminal, clean main `acb482b`, 8901 MiB disk free, about 4980 MiB MemAvailable, unchanged protected master SHA-256, V10 inactive/disabled, V11 execution inactive/masked, and active nonfinancial Shadow observers. The PAPER scanner is inactive. Existing workers retain their isolated worktrees and terminal targets; no duplicate worker was launched. No code integration, provider request, runtime/root/V10 or financial action occurred.
