@@ -1,3 +1,7 @@
+## 2026-10-08 02:46 UTC descriptor repair remains unqualified
+
+Gate-3 descriptor/root binding candidate `268e008` / tree `eead9f0` is under frozen different-model exact review. Its author tests are provisional; nine current-executable binding failures, X1 composition and external custody attestation remain separate blockers. No new identity or C/J/E/A crossing: Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**, R08/R09 PARTIAL; **READY_TO_FUND=false**.
+
 ## 2026-10-08 02:24 UTC PAPER repair awaiting exact review
 
 Clean PAPER `5aa2e63` has provisional author-side A1/A2 regression and adjacent test evidence, with a different-model exact review live. It grants no R08/R09 credit or requirement crossing until PASS, reconciliation, post-merge tests and genuine evidence. Gate-3 **91/200 (formal 1/50)**, **77 identities unqualified**, G3-L **NO-GO**; PAPER **9/11**; **READY_TO_FUND=false**.
