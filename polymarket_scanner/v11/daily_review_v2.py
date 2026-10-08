@@ -47,9 +47,14 @@ def _constant(_value):
     _deny("NONFINITE_JSON_NUMBER")
 
 
-def _parse(raw: bytes, limit: int):
+def _bounded_bytes(raw: bytes, limit: int):
     if type(raw) is not bytes or len(raw) > limit or not raw:
         _deny("BYTE_BOUND")
+    return raw
+
+
+def _parse(raw: bytes, limit: int):
+    _bounded_bytes(raw, limit)
     try:
         value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,
                            parse_constant=_constant)
@@ -154,6 +159,7 @@ def _object(object_bytes: Mapping[str, bytes], digest: str):
     if digest not in object_bytes:
         _deny("DANGLING_OBJECT")
     raw = object_bytes[digest]
+    _bounded_bytes(raw, MAX_OBJECT_BYTES)
     if sha256(raw) != digest:
         _deny("TAMPERED_OBJECT")
     return _parse(raw, MAX_OBJECT_BYTES)

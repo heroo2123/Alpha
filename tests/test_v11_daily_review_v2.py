@@ -5,6 +5,7 @@ import json
 import pytest
 
 from polymarket_scanner.v11 import certification
+from polymarket_scanner.v11 import daily_review_v2 as reader
 from polymarket_scanner.v11.evidence import EvidenceError
 from polymarket_scanner.v11.daily_review_v2 import (
     ReviewV2Error, canonical_bytes, select_active_review, sha256,
@@ -137,6 +138,29 @@ def test_missing_and_tampered_objects():
     p = packet()
     p["objects"][digest] = b"{}"
     refused(p, "TAMPERED_OBJECT")
+
+
+@pytest.mark.parametrize("reference", ["review", "commission"])
+@pytest.mark.parametrize("raw", [
+    pytest.param(b"", id="empty"),
+    pytest.param("not bytes", id="wrong-type"),
+    pytest.param(b"x" * (reader.MAX_OBJECT_BYTES + 1), id="oversized"),
+])
+def test_invalid_object_bytes_refuse_before_hash(reference, raw, monkeypatch):
+    p = packet()
+    selection = p["index"]["active_selections"][0]
+    digest = selection["review_sha256" if reference == "review" else "commission_sha256"]
+    p["objects"][digest] = raw
+
+    original_sha256 = reader.sha256
+
+    def reject_hash(value):
+        if value is raw:
+            raise AssertionError("invalid object reached sha256")
+        return original_sha256(value)
+
+    monkeypatch.setattr(reader, "sha256", reject_hash)
+    refused(p, "BYTE_BOUND")
 
 
 def test_future_commission_does_not_select():
