@@ -1,4 +1,4 @@
-## 2026-10-09 08:27 UTC Manager cycle: Oct 10 forward Xweather ingest scheduled ahead of its local day
+## 2026-10-09 08:22 UTC Manager cycle: Oct 10 forward Xweather ingest scheduled ahead of its local day
 
 **Witness PAPER_9 / NO_PWS_IN_ACTIVE_SHADOW_RUNNER.** Added the Oct 10 sibling of the 08:05Z Oct 9 wrapper so the forward PWS record does not stop at 2026-10-10T04:00Z.
 - Wrapper `AlphaV11_ContinuousCoordinator/xweather-forward-ingest-20261010-state/run_ingest.sh` (sha `11250b58...`). Same reviewed tool and pin (`8f925086...`), same flock/disk/HOLD/tool-hash guards. Bound to KATL Gamma event `1152613`, config `real-input-madis-public-20261010/config.json` (reviewed digest `2b1e0fe4...`), new store `forward-v1.sqlite3`, namespace `CHALLENGER:xweather-forward-katl-20261010-v1`.
