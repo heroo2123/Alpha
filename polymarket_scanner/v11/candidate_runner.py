@@ -18,7 +18,7 @@ from .discovery import MarketDiscovery
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .observation_pump import ObservationPump
 from .maker_telemetry import MakerTelemetryWorker
-from .pws_runtime import PWSQualityWorker
+from .pws_runtime import PWSQualitySettings, PWSQualityWorker
 from .forecast_runtime import ForecastNormalizationWorker
 from .gefs_runtime import GEFSWorker
 from .preparation_runtime import PreparationWorker
@@ -117,10 +117,13 @@ class CandidateRunner:
         self._observation_config=digest(asdict(observation_batch)) if observation_batch is not None else None
         self.maker_telemetry=maker_telemetry
         if pws_quality is not None and (not isinstance(pws_quality,PWSQualityWorker)
-                or pws_quality.health is not runtime.health or not pws_quality.plans.keys()<=runtime.queue.routes.keys()
-                or any(p.official.station!=runtime.queue.routes[e].station for e,p in pws_quality.plans.items())):
+                or not isinstance(pws_quality.settings,PWSQualitySettings)):
             raise EvidenceError('CANDIDATE_PWS_QUALITY_SCOPE')
         self.pws_quality=pws_quality
+        self._pws_quality_worker=pws_quality
+        self._pws_quality_config=pws_quality.config if pws_quality is not None else None
+        self._pws_quality_settings=digest(asdict(pws_quality.settings)) if pws_quality is not None else None
+        self._admit_pws_quality()
         if forecasts is not None and (not isinstance(forecasts,ForecastNormalizationWorker)
                 or forecasts.health is not runtime.health or not forecasts.plans.keys()<=runtime.queue.routes.keys()
                 or any(p.rule.sha256!=runtime.queue.routes[e].rule_fingerprint for e,p in forecasts.plans.items())):
@@ -178,6 +181,27 @@ class CandidateRunner:
             if digest(asdict(batch))!=self._observation_config:
                 raise EvidenceError('CANDIDATE_OBSERVATION_PLAN_CHANGED_REVIEW_REQUIRED')
 
+    def _admit_pws_quality(self):
+        worker=self.pws_quality
+        if worker is not self._pws_quality_worker:
+            raise EvidenceError('CANDIDATE_PWS_QUALITY_SCOPE')
+        if worker is None:return
+        if (not isinstance(worker,PWSQualityWorker) or worker.store is not self.store
+                or worker.health is not self.runtime.health
+                or not isinstance(worker.settings,PWSQualitySettings)
+                or type(worker.plans) is not dict
+                or worker.config!=self._pws_quality_config
+                or digest(asdict(worker.settings))!=self._pws_quality_settings
+                or worker.plans!={p.event_id:p for p in worker.settings.plans}
+                or not worker.plans.keys()<=self.runtime.queue.routes.keys()
+                or any((census_plan:=self.census.plans.get(e)) is None
+                    or (route:=self.runtime.queue.routes[e]).station!=p.official.station
+                    or census_plan.rule.sha256!=route.rule_fingerprint
+                    or census_plan.rule.payload['metadata_fingerprint']!=p.official.fingerprint
+                    or census_plan.pws is not None and census_plan.pws!=p
+                    for e,p in worker.plans.items())):
+            raise EvidenceError('CANDIDATE_PWS_QUALITY_SCOPE')
+
     def _get(self,key):
         try:return self.store.get(key)
         except EvidenceError as exc:
@@ -218,6 +242,7 @@ class CandidateRunner:
         approval, deployment acceptance or increased financial authority.
         """
         self._admit_observation_batch()
+        self._admit_pws_quality()
         if (not isinstance(reason,str) or not reason.strip() or len(reason)>200
                 or len(reason.splitlines())!=1 or any(ord(c)<32 or ord(c)==127 for c in reason)):
             raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID')
@@ -274,6 +299,7 @@ class CandidateRunner:
 
     async def _job(self,job):
         self._admit_observation_batch()
+        self._admit_pws_quality()
         kind,key=job['kind'],job['id']
         if kind=='CENSUS':return await self.census.step(key)
         if kind=='DISCOVERY':
@@ -299,6 +325,7 @@ class CandidateRunner:
     async def run(self,run_id):
         """One finite invocation. Its completed identity never renews any work."""
         self._admit_observation_batch()
+        self._admit_pws_quality()
         identity(run_id,maximum=80);final='candidate-run:'+digest(run_id)
         previous=self._get(final)
         if previous:
@@ -313,6 +340,7 @@ class CandidateRunner:
 
     async def _run(self,run_id,final):
         self._admit_observation_batch()
+        self._admit_pws_quality()
         head=self._head();state=deepcopy(head['body']['details']['state']) if head else dict(
             sequence=0,next_kind=0,active=None,discovery_not_before=0.)
         self._progress(run_id,state,outcome='RUN_STARTED')

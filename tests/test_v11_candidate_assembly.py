@@ -332,6 +332,26 @@ def test_census_and_periodic_qc_cannot_silently_alternate_policies(rig,setup):
         replace(cfg,events=(event,),pws_quality=PWSQualitySettings((replace(p,policy=pws_policy(fresh_seconds=300.)),)))
 
 
+def test_candidate_rechecks_live_pws_worker_before_job(rig,setup,monkeypatch):
+    from test_v11_pws_quality import policy as pws_policy
+    r=rig;e=r['context'].event_id
+    settings=PWSQualitySettings((PWSQualityPlan(e,setup[3],pws_policy()),))
+    cfg=replace(plan(r),pws_quality=settings)
+    synthetic_clock(r,monkeypatch)
+    async def check():
+        async with httpx.AsyncClient(transport=transport(r,[])) as client:
+            candidate=app.assemble_candidate(r['store'],client,cfg,generation='pws-shadow-scope')
+            before=r['store'].pin_read_view()
+            original=candidate.pws_quality.plans[e]
+            changed=replace(original,policy=pws_policy(fresh_seconds=300.))
+            assert changed!=original
+            candidate.pws_quality.plans[e]=changed
+            with pytest.raises(EvidenceError,match='^CANDIDATE_PWS_QUALITY_SCOPE$'):
+                await candidate._job(dict(kind='AUDIT',id='pws-shadow-scope-job'))
+            assert r['store'].pin_read_view()==before
+    asyncio.run(check())
+
+
 def test_candidate_normalizes_existing_forecast_without_new_network_or_unrelated_census_failure(rig,setup,monkeypatch):
     from test_weather_only_forecast import _payload
     from polymarket_scanner.v11.runtime_feed import EvidenceFeed
