@@ -116,7 +116,7 @@ class PWSSample:
 
     def __post_init__(self):
         identity(self.station,maximum=32)
-        if self.provider!='APRSWXNET':
+        if self.provider not in ('APRSWXNET','PWSWEATHER'):
             raise EvidenceError('PWS_PROVIDER_NOT_REVIEWED')
         geometry(self.latitude,self.longitude,self.latitude,self.longitude)
         if not -500<=finite(self.elevation_m,nonnegative=False)<=9000:
@@ -412,22 +412,31 @@ class PWSIdentityTracker:
 
 
 def samples_from_capture(store: EvidenceStore, capture_id: str, *, as_of: float) -> tuple[PWSSample,...]:
-    """Recompile archived raw XML before trusting normalized observation fields."""
-    from .weather_sources import parse_madis_xml
+    """Recompile archived raw response before trusting normalized observation fields.
+
+    The capture's own `body['provider']` selects the adapter from the closed
+    PWS_PROVIDERS allow-list; this never trusts a caller-declared provider.
+    """
+    from .weather_sources import PWS_PROVIDERS, parse_madis_xml, parse_xweather_json
     record=store.get(capture_id)
-    body=record['body']
-    if (record['kind']!='PWS_OBSERVATION' or body['provider']!='NOAA_MADIS_CWOP'
+    body=record['body'];provider=body['provider']
+    if (record['kind']!='PWS_OBSERVATION' or provider not in PWS_PROVIDERS
             or body['available_at']>finite(as_of) or body['evidence_class']=='HISTORICAL_AVAILABILITY_UNKNOWN'):
         raise EvidenceError('PWS_NORMALIZED_CAPTURE_NOT_CAUSAL')
     payload=body['payload']
     raw=store.get(payload['raw_evidence_id'])
     if (raw['sha256']!=payload['raw_evidence_sha256'] or raw['event_id']!=record['event_id']
-            or raw['kind']!='PWS_OBSERVATION' or raw['body']['provider']!='NOAA_MADIS_CWOP'
+            or raw['kind']!='PWS_OBSERVATION' or raw['body']['provider']!=provider
             or raw['body']['available_at']>body['available_at']
             or raw['body']['evidence_class']!=body['evidence_class']):
         raise EvidenceError('PWS_RAW_CAPTURE_BINDING')
     source=raw['body']['payload']
-    parsed=parse_madis_xml(source['response'],received_at=raw['body']['received_at'],params=source['request_params'])
+    if provider=='NOAA_MADIS_CWOP':
+        parsed=parse_madis_xml(source['response'],received_at=raw['body']['received_at'],params=source['request_params'])
+    else:
+        parsed=parse_xweather_json(source['raw_body'].encode('utf-8'),raw_sha256=source['raw_sha256'],
+            received_at=raw['body']['received_at'],params=source['request_parameters'],
+            latitude=source['station_latitude'],longitude=source['station_longitude'])
     if parsed['observations']!=payload['observations'] or payload['feature_ready_at']>body['available_at']:
         raise EvidenceError('PWS_NORMALIZED_RAW_MISMATCH')
     return tuple(PWSSample(r['station'],r['provider'],r['latitude'],r['longitude'],r['elevation_m'],
@@ -442,6 +451,7 @@ def current_neighborhood_heads(store, row):
     Every archive_neighborhood result carries that contract, even if synthetic.
     Public records without it cannot establish current validated QC.
     """
+    from .weather_sources import PWS_PROVIDERS
     body=row['body'];p=body['payload']
     if 'source_captures' not in p:
         if body['evidence_class']=='SYNTHETIC':return ()
@@ -449,8 +459,13 @@ def current_neighborhood_heads(store, row):
     refs=p['source_captures'];meta=p.get('metadata_heads')
     if (type(refs) is not list or not 1<=len(refs)<=64 or type(meta) is not list or len(meta)>128):
         raise EvidenceError('PWS_QC_RAW_LINEAGE_REQUIRED')
-    latest=store.latest_source(kind='PWS_OBSERVATION',event_id=row['event_id'],provider='NOAA_MADIS_CWOP',
-                               source_identity='CWOP_NEAR:'+p['station'])
+    # Absent 'provider' is a pre-existing MADIS-only archived record (backward
+    # compatible default); a genuinely new record always records it explicitly.
+    provider=p.get('provider','NOAA_MADIS_CWOP')
+    if provider not in PWS_PROVIDERS:
+        raise EvidenceError('PWS_QC_PROVIDER_INVALID')
+    latest=store.latest_source(kind='PWS_OBSERVATION',event_id=row['event_id'],provider=provider,
+                               source_identity=PWS_PROVIDERS[provider]['channel_prefix']+p['station'])
     if not latest or {'id':latest['id'],'sha256':latest['sha256']} not in refs:
         raise EvidenceError('PWS_QC_NEW_SOURCE_REQUIRES_RECOMPUTE')
     heads=[];seen=set()
@@ -466,15 +481,24 @@ def current_neighborhood_heads(store, row):
 
 
 def archive_neighborhood(store: EvidenceStore, record_id: str, *, event_id: str, capture_ids: tuple[str,...],
-                         official: StationMetadata, policy: PWSPolicy,
+                         official: StationMetadata, policy: PWSPolicy, provider: str='NOAA_MADIS_CWOP',
                          expected_source_seq: int | None=None, deadline: float | None=None) -> dict:
+    from .weather_sources import PWS_PROVIDERS
     if type(capture_ids) is not tuple or len(capture_ids)>64 or len(set(capture_ids))!=len(capture_ids):
         raise EvidenceError('PWS_CAPTURE_SET_BOUND')
     if not isinstance(official,StationMetadata) or not isinstance(policy,PWSPolicy):
         raise EvidenceError('PWS_QC_CONTEXT_REQUIRED')
+    if provider not in PWS_PROVIDERS:
+        raise EvidenceError('PWS_QC_PROVIDER_INVALID')
     if expected_source_seq is not None and (type(expected_source_seq) is not int or expected_source_seq<0):
         raise EvidenceError('PWS_QC_SOURCE_GUARD_INVALID')
     identity(record_id);identity(event_id)
+    # 'provider' is deliberately excluded from this digest: the default
+    # (NOAA_MADIS_CWOP) must keep producing byte-identical request hashes to
+    # the pre-existing single-provider behaviour. The caller's own record_id
+    # (see pws_runtime.PWSQualityWorker, whose qc_id already encodes the
+    # plan's provider) still disambiguates distinct providers; mixed-provider
+    # inputs within one window are independently rejected below.
     request_sha=digest(dict(event_id=event_id,capture_ids=capture_ids,official=asdict(official),
                             policy=asdict(policy),expected_source_seq=expected_source_seq))
     existing=_existing(store,record_id)
@@ -509,6 +533,8 @@ def archive_neighborhood(store: EvidenceStore, record_id: str, *, event_id: str,
     for key in capture_ids:
         budget()
         record=store.get(key)
+        if record['body']['provider']!=provider:
+            raise EvidenceError('PWS_QC_MIXED_PROVIDER')
         if record['body']['payload'].get('settlement_station_context')!=official.station:
             raise EvidenceError('PWS_OFFICIAL_STATION_CONTEXT_MISMATCH')
         events.add(record['event_id'])
@@ -549,7 +575,8 @@ def archive_neighborhood(store: EvidenceStore, record_id: str, *, event_id: str,
     included={s['station_key'] for s in result['stations']}
     result.update(feature_ready_at=store.clock(),request_sha256=request_sha,metadata_sequence=registry_seq,
                   metadata_heads=[[r['event_id'][4:],r['seq']] for r in metadata if r['event_id'][4:] in included],
-                  source_captures=[{'id':key,'sha256':store.get(key)['sha256']} for key in capture_ids])
+                  source_captures=[{'id':key,'sha256':store.get(key)['sha256']} for key in capture_ids],
+                  provider=provider)
     budget()
     return store.capture(record_id,event_id=event_id,kind='PWS_OBSERVATION',provider='ALPHA_PWS_QC',
         source_identity=official.station,revision=record_id,payload=result,

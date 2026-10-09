@@ -8,16 +8,33 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
+import hashlib
+import json
+import math
 import re
 import xml.etree.ElementTree as ET
 
-from .evidence import EvidenceError, EvidenceStore, digest, finite, identity
+from .evidence import EvidenceError, EvidenceStore, digest, finite, identity, sha
 
 
 MADIS_ENDPOINT = "https://madis-data.ncep.noaa.gov/madisPublic1/cgi-bin/madisXmlPublicDir"
 MADIS_FIXED = {"time":"0", "minfwd":"0", "recwin":"3", "timefilter":"0", "dfltrsel":"1",
                "stasel":"0", "pvdrsel":"1", "pvd":"APRSWXNET", "varsel":"1", "nvars":"T",
                "qctype":"0", "qcsel":"1", "xml":"1", "csvmiss":"0"}
+
+# Permitted live PWS source #2 (owner-approved; MADIS guest access is held).
+# Collected offline by a separate cron collector into retained JSON artifacts;
+# this module never performs HTTP to this or any host (see tools/ ingest CLI).
+XWEATHER_ENDPOINT = "https://data.api.xweather.com/observations/within"
+XWEATHER_FILTER = "pws"
+MADIS_ADAPTER_VERSION = "alpha_v11_madis_public_xml_v1"
+XWEATHER_ADAPTER_VERSION = "alpha_v11_xweather_pws_json_v1"
+# Closed PWS provider allow-list. A new transport family needs a code/review
+# change here, not implicit trust in a persisted provider string.
+PWS_PROVIDERS = {
+    "NOAA_MADIS_CWOP": {"adapter_version": MADIS_ADAPTER_VERSION, "channel_prefix": "CWOP_NEAR:"},
+    "XWEATHER_PWSWEATHER": {"adapter_version": XWEATHER_ADAPTER_VERSION, "channel_prefix": "XWEATHER_NEAR:"},
+}
 
 
 def numeric(value, *, nonnegative=False):
@@ -144,6 +161,135 @@ def parse_awc_metar(payload, *, station: str, received_at: float, max_age_second
             rejections[str(exc) if isinstance(exc,EvidenceError) else "AWC_SCHEMA_INVALID"] += 1
     return {"adapter_version":"alpha_v11_awc_metar_v2_physical_body","observations":observations,
             "rejections":dict(rejections),"settlement_authority":False,"financial_authority":False}
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    a,b = math.radians(lat1),math.radians(lat2)
+    dlat,dlon = math.radians(lat2-lat1),math.radians(lon2-lon1)
+    h = math.sin(dlat/2)**2+math.cos(a)*math.cos(b)*math.sin(dlon/2)**2
+    return 6371.0088*2*math.asin(min(1.,math.sqrt(max(0.,h))))
+
+
+def validate_xweather_params(params, *, latitude, longitude, maximum_radius_km=80.):
+    if (not isinstance(params,dict) or set(params) != {"p","radius","filter","limit"}
+            or params.get("filter") != XWEATHER_FILTER):
+        raise EvidenceError("XWEATHER_PARAMS_INVALID")
+    if not re.fullmatch(r"[1-9][0-9]{0,2}", str(params.get("limit"))) or int(params["limit"]) > 100:
+        raise EvidenceError("XWEATHER_LIMIT_BOUND")
+    match = re.fullmatch(r"([1-9][0-9]{0,2})miles", str(params.get("radius")))
+    if not match:
+        raise EvidenceError("XWEATHER_RADIUS_FORMAT")
+    radius_km = int(match.group(1))*1.609344
+    if not 0 < radius_km <= maximum_radius_km:
+        raise EvidenceError("XWEATHER_RADIUS_BOUND")
+    parts = str(params.get("p","")).split(",")
+    if len(parts) != 2:
+        raise EvidenceError("XWEATHER_CENTER_FORMAT")
+    lat,lon = numeric(parts[0]),numeric(parts[1])
+    if abs(lat-latitude) > 1e-3 or abs(lon-longitude) > 1e-3:
+        raise EvidenceError("XWEATHER_CENTER_MISMATCH")
+    return radius_km
+
+
+def parse_xweather_json(raw_body: bytes, *, raw_sha256: str, received_at: float, params: dict,
+                        latitude: float, longitude: float, max_records: int = 200,
+                        max_observation_age_seconds: float = 3600.) -> dict:
+    """Parse the RAW Xweather `observations/within` JSON body, never the
+    collector's own `projection`. Same identity/bounds discipline as MADIS:
+    finite physical ranges, stale/future rejection, duplicate station/time
+    rejection, geographic containment and response/record bounds. Provider QC
+    fields (code, trust factor, data source) are preserved informationally,
+    never treated as a calibrated QC certification.
+    """
+    receipt = finite(received_at)
+    if not isinstance(raw_body,bytes) or len(raw_body) > 768*1024:
+        raise EvidenceError("XWEATHER_RESPONSE_BOUND")
+    if hashlib.sha256(raw_body).hexdigest() != sha(raw_sha256):
+        raise EvidenceError("XWEATHER_HASH_MISMATCH")
+    if type(max_records) is not int or not 1 <= max_records <= 200:
+        raise EvidenceError("XWEATHER_RESPONSE_BOUND")
+    if not 60 <= finite(max_observation_age_seconds) <= 86400:
+        raise EvidenceError("XWEATHER_AGE_POLICY_BOUND")
+    radius_km = validate_xweather_params(params, latitude=latitude, longitude=longitude)
+    try:
+        data = json.loads(raw_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise EvidenceError("XWEATHER_JSON_INVALID") from None
+    if type(data) is not dict or data.get("success") is not True:
+        raise EvidenceError("XWEATHER_RESPONSE_SHAPE_INVALID")
+    rows = data.get("response")
+    if type(rows) is dict:
+        rows = [rows]
+    if type(rows) is not list or len(rows) > max_records:
+        raise EvidenceError("XWEATHER_RESPONSE_OR_RECORD_BOUND")
+    observations,rejected,seen = [],Counter(),set()
+    for row in rows:
+        try:
+            if type(row) is not dict:
+                raise EvidenceError("XWEATHER_RECORD_SCHEMA_INVALID")
+            sid = row.get("id")
+            # Bound matches PWSSample's station identity so one unrepresentable
+            # provider id is a per-row rejection, never a whole-neighborhood abort.
+            if not isinstance(sid,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,32}",sid):
+                raise EvidenceError("XWEATHER_STATION_ID_INVALID")
+            station = identity(sid,maximum=32)
+            ob,loc,profile = row.get("ob"),row.get("loc"),row.get("profile")
+            if type(ob) is not dict or type(loc) is not dict or type(profile) is not dict:
+                raise EvidenceError("XWEATHER_RECORD_SCHEMA_INVALID")
+            if row.get("dataSource") != "PWS" or ob.get("type") != "station":
+                raise EvidenceError("XWEATHER_NON_PWS_STATION_RECORD")
+            lat,lon = numeric(loc.get("lat")),numeric(loc.get("long"))
+            if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+                raise EvidenceError("XWEATHER_LOCATION_INVALID")
+            if _haversine_km(latitude,longitude,lat,lon) > radius_km+1.0:
+                raise EvidenceError("XWEATHER_OUTSIDE_RADIUS")
+            elevation_m = numeric(profile.get("elevM"),nonnegative=False)
+            if not -500 <= elevation_m <= 9000:
+                raise EvidenceError("XWEATHER_ELEVATION_INVALID")
+            observed = numeric(ob.get("timestamp"),nonnegative=True)
+            if observed > receipt or receipt-observed > max_observation_age_seconds:
+                raise EvidenceError("XWEATHER_STALE_OR_FUTURE_OBSERVATION")
+            temp_c = numeric(ob.get("tempC"),nonnegative=False)
+            if not -60 <= temp_c <= 60:
+                raise EvidenceError("XWEATHER_PHYSICAL_RANGE")
+            qc_code = numeric(ob.get("QCcode"),nonnegative=True)
+            trust = numeric(ob.get("trustFactor"),nonnegative=True)
+            if not 0 <= qc_code < 1000 or not 0 <= trust <= 100:
+                raise EvidenceError("XWEATHER_PROVIDER_QC_INVALID")
+            provider_received = None
+            rec_ts = ob.get("recTimestamp")
+            if rec_ts is not None:
+                provider_received = numeric(rec_ts,nonnegative=True)
+            key = (station,observed)
+            if key in seen:
+                raise EvidenceError("XWEATHER_DUPLICATE_STATION_TIME")
+            seen.add(key)
+            qc_applied = 1
+            qc_results = 0 if (qc_code == 10 and trust >= 80) else 1
+            value = {"station":station,"provider":"PWSWEATHER","latitude":lat,"longitude":lon,
+                     "elevation_m":elevation_m,"temperature_k":temp_c+273.15,"temperature_c":temp_c,
+                     "observed_at":observed,"provider_published_at":None,
+                     "provider_received_at":provider_received,"local_received_at":receipt,
+                     "age_at_receipt_seconds":receipt-observed,
+                     "provider_qc_descriptor":identity(str(ob.get("QC") or "UNKNOWN"),maximum=8),
+                     "provider_qc_applied":qc_applied,"provider_qc_results":qc_results,
+                     "provider_checks_without_failures":qc_applied>0 and qc_results==0,
+                     "provider_qc_code":qc_code,"provider_trust_factor":trust,
+                     "provider_data_source":identity(row["dataSource"],maximum=16),
+                     "local_qc_certified":False,"station_representativeness_certified":False,
+                     "settlement_authority":False,"calibration_label_authority":False,
+                     "financial_authority":False,"source_role":"PWS_AUXILIARY_ONLY"}
+            value["observation_key"] = digest({"provider":"PWSWEATHER","station":station,"observed_at":observed})
+            value["observation_identity"] = digest({k:v for k,v in value.items()
+                                                   if k not in {"local_received_at","age_at_receipt_seconds"}})
+            observations.append(value)
+        except (EvidenceError, KeyError, ValueError, TypeError, OverflowError) as exc:
+            code = str(exc) if isinstance(exc, EvidenceError) else "XWEATHER_RECORD_SCHEMA_INVALID"
+            rejected[code] += 1
+    return {"adapter_version":XWEATHER_ADAPTER_VERSION, "observations":observations,
+            "rejections":dict(rejected),"response_records":len(rows),
+            "financial_authority":False,"settlement_authority":False,
+            "lead_advantage_verified":False,"complete_geographic_coverage":False}
 
 
 def normalize_weather_capture(store: EvidenceStore, raw_id: str, *, record_id: str,

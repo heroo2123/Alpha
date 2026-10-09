@@ -24,11 +24,17 @@ class PWSQualityPlan:
     event_id: str
     official: StationMetadata
     policy: PWSPolicy
+    # Closed allow-list; default preserves pre-existing single-provider MADIS
+    # behaviour (record ids / SQL channel lookups stay byte-identical).
+    provider: str = 'NOAA_MADIS_CWOP'
 
     def __post_init__(self):
         identity(self.event_id)
         if not isinstance(self.official,StationMetadata) or not isinstance(self.policy,PWSPolicy):
             raise EvidenceError('PWS_RUNTIME_CONTEXT_REQUIRED')
+        from .weather_sources import PWS_PROVIDERS
+        if self.provider not in PWS_PROVIDERS:
+            raise EvidenceError('PWS_RUNTIME_PROVIDER_INVALID')
 
 
 @dataclass(frozen=True)
@@ -78,28 +84,30 @@ class PWSQualityWorker:
         """One consistent, bounded receipt window. Overflow is never truncated."""
         if event_id not in self.plans:raise EvidenceError('PWS_RUNTIME_EVENT_SCOPE')
         plan=self.plans[event_id]
-        at=finite(self.store.clock());channel='CWOP_NEAR:'+plan.official.station
+        from .weather_sources import PWS_PROVIDERS
+        adapter_version=PWS_PROVIDERS[plan.provider]['adapter_version']
+        at=finite(self.store.clock());channel=PWS_PROVIDERS[plan.provider]['channel_prefix']+plan.official.station
         with self.store._connect() as db:
             db.execute('BEGIN')
             source_seq=db.execute("SELECT COALESCE(MAX(seq),0) FROM v11_records "
                 "WHERE kind='PWS_OBSERVATION' AND event_id=?",(plan.event_id,)).fetchone()[0]
             row=db.execute("SELECT * FROM v11_records WHERE kind='PWS_OBSERVATION' AND event_id=? "
-                "AND json_extract(body,'$.provider')='NOAA_MADIS_CWOP' "
+                "AND json_extract(body,'$.provider')=? "
                 "AND json_extract(body,'$.source_identity')=? ORDER BY seq DESC LIMIT 1",
-                (plan.event_id,channel)).fetchone()
+                (plan.event_id,plan.provider,channel)).fetchone()
             if row is None:raise EvidenceError('PWS_RUNTIME_SOURCE_ABSENT')
             latest=self.store._decode(row);b=latest['body']
             if (b['available_at']>at or b['recorded_at']>at
                     or b['evidence_class']=='HISTORICAL_AVAILABILITY_UNKNOWN'
-                    or b['payload'].get('adapter_version')!='alpha_v11_madis_public_xml_v1'
+                    or b['payload'].get('adapter_version')!=adapter_version
                     or b['payload'].get('settlement_station_context')!=plan.official.station):
                 raise EvidenceError('PWS_RUNTIME_CURRENT_NORMALIZATION_REQUIRED')
             rows=db.execute("SELECT * FROM v11_records WHERE kind='PWS_OBSERVATION' AND event_id=? "
-                "AND json_extract(body,'$.provider')='NOAA_MADIS_CWOP' "
+                "AND json_extract(body,'$.provider')=? "
                 "AND json_extract(body,'$.source_identity')=? AND available_at<=? AND recorded_at<=? "
-                "AND json_extract(body,'$.payload.adapter_version')='alpha_v11_madis_public_xml_v1' "
+                "AND json_extract(body,'$.payload.adapter_version')=? "
                 "AND (json_extract(body,'$.observed_at')>=? OR seq=?) ORDER BY seq LIMIT ?",
-                (plan.event_id,channel,at,at,at-plan.policy.history_seconds,latest['seq'],
+                (plan.event_id,plan.provider,channel,at,at,adapter_version,at-plan.policy.history_seconds,latest['seq'],
                  self.settings.maximum_captures+1)).fetchall()
         if len(rows)>self.settings.maximum_captures:raise EvidenceError('PWS_RUNTIME_CAPTURE_WINDOW_OVERFLOW')
         return dict(channel_id=latest['id'],source_seq=source_seq,capture_ids=[self.store._decode(r)['id'] for r in rows])
@@ -142,7 +150,7 @@ class PWSQualityWorker:
             try:
                 qc=archive_neighborhood(self.store,active['qc_id'],event_id=event,
                     capture_ids=tuple(active['capture_ids']),official=plan.official,policy=plan.policy,
-                    expected_source_seq=active['source_seq'],deadline=deadline)
+                    provider=plan.provider,expected_source_seq=active['source_seq'],deadline=deadline)
             except EvidenceError as exc:
                 resumable=str(exc) in {'PWS_QC_TIME_BOUND','ARCHIVE_STATE_CHANGED','AUDIT_STATE_CHANGED'}
                 if not resumable:state['active']=None
