@@ -48,6 +48,22 @@
         "commit": "b2bbb0df76ccbcf4300903c04eb2748a3ef61de6"
       }
     ],
+    "polymarket_scanner/v11/pws_quality.py": [
+      {
+        "classification": "offline Xweather PWS history replay ingress",
+        "commit": "16ca84ec72c637bd8ec325141804eedf5919036d"
+      }
+    ],
+    "polymarket_scanner/v11/weather_sources.py": [
+      {
+        "classification": "offline Xweather PWS history replay ingress",
+        "commit": "16ca84ec72c637bd8ec325141804eedf5919036d"
+      },
+      {
+        "classification": "reject over-long Xweather station id per row",
+        "commit": "b431f6eb427c3402ba657b74ed61b2dffc81b5ad"
+      }
+    ],
     "tests/test_v11_gate3_attempt_runtime_wiring.py": [
       {
         "classification": "verify Gate-3 refusal codes under optimized Python",
@@ -416,9 +432,9 @@
       "sha256": "b5a7ecd15b661b7093d4e6e3f00e2a815545f373b2fdb33d24d1ac09247a619f"
     },
     "polymarket_scanner/v11/pws_quality.py": {
-      "byte_length": 30743,
-      "git_blob": "9c7510eea7a095dbf7b547351a80cf3204e5b5f7",
-      "sha256": "743a56faf155be51a5ea3eb9520303b6756d232a47a470764f7aa934798f1086"
+      "byte_length": 32429,
+      "git_blob": "7a187145079f25e5bf7db7781c813de25ee0ea53",
+      "sha256": "aea3dfbb9e5f9649348b13bfb8a945706781e952b666e4df2a2e9a11fdb5226e"
     },
     "polymarket_scanner/v11/pws_scoring.py": {
       "byte_length": 8990,
@@ -471,9 +487,9 @@
       "sha256": "c87ace6ed8b813fa4e03ab43fbc8bc12dc4163095c93ca340e370fadef0a0cf9"
     },
     "polymarket_scanner/v11/weather_sources.py": {
-      "byte_length": 11631,
-      "git_blob": "d0a49b91014d24b9b27a631038efafc77ff4fd7c",
-      "sha256": "7fd35e1c380f195d80b81bfaed6030435e36850231582bde219acdcc11c4d87f"
+      "byte_length": 20257,
+      "git_blob": "b559358ebd9e7df75815906521969416a31b500d",
+      "sha256": "8159c43d2c98c2226d9068d6e6e0ccfeec1c9b4b446382e9f1d7ea99e2ee831b"
     },
     "polymarket_scanner/v11/weathernext_sources.py": {
       "byte_length": 8823,
@@ -669,6 +685,20 @@
       "sha256": "71c38e65312b43ff3066d34c3e55ff96342278bc5634764719651f2a28089cd6",
       "tree": "7da55dd47f4a0acfb6062765ec5df67bada1ebf4"
     },
+    "polymarket_scanner/v11/pws_quality.py": {
+      "byte_length": 30743,
+      "commit": "fea59027cd3296e55db564a8aaece8975203706b",
+      "git_blob": "9c7510eea7a095dbf7b547351a80cf3204e5b5f7",
+      "sha256": "743a56faf155be51a5ea3eb9520303b6756d232a47a470764f7aa934798f1086",
+      "tree": "022fd9663ab2603639ab1451f596a170a0641d88"
+    },
+    "polymarket_scanner/v11/weather_sources.py": {
+      "byte_length": 11631,
+      "commit": "fea59027cd3296e55db564a8aaece8975203706b",
+      "git_blob": "d0a49b91014d24b9b27a631038efafc77ff4fd7c",
+      "sha256": "7fd35e1c380f195d80b81bfaed6030435e36850231582bde219acdcc11c4d87f",
+      "tree": "022fd9663ab2603639ab1451f596a170a0641d88"
+    },
     "tests/test_v11_gate3_attempt_runtime_wiring.py": {
       "byte_length": 26430,
       "commit": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
@@ -723,6 +753,6 @@
   "qualification_credit": 0,
   "review_limit": "Candidate byte binding only. Historical exact reviews remain scoped to their original commits. Independent exact review of this candidate and separate G3-L inventory/package entry review are required; no provider, capture, runtime launch, or financial authority.",
   "schema": "V11_GATE3_CURRENT_EXECUTABLE_BINDING_V1",
-  "source_commit": "fea59027cd3296e55db564a8aaece8975203706b",
-  "source_tree": "022fd9663ab2603639ab1451f596a170a0641d88"
+  "source_commit": "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d",
+  "source_tree": "f46b27281fa1d5500bd86a3e91ad94f774fa38ac"
 }

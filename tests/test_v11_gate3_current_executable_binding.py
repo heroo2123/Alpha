@@ -22,34 +22,25 @@ REPO = Path(__file__).resolve().parents[1]
 # (non-hardened) git invocations to honour it. Strip it for those callers,
 # mirroring tests/test_v11_gate3_current_executable_binding_survivor_coverage.py.
 ENV_HONOURING_REPLACE = {k: v for k, v in os.environ.items() if k != "GIT_NO_REPLACE_OBJECTS"}
-SOURCE = "fea59027cd3296e55db564a8aaece8975203706b"
-PREVIOUS_SOURCE = "d806c11082fe81defd74993152906ee7454bce1d"
-OLDER_SOURCE = "58e63fc8409f49d60b2c4a06efa377a6b30ee195"
-# Paths already under historical baseline/drift tracking before this repin;
-# only their drift trace extends (the baseline itself is untouched).
+SOURCE = "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d"
+PREVIOUS_SOURCE = "fea59027cd3296e55db564a8aaece8975203706b"
+OLDER_SOURCE = "d806c11082fe81defd74993152906ee7454bce1d"
+# Paths changed by this repin. Each is either already under historical
+# baseline/drift tracking before this repin (its drift trace extends; the
+# baseline itself is untouched) or enters historical tracking for the first
+# time here (its baseline is frozen at PREVIOUS_SOURCE's own file entry).
 REPIN_CHANGES = {
-    "tests/test_v11_r09_gate3_runtime.py": (
-        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",
-        "7ff30948dfbcc0d164b6395e4749094472bfe134"),
-    "tools/v11_r09_gate3_runtime.py": (
-        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",),
-    "tools/v11_r09_gate3_ledgers.py": (
-        "fe311384953e01cc132ca8fe39f8b631b2f7c52a",
-        "0090c1f7967aa45db360e47f31c297f5c534400d",
-        "7ff30948dfbcc0d164b6395e4749094472bfe134",
-        "23f11501d26b785c549e1568cca0d7d375ed4e5e"),
+    "polymarket_scanner/v11/pws_quality.py": (
+        "16ca84ec72c637bd8ec325141804eedf5919036d",),
+    "polymarket_scanner/v11/weather_sources.py": (
+        "16ca84ec72c637bd8ec325141804eedf5919036d",
+        "b431f6eb427c3402ba657b74ed61b2dffc81b5ad"),
 }
 # Paths that only ever had a plain current-byte pin (never historical/drift
 # tracked); this repin updates their bytes with no baseline/trace bookkeeping.
-PLAIN_BYTE_CHANGES = {
-    "tests/test_v11_r09_gate3_ledgers.py",
-    "tools/v11_r09_gate3_launch.py",
-    "tools/v11_r09_gate3_launch_v4.py",
-}
+PLAIN_BYTE_CHANGES = set()
 # New paths entering PATHS/DEPENDENCIES for the first time in this repin.
-ADDED_PATHS = {
-    "tools/v11_r09_gate3_eligibility.py",
-}
+ADDED_PATHS = set()
 MODULE_ROOTS = {
     "tools/v11_r09_gate3_collector.py",
     "tools/v11_r09_gate3_runtime.py",
@@ -240,7 +231,7 @@ def test_exact_candidate_pins_thirteen_histories_and_dependent_protocol_tests():
                 "source_tree": binding.SOURCE_TREE,
                 "verified_files": len(binding.PATHS),
                 "launchable": False, "qualification_credit": 0}
-    if result != expected or len(binding.HISTORICAL) != 13 or len(binding.PATHS) != 93:
+    if result != expected or len(binding.HISTORICAL) != 15 or len(binding.PATHS) != 93:
         pytest.fail(f"candidate pins or authority changed: {result}")
     if {p for p in binding.PATHS if p.startswith("tests/")} != {
         "tests/test_v11_r09_gate3_collector.py",
@@ -812,13 +803,20 @@ def test_repin_preserves_coverage_and_accounts_for_every_changed_blob():
                               f"{PREVIOUS_SOURCE}..{SOURCE}", "--", path).decode().splitlines()
         if history != list(reversed(commits)):
             pytest.fail(f"real path-change history differs: {path}: {history}")
-        if path not in previous["historical_baselines"]:
-            pytest.fail(f"expected path already historical before this repin: {path}")
-        if current["historical_baselines"][path] != previous["historical_baselines"][path]:
-            pytest.fail(f"earlier baseline changed: {path}")
-        prior_trace = previous["drift_commits"][path]
-        if current["drift_commits"][path][:len(prior_trace)] != prior_trace:
-            pytest.fail(f"earlier drift trace changed: {path}")
+        if path in previous["historical_baselines"]:
+            if current["historical_baselines"][path] != previous["historical_baselines"][path]:
+                pytest.fail(f"earlier baseline changed: {path}")
+            prior_trace = previous["drift_commits"][path]
+            if current["drift_commits"][path][:len(prior_trace)] != prior_trace:
+                pytest.fail(f"earlier drift trace changed: {path}")
+        else:
+            # First repin where this path enters historical tracking: its
+            # baseline is the prior binding's own current-byte observation.
+            expected = {"commit": previous["source_commit"], "tree": previous["source_tree"],
+                        **previous["files"][path]}
+            if current["historical_baselines"][path] != expected:
+                pytest.fail(f"previous frozen observation not retained: {path}")
+            prior_trace = []
         new_trace = current["drift_commits"][path][len(prior_trace):]
         if tuple(t["commit"] for t in new_trace) != commits:
             pytest.fail(f"new drift trace incomplete: {path}")

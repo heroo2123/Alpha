@@ -16,8 +16,8 @@ from functools import cache
 from pathlib import Path
 
 MANIFEST = "docs/V11_GATE3_CURRENT_EXECUTABLE_BINDING_20261007.json"
-SOURCE_COMMIT = "fea59027cd3296e55db564a8aaece8975203706b"
-SOURCE_TREE = "022fd9663ab2603639ab1451f596a170a0641d88"
+SOURCE_COMMIT = "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d"
+SOURCE_TREE = "f46b27281fa1d5500bd86a3e91ad94f774fa38ac"
 HISTORICAL = {
     # Prior observations remain scoped to their own frozen source commits.
     "polymarket_scanner/v11/evidence.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
@@ -26,6 +26,8 @@ HISTORICAL = {
     "polymarket_scanner/v11/model_artifacts.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "polymarket_scanner/v11/physical_inference.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
     "polymarket_scanner/v11/pws_admission.py": "d1c5602aa77e0d835e416d281b4a78754a3a79df",
+    "polymarket_scanner/v11/pws_quality.py": "fea59027cd3296e55db564a8aaece8975203706b",
+    "polymarket_scanner/v11/weather_sources.py": "fea59027cd3296e55db564a8aaece8975203706b",
     "tests/test_v11_gate3_attempt_runtime_wiring.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
     "tests/test_v11_gate3_evidence_intake_launch_wiring.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
     "tests/test_v11_r09_gate3_runtime.py": "58e63fc8409f49d60b2c4a06efa377a6b30ee195",
@@ -81,6 +83,11 @@ DRIFT_COMMITS = {
         "0090c1f7967aa45db360e47f31c297f5c534400d",
         "7ff30948dfbcc0d164b6395e4749094472bfe134",
         "23f11501d26b785c549e1568cca0d7d375ed4e5e"),
+    "polymarket_scanner/v11/pws_quality.py": (
+        "16ca84ec72c637bd8ec325141804eedf5919036d",),
+    "polymarket_scanner/v11/weather_sources.py": (
+        "16ca84ec72c637bd8ec325141804eedf5919036d",
+        "b431f6eb427c3402ba657b74ed61b2dffc81b5ad"),
 }
 DEPENDENCIES = frozenset({
     "polymarket_scanner/__init__.py",
