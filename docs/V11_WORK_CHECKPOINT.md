@@ -1,3 +1,14 @@
+## 2026-10-09 08:27 UTC Manager cycle: Oct 10 forward Xweather ingest scheduled ahead of its local day
+
+**Witness PAPER_9 / NO_PWS_IN_ACTIVE_SHADOW_RUNNER.** Added the Oct 10 sibling of the 08:05Z Oct 9 wrapper so the forward PWS record does not stop at 2026-10-10T04:00Z.
+- Wrapper `AlphaV11_ContinuousCoordinator/xweather-forward-ingest-20261010-state/run_ingest.sh` (sha `11250b58...`). Same reviewed tool and pin (`8f925086...`), same flock/disk/HOLD/tool-hash guards. Bound to KATL Gamma event `1152613`, config `real-input-madis-public-20261010/config.json` (reviewed digest `2b1e0fe4...`), new store `forward-v1.sqlite3`, namespace `CHALLENGER:xweather-forward-katl-20261010-v1`.
+- New start guard: before 2026-10-10T04:00Z it logs `BEFORE_EVENT_DAY` and does nothing (verified 08:21Z). It expires at 2026-10-11T04:00Z.
+- Cron `4-59/10`, same cadence as Oct 9; crontab backup `crontab.backup.20261009T0825Z`.
+- Offline dry-run in a throwaway store (since deleted): the Oct 10 config loads, 60 artifacts were selected, and QC returned `DEFERRED_CLOCK_UNHEALTHY` / `CLOCK_RECOVERY_SAMPLES_PENDING`. The Oct 9 store's first run did the same before reaching HEALTHY, so this is expected for a fresh store.
+- The Oct 9 real-input capture is still `HOLD_PRESENT` (MADIS 04:11Z hold preserved, not cleared). No specialists were launched: Codex lanes are sandbox-blocked and in-process agents cannot outlive this cycle.
+
+No gate, score or financial change: strict **9/48 (18.8%)**; PAPER **9/11** (PAPER-8/9 open); engineering **91/200 (formal 1/50)**; G3-L **NO-GO**, 77 missing; **READY_TO_FUND=false**.
+
 ## 2026-10-09 05:58 UTC Manager cycle: one MADIS timeout no longer kills a future day's real-input capture (`dcddae8`+`1791237` on main)
 
 **Witness CURRENT_REAL_INPUT_CAPTURE_HAS_NO_SUCCESS / PAPER_9.** The whole Oct 9 capture has been `HOLD_PRESENT` since 04:11Z. Cause: one `NOAA_MADIS_CWOP` request got `TRANSPORT_FAILURE`/`REQUEST_FAILED` (no HTTP response at all). MADIS is rights-sensitive, so `real_input_capture` turned that into a permanent day hold. Over the same night, the owner-approved passive MADIS collector made about 54 requests to the same public endpoint and every one succeeded; that collector holds only on 401/403/429/503. Fix: Sonnet writer `dcddae8`, reviewed by Opus (different model), plus Opus repair `1791237`, which only tightens the code.
