@@ -269,6 +269,28 @@ def test_host_upgrade_requires_reviewed_pws_config_and_retains_account_limits(jo
         katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config={})
 
 
+def test_host_upgrade_without_pws_config_builds_economic_lane_only(joined, setup):
+    r = joined
+    base, _, _ = economic_plan(r, main_sources=main_sources_for(r))
+    upgraded = katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=None)
+    assert [type(l) for l in upgraded.events[0].lanes] == [TemperatureLane]
+    assert upgraded.events[0].census.pws is None and upgraded.pws_quality is None
+    assert 'PWS_OBSERVATION' not in upgraded.events[0].route.required_source_kinds
+    assert upgraded.account == base.account and upgraded.limits == base.limits
+    assert upgraded.events[0].lanes[0].targets[0].costs == base.events[0].lanes[0].targets[0].costs
+    # An empty or partial config is never read as "no PWS sleeve".
+    with pytest.raises(EvidenceError, match='KATL_PLAN_PWS_CONFIG_SCHEMA'):
+        katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config={})
+    contract = ForecastFeatureContract((('model-1', 1),), 'F', r['rule'].payload['family'])
+    target = ShadowScopeTarget(r['scope'], 'F', 1, r['context'].event_id, 1, 'd'*64, contract)
+    assert katl_live_plan.commission_targets(upgraded, target, None) == (target,)
+    with pytest.raises(EvidenceError, match='KATL_PLAN_COMMISSION_SHAPE_REQUIRED'):
+        katl_live_plan.commission_targets(upgraded, target, {'commission': {}})
+    with_pws, _, _ = economic_plan(r, main_sources=main_sources_for(r), pws=pws_sleeve(r, setup[3]))
+    with pytest.raises(EvidenceError, match='KATL_PLAN_COMMISSION_SHAPE_REQUIRED'):
+        katl_live_plan.commission_targets(with_pws, target, None)
+
+
 def test_pws_policy_change_changes_release_config_binding(joined, setup):
     r = joined
     sleeve = pws_sleeve(r, setup[3])
