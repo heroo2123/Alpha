@@ -228,9 +228,11 @@ def parse_xweather_json(raw_body: bytes, *, raw_sha256: str, received_at: float,
             if type(row) is not dict:
                 raise EvidenceError("XWEATHER_RECORD_SCHEMA_INVALID")
             sid = row.get("id")
-            if not isinstance(sid,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}",sid):
+            # Bound matches PWSSample's station identity so one unrepresentable
+            # provider id is a per-row rejection, never a whole-neighborhood abort.
+            if not isinstance(sid,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,32}",sid):
                 raise EvidenceError("XWEATHER_STATION_ID_INVALID")
-            station = identity(sid,maximum=64)
+            station = identity(sid,maximum=32)
             ob,loc,profile = row.get("ob"),row.get("loc"),row.get("profile")
             if type(ob) is not dict or type(loc) is not dict or type(profile) is not dict:
                 raise EvidenceError("XWEATHER_RECORD_SCHEMA_INVALID")

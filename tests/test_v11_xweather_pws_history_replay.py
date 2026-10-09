@@ -197,3 +197,30 @@ def test_wrong_sha_rejected(tmp_path):
     path.write_bytes(json.dumps(record).encode("utf-8"))
     with pytest.raises(EvidenceError):
         replay.verified_history(root)
+
+
+def test_overlong_real_station_id_is_rejected_per_row_not_whole_neighborhood(tmp_path):
+    """Real retained Xweather data contained a 34-char station id; it must be
+    visibly rejected by the parser while the remaining stations still QC."""
+    long_id = "PWS_PRINCESSDONUTTHEQUEENANNECHONK"
+    assert len(long_id) == 34
+    root = tmp_path / "xw"; root.mkdir()
+    _write(root,
+        _artifact("xweather-20261008T180000-aaaaaa.json", stations=[("PWS_TESTA", 33.01, -84.0, 19.0, 1000.0),
+            (long_id, 33.02, -84.0, 19.1, 1000.0)], received_epoch=1001.0),
+        _artifact("xweather-20261008T180500-bbbbbb.json", stations=[("PWS_TESTA", 33.01, -84.0, 19.5, 1300.0),
+            (long_id, 33.02, -84.0, 19.6, 1300.0)], received_epoch=1301.0),
+        _artifact("xweather-20261008T181000-cccccc.json", stations=[("PWS_TESTA", 33.01, -84.0, 20.0, 1600.0),
+            (long_id, 33.02, -84.0, 20.1, 1600.0)], received_epoch=1601.0))
+    store = _store(tmp_path)
+    result = replay.ingest_history(store, replay.verified_history(root), event_id="KATL-replay", station="KATL",
+        latitude=KATL[0], longitude=KATL[1])
+    for r in result:
+        payload = store.get(r["normalized_id"])["body"]["payload"]
+        assert payload["rejections"] == {"XWEATHER_STATION_ID_INVALID": 1}
+        assert [o["station"] for o in payload["observations"]] == ["PWS_TESTA"]
+    qc = archive_neighborhood(store, "qc:long-id", event_id="KATL-replay",
+        capture_ids=tuple(dict.fromkeys(r["normalized_id"] for r in result)), official=official(),
+        policy=policy(), provider="XWEATHER_PWSWEATHER")
+    payload = qc["body"]["payload"]
+    assert payload["station_count"] == 1 and len(payload["stations"]) == 1
