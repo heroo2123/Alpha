@@ -147,24 +147,28 @@ def _cost_components(value) -> tuple[CostComponent, ...]:
 
 
 def commission_targets(plan: CandidatePlan, base_target: ShadowScopeTarget,
-                       pws_config: dict) -> tuple[ShadowScopeTarget, ...]:
+                       pws_config: dict | None) -> tuple[ShadowScopeTarget, ...]:
     """Bind every cohort scope to separately staged protected model identities.
 
     These are expected identities only; commissioning preflight still pins and
-    revalidates each model from the protected registry.
+    revalidates each model from the protected registry. pws_config=None is only
+    accepted for an economic-only plan (no PWSLeadLane), and vice versa.
     """
     if (not isinstance(plan, CandidatePlan) or len(plan.events) != 1
-            or len(plan.events[0].lanes) != 2
+            or len(plan.events[0].lanes) != (1 if pws_config is None else 2)
             or type(plan.events[0].lanes[0]) is not TemperatureLane
-            or type(plan.events[0].lanes[1]) is not PWSLeadLane
             or not isinstance(base_target, ShadowScopeTarget)
-            or type(pws_config) is not dict or type(pws_config.get('commission')) is not dict
-            or set(pws_config['commission']) != {'payout', 'observation'}):
+            or (pws_config is not None
+                and (type(plan.events[0].lanes[1]) is not PWSLeadLane
+                     or type(pws_config) is not dict or type(pws_config.get('commission')) is not dict
+                     or set(pws_config['commission']) != {'payout', 'observation'}))):
         raise EvidenceError('KATL_PLAN_COMMISSION_SHAPE_REQUIRED')
     event = plan.events[0]
     if base_target.scope != event.lanes[0].inputs.scope or base_target.event_id != event.route.event_id:
         raise EvidenceError('KATL_PLAN_COMMISSION_BASE_TARGET_MISMATCH')
     targets = [base_target]
+    if pws_config is None:
+        return tuple(targets)
     for role, inputs, expected_target in (
             ('payout', event.lanes[1].inputs, 'FINAL_CONTRACT_PAYOUT'),
             ('observation', event.lanes[1].observation_inputs, 'NEXT_OFFICIAL_OBSERVATION')):
@@ -188,12 +192,14 @@ def commission_targets(plan: CandidatePlan, base_target: ShadowScopeTarget,
     return tuple(targets)
 
 
-def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_config: dict) -> CandidatePlan:
+def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_config: dict | None) -> CandidatePlan:
     """Replace one daily smoke event while retaining its reviewed account limits.
 
     The host must pass the plan returned by its existing build_plan(store).
-    It must load pws_config from a separately reviewed local artifact; missing
-    configuration fails before any candidate is assembled.
+    It must load pws_config from a separately reviewed local artifact; a present
+    but malformed configuration fails before any candidate is assembled. Only an
+    explicit pws_config=None selects the economic/EventRisk plan without the PWS
+    sleeve, so a missing PWS champion cannot block the temperature lane.
     """
     if (not isinstance(base, CandidatePlan) or len(base.events) != 1 or len(base.events[0].lanes) != 1
             or type(base.events[0].lanes[0]) is not TemperatureLane
@@ -206,10 +212,10 @@ def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_con
     if len(model_sources) != 1 or event.route.station != official.station:
         raise EvidenceError('KATL_PLAN_HOST_MODEL_OR_STATION_REQUIRED')
     binding = inputs.binding
-    pws = pws_sleeve_from_config(pws_config, official)
+    pws = pws_sleeve_from_config(pws_config, official) if pws_config is not None else None
     base_costs = event.lanes[0].targets[0].costs
     temperature_costs = (_cost_components(pws_config['temperature_costs'])
-                         if 'temperature_costs' in pws_config else base_costs)
+                         if pws_config is not None and 'temperature_costs' in pws_config else base_costs)
     if base_costs and temperature_costs != base_costs:
         raise EvidenceError('KATL_PLAN_HOST_TEMPERATURE_COST_CONFLICT')
     plan, _, _ = build_plan(
