@@ -40,7 +40,8 @@ from test_v11_strategy_pipeline import factory
 COLLATERAL = 'FIXTURE_COLLATERAL'
 
 
-def economic_plan(r, *, main_sources=None, pws=None, temperature_costs=()):
+def economic_plan(r, *, main_sources=None, pws=None, temperature_costs=(),
+                  use_default_settlement_window=False):
     model = r['store'].get('model2')['body']
     reviewed_risk = coordinator(r)
     return katl_live_plan.build_plan(
@@ -50,7 +51,8 @@ def economic_plan(r, *, main_sources=None, pws=None, temperature_costs=()):
         bundle_sha256=r['binding'].bundle_sha256, collateral=COLLATERAL, worker='worker', stage='PAPER',
         book_provider='fixture', account_policy=reviewed_risk.policy,
         correlation=reviewed_risk.correlation, scenario_limits=reviewed_risk.limits,
-        main_sources=main_sources, pws=pws, temperature_costs=temperature_costs)
+        main_sources=main_sources, pws=pws, temperature_costs=temperature_costs,
+        **({} if use_default_settlement_window else {'risk_settlement_window': None}))
 
 
 def selectors(r, source_leases):
@@ -335,6 +337,54 @@ def test_risk_policy_opt_ins_reach_candidate_event_and_release_binding(joined, s
     assert katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=None) == base
 
 
+def test_default_window_derives_through_candidate_event_and_event_risk_inputs(factory, monkeypatch):
+    import test_v11_strategy_pipeline as strategy_pipeline
+    from polymarket_scanner.v11.settlement_window import BASIS, SettlementWindowPolicy, VERSION as SW_VERSION
+    from test_v11_settlement_window import _hourly_event
+
+    monkeypatch.setattr(strategy_pipeline, '_event', _hourly_event)
+    r = factory('FUTURE_FORECAST')
+    capture_full_partition_books(r)
+    plan, _, _ = economic_plan(r, use_default_settlement_window=True)
+    event = plan.events[0]
+    assert event.risk_settlement_window == SettlementWindowPolicy(SW_VERSION, 86400.)
+    assert event.risk_execution_health is None
+
+    # Explicit None is the original fail-closed plan, including its binding.
+    fallback, _, _ = economic_plan(r)
+    assert fallback.events[0].risk_settlement_window is None
+    assert event.risk_inputs.binding.config_sha256 != fallback.events[0].risk_inputs.binding.config_sha256
+
+    candidate, result = _evaluate_plan(r, plan, monkeypatch, generation='katl-hourly-window')
+    risk_adapter = candidate.runtime.evaluator.inputs[r['context'].event_id]
+    assert risk_adapter.settlement_window_policy == event.risk_settlement_window
+    assert risk_adapter.execution_health_policy is None
+    assert risk_adapter.description()['settlement_window_policy'] == asdict(event.risk_settlement_window)
+    assert 'execution_health_policy' not in risk_adapter.description()
+
+    # Only the single top-level risk-input record, not the per-target
+    # MakerMicrostructure ':book:N' sub-records this same key also prefixes.
+    measured = [row for row in r['store'].records(kind='MEASUREMENT')
+               if row['id'].startswith('risk-input:') and ':book:' not in row['id']]
+    assert len(measured) == 1
+    details = measured[0]['body']['details']
+    assert details['settlement_window']['status'] == 'DERIVED'
+    assert details['settlement_window']['basis'] == BASIS
+    assert details['metrics']['time_to_settlement_seconds'] > 0
+    assert details['unknown_inputs'] == ['OWN_EXECUTION_ADVERSE_FILLS', 'OWN_EXECUTION_MARKOUT']
+    assert details['metrics']['adverse_fills'] is None
+    assert details['metrics']['recent_markout_per_share'] is None
+    assert details['settlement_finality'] is False
+    state = r['store'].get(measured[0]['id'] + ':state')['body']['details']
+    assert 'SETTLEMENT_WINDOW_UNKNOWN_OR_CLOSED' not in state['reasons']
+    assert state['financial_authority'] is False
+    value = r['store'].get(result.result_ids[0] + ':valuation')['body']['details']
+    assert value['outcome'] == 'GATED'
+    assert 'UNKNOWN_OR_MISSING_COST_COVERAGE' in value['reasons']
+    assert not result.proposals
+    assert not r['store'].records(kind='TRADE')
+
+
 def test_pws_policy_change_changes_release_config_binding(joined, setup):
     r = joined
     sleeve = pws_sleeve(r, setup[3])
@@ -489,6 +539,7 @@ def test_scenario_reservation_consistently_refuses_while_event_state_is_suppress
     capture_full_partition_books(r)
     plan, _, _ = economic_plan(r)
     candidate, result = _evaluate_plan(r, plan, monkeypatch, generation='katl-economic-reserve')
+    assert plan.events[0].risk_settlement_window is None
     evaluation_id = result.result_ids[0]
     details = r['store'].get(evaluation_id)['body']['details']
     admission_id, event_state_id = details['admission_id'], details['request']['event_state_id']
@@ -514,6 +565,10 @@ def test_scenario_reservation_consistently_refuses_while_event_state_is_suppress
         q.finish('reserve:finish', claim_id=claim['claim_id'], result_ids=(valuation_id, 'fixture-pointer'))
     before = candidate.runtime.coordinator.snapshot()['reserved_cash']
     reservation = candidate.runtime.coordinator.coordinate('batch', (proposal,))['body']['details']
+    measured = [row['body']['details'] for row in r['store'].records(kind='MEASUREMENT')
+               if row['id'].startswith('risk-input:')]
+    assert measured[-1]['metrics']['time_to_settlement_seconds'] is None
+    assert 'SETTLEMENT_TIMING' in measured[-1]['unknown_inputs']
     # Even with a synthesized ACCEPT_RESEARCH valuation, the coordinator
     # independently refuses -- for the same risk_inputs.py-documented reason
     # (settlement timing/execution quality left UNKNOWN) as the strategy

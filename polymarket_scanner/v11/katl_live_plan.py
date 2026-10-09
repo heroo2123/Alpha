@@ -24,8 +24,10 @@ reservation code (candidate_assembly.assemble_candidate and everything it
 calls) still refuses any input that is not actually fresh, certified and
 reviewed. financial_authority stays False throughout -- nothing here places
 an order, mutates a real account, or gives PWS settlement authority. The
-current EventRiskInputs adapter still reports settlement timing and execution
-health as UNKNOWN and therefore independently blocks new risk reservation.
+default settlement-window policy derives an observation close only for a
+supported, fresh, RuleGuard-bound rule. Execution health and default cost
+coverage remain UNKNOWN/GATED. Explicit None retains the original fail-closed
+settlement-window fallback.
 """
 from __future__ import annotations
 
@@ -59,7 +61,7 @@ from .rules import RuleFingerprint
 from .runtime_feed import FeedPolicy
 from .runtime_health import HealthPolicy
 from .scenario_risk import CorrelationMap, ScenarioLimits
-from .settlement_window import SettlementWindowPolicy
+from .settlement_window import SettlementWindowPolicy, VERSION as SETTLEMENT_WINDOW_VERSION
 from .valuation import CostComponent, ValuationPolicy
 
 
@@ -72,6 +74,10 @@ VERSION = 'katl-v11-economic-plan-v2'
 BOOK_FRESHNESS_SECONDS = 110.
 MICROSTRUCTURE_HISTORY_SECONDS = 180.
 CENSUS_INTERVAL_SECONDS = 90.
+
+# Match the independently reviewed Oct-11 economic template and this event's
+# ScopeInputs rule-age bound. This policy does not establish settlement finality.
+DEFAULT_SETTLEMENT_WINDOW_POLICY = SettlementWindowPolicy(SETTLEMENT_WINDOW_VERSION, 86400.)
 
 
 @dataclass(frozen=True)
@@ -247,7 +253,7 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                gefs_rollover: GEFSRunPolicy | None = None,
                temperature_costs: tuple[CostComponent, ...] = (),
                risk_execution_health: ObservationPolicy | None = None,
-               risk_settlement_window: SettlementWindowPolicy | None = None):
+               risk_settlement_window: SettlementWindowPolicy | None = DEFAULT_SETTLEMENT_WINDOW_POLICY):
     """Construct the nonfinancial KATL CandidatePlan; no network/service call.
 
     `context`/`scope` must be the exact EventContext/CapabilityScope already
@@ -264,9 +270,10 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
     (plan, scope, model) like the live script's build_plan, for an identical
     deployment-report shape. The caller must supply reviewed account and
     scenario limits; this builder never silently widens paper risk budgets.
-    `risk_execution_health`/`risk_settlement_window` are optional reviewed
-    EventRiskInputs policies; left unset, every cycle records those metrics
-    UNKNOWN and the plan's config digest is byte-identical to before.
+    The settlement-window default matches the reviewed Oct-11 template.
+    Explicit None preserves the original UNKNOWN, byte-identical fallback.
+    `risk_execution_health` remains unset unless a reviewed policy is supplied;
+    its metrics then remain UNKNOWN.
     """
     event_id, account = context.event_id, context.account_id
     if (scope.station != context.station_id or rule.payload['event_id'] != event_id
