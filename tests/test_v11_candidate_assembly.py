@@ -413,3 +413,45 @@ def test_candidate_plan_binds_correlation_to_the_real_event_station(rig,setup):
     stale=replace(real,memberships=(replace(real.memberships[0],metadata_fingerprint='f'*64),))
     with pytest.raises(EvidenceError,match='CANDIDATE_CORRELATION_STATION_SCOPE'):
         replace(cfg,correlation=stale)
+
+
+def _assemble_with_risk_capture(r,cfg,monkeypatch):
+    built=[];real=app.EventRiskInputs
+    def capture(*a,**kw):
+        built.append(real(*a,**kw));return built[-1]
+    monkeypatch.setattr(app,'EventRiskInputs',capture)
+    async def run():
+        async with httpx.AsyncClient(transport=transport(r,[])) as client:
+            return app.assemble_candidate(r['store'],client,cfg,generation='optin')
+    return asyncio.run(run()),built
+
+
+def test_candidate_event_passes_reviewed_paper8_risk_opt_ins_into_event_risk(rig,monkeypatch):
+    from dataclasses import asdict
+    from polymarket_scanner.v11.evidence import digest
+    from polymarket_scanner.v11.settlement_window import SettlementWindowPolicy, VERSION as SW_VERSION
+    from test_v11_paper_risk_observation import policy as observation_policy
+    cfg=plan(rig);synthetic_clock(rig,monkeypatch)
+    default,built=_assemble_with_risk_capture(rig,cfg,monkeypatch)
+    assert len(built)==1 and built[0].execution_health_policy is None and built[0].settlement_window_policy is None
+    # Default (no opt-in) keeps the pre-opt-in assembly digest: the None fields are not hashed.
+    legacy=asdict(cfg);legacy['audits']=cfg.audits.payload()
+    for k in ('reconciliation','guardian_config'):
+        if legacy[k] is None:legacy.pop(k)
+    for e in legacy['events']:e.pop('risk_execution_health');e.pop('risk_settlement_window')
+    assert default.assembly_sha256==digest(legacy)
+    health=observation_policy();window=SettlementWindowPolicy(SW_VERSION,86400.)
+    opted=replace(cfg,events=(replace(cfg.events[0],risk_execution_health=health,risk_settlement_window=window),))
+    candidate,built=_assemble_with_risk_capture(rig,opted,monkeypatch)
+    assert built[0].execution_health_policy is health and built[0].settlement_window_policy is window
+    assert candidate.assembly_sha256!=default.assembly_sha256
+
+
+@pytest.mark.parametrize('field',['risk_execution_health','risk_settlement_window'])
+def test_candidate_event_rejects_untyped_risk_opt_in(rig,field):
+    from polymarket_scanner.v11.settlement_window import SettlementWindowPolicy, VERSION as SW_VERSION
+    from test_v11_paper_risk_observation import policy as observation_policy
+    event=plan(rig).events[0]
+    wrong={'risk_execution_health':SettlementWindowPolicy(SW_VERSION,1.),'risk_settlement_window':observation_policy()}[field]
+    with pytest.raises(EvidenceError,match='CANDIDATE_EVENT_PLAN_INVALID'):replace(event,**{field:wrong})
+    with pytest.raises(EvidenceError,match='CANDIDATE_EVENT_PLAN_INVALID'):replace(event,**{field:{'version':'x'}})

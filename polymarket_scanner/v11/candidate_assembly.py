@@ -25,6 +25,8 @@ from .reaction_runtime import PWSLeadEventAdapter, SourceReleaseEventAdapter, Po
 from .request_assembly import (ScopeInputs, TargetPlan, SourceSelector, RequestAssembler, EntryRequestFactory,
     RelativeValueRequestFactory, PWSRequestFactory, SourceReleaseRequestFactory, ExitRequestFactory)
 from .risk_inputs import EventRiskInputs, RiskInputPolicy, RiskAwareEventAdapter
+from .paper_risk_observation import ObservationPolicy
+from .settlement_window import SettlementWindowPolicy
 from .runtime_feed import FeedPolicy
 from .runtime_health import HealthPolicy, RuntimeHealth, SourceNeed
 from .scenario_risk import CorrelationMap, ScenarioLimits
@@ -135,9 +137,16 @@ class CandidateEvent:
     risk_valuation: ValuationPolicy
     risk_policy: RiskInputPolicy
     lanes: tuple[TemperatureLane | MakerLane, ...]
+    # Opt-in PAPER-8 EventRisk inputs; None keeps the typed UNKNOWN reasons and the prior assembly digest.
+    risk_execution_health: ObservationPolicy | None = None
+    risk_settlement_window: SettlementWindowPolicy | None = None
 
     def __post_init__(self):
         identity(self.risk_book_provider)
+        if ((self.risk_execution_health is not None and type(self.risk_execution_health) is not ObservationPolicy)
+                or (self.risk_settlement_window is not None
+                    and type(self.risk_settlement_window) is not SettlementWindowPolicy)):
+            raise EvidenceError('CANDIDATE_EVENT_PLAN_INVALID')
         if (not isinstance(self.route,EventRoute) or not isinstance(self.census,CensusPlan)
                 or not isinstance(self.risk_inputs,ScopeInputs) or not isinstance(self.risk_policy,RiskInputPolicy)
                 or not isinstance(self.risk_valuation,ValuationPolicy)
@@ -362,7 +371,8 @@ def assemble_candidate(store,client,plan,*,generation):
         adapters[eid]=MultiStrategyEventAdapter(store,tuple((l.name,_lane(queue,coordinator,l,maker)) for l in event.lanes))
         a=RequestAssembler(queue,event.risk_inputs,book_provider=event.risk_book_provider,
             valuation_policy=event.risk_valuation,lifetime_seconds=plan.runtime.maximum_tick_seconds)
-        risk.append(EventRiskInputs(a,coordinator,event.risk_policy))
+        risk.append(EventRiskInputs(a,coordinator,event.risk_policy,
+            execution_health_policy=event.risk_execution_health,settlement_window_policy=event.risk_settlement_window))
     health=RuntimeHealth(store,plan.health,account_id=plan.account.account_id,scopes=scopes,sources=tuple(needs[k] for k in sorted(needs)))
     evaluator=RiskAwareEventAdapter(_EventDispatch(coordinator,adapters),tuple(risk))
     runtime=PaperRuntime(coordinator,queue,health,plan.runtime,evaluator=evaluator,worker_id=plan.worker_id,
@@ -384,6 +394,9 @@ def assemble_candidate(store,client,plan,*,generation):
     assembly['audits']=plan.audits.payload()
     if plan.reconciliation is None:assembly.pop('reconciliation')
     if plan.guardian_config is None:assembly.pop('guardian_config')
+    for e in assembly['events']:
+        for k in ('risk_execution_health','risk_settlement_window'):
+            if e[k] is None:e.pop(k)
     runner.assembly_sha256=digest(assembly)
     from .candidate_cohort import register_assembly
     register_assembly(runner, runner.assembly_sha256)
