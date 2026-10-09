@@ -291,6 +291,50 @@ def test_host_upgrade_without_pws_config_builds_economic_lane_only(joined, setup
         katl_live_plan.commission_targets(with_pws, target, None)
 
 
+def test_risk_policy_opt_ins_reach_candidate_event_and_release_binding(joined, setup):
+    from polymarket_scanner.v11.settlement_window import SettlementWindowPolicy, VERSION as SW_VERSION
+    from test_v11_paper_risk_observation import policy as observation_policy
+    r = joined
+    base, _, _ = economic_plan(r, main_sources=main_sources_for(r))
+    event = base.events[0]
+    assert event.risk_execution_health is None and event.risk_settlement_window is None
+    health, window = observation_policy(), SettlementWindowPolicy(SW_VERSION, 86400.)
+    model = r['store'].get('model2')['body']
+    reviewed_risk = coordinator(r)
+    common = dict(
+        context=r['context'], scope=r['scope'], rule=r['rule'],
+        metadata_fingerprint=r['rule'].payload['metadata_fingerprint'], model=model,
+        route_valid_until=r['now'][0] + 10 * 86400, release='a' * 40, tree='b' * 40,
+        bundle_sha256=r['binding'].bundle_sha256, collateral=COLLATERAL, worker='worker', stage='PAPER',
+        book_provider='fixture', account_policy=reviewed_risk.policy,
+        correlation=reviewed_risk.correlation, scenario_limits=reviewed_risk.limits,
+        main_sources=main_sources_for(r))
+    # Explicit None is the existing plan, byte for byte (release config digest included).
+    unset, _, _ = katl_live_plan.build_plan(**common, risk_execution_health=None, risk_settlement_window=None)
+    assert unset == base
+    # Literal pre-opt-in digest of this fixture's release config (computed at 91949a4).
+    assert event.risk_inputs.binding.config_sha256 == (
+        '0ce411252b688224dd6980106b5af15c5fab699a32ef9d16fdd045a48b53c496')
+    opted, _, _ = katl_live_plan.build_plan(**common, risk_execution_health=health, risk_settlement_window=window)
+    assert opted.events[0].risk_execution_health is health and opted.events[0].risk_settlement_window is window
+    assert opted.events[0].risk_inputs.binding.config_sha256 != event.risk_inputs.binding.config_sha256
+    only_window, _, _ = katl_live_plan.build_plan(**common, risk_settlement_window=window)
+    assert only_window.events[0].risk_execution_health is None
+    assert len({only_window.events[0].risk_inputs.binding.config_sha256,
+                opted.events[0].risk_inputs.binding.config_sha256,
+                event.risk_inputs.binding.config_sha256}) == 3
+    for wrong in (dict(risk_execution_health=window), dict(risk_settlement_window=health),
+                  dict(risk_execution_health=asdict(health)), dict(risk_settlement_window={})):
+        with pytest.raises(EvidenceError, match='KATL_PLAN_RISK_POLICY_TYPE'):
+            katl_live_plan.build_plan(**common, **wrong)
+    upgraded = katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=None,
+                                                risk_execution_health=health, risk_settlement_window=window)
+    assert upgraded.events[0].risk_execution_health is health
+    assert upgraded.events[0].risk_settlement_window is window
+    assert upgraded.events[0].risk_inputs.binding.config_sha256 == opted.events[0].risk_inputs.binding.config_sha256
+    assert katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=None) == base
+
+
 def test_pws_policy_change_changes_release_config_binding(joined, setup):
     r = joined
     sleeve = pws_sleeve(r, setup[3])

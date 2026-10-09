@@ -46,6 +46,7 @@ from .gefs_schedule import GEFSRunPolicy
 from .gefs_sources import GEFSPlan
 from .microstructure import MicrostructurePolicy
 from .paper_coordinator import PaperAccountPolicy
+from .paper_risk_observation import ObservationPolicy
 from .paper_runtime import RuntimePolicy
 from .physical_inference import PhysicalFeatureContract
 from .pws_lead import LeadPolicy
@@ -58,6 +59,7 @@ from .rules import RuleFingerprint
 from .runtime_feed import FeedPolicy
 from .runtime_health import HealthPolicy
 from .scenario_risk import CorrelationMap, ScenarioLimits
+from .settlement_window import SettlementWindowPolicy
 from .valuation import CostComponent, ValuationPolicy
 
 
@@ -192,7 +194,9 @@ def commission_targets(plan: CandidatePlan, base_target: ShadowScopeTarget,
     return tuple(targets)
 
 
-def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_config: dict | None) -> CandidatePlan:
+def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_config: dict | None,
+                      risk_execution_health: ObservationPolicy | None = None,
+                      risk_settlement_window: SettlementWindowPolicy | None = None) -> CandidatePlan:
     """Replace one daily smoke event while retaining its reviewed account limits.
 
     The host must pass the plan returned by its existing build_plan(store).
@@ -228,7 +232,8 @@ def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_con
         scenario_limits=base.limits, stage=inputs.stage,
         book_provider=event.risk_book_provider, main_sources=inputs.sources,
         pws=pws, gefs=base.gefs, gefs_rollover=base.gefs_rollover,
-        temperature_costs=temperature_costs)
+        temperature_costs=temperature_costs,
+        risk_execution_health=risk_execution_health, risk_settlement_window=risk_settlement_window)
     return plan
 
 
@@ -240,7 +245,9 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                book_provider: str = BOOK_PROVIDER, main_sources: tuple[SourceSelector, ...] | None = None,
                pws: PWSSleeve | None = None, gefs: tuple[GEFSPlan, ...] = (),
                gefs_rollover: GEFSRunPolicy | None = None,
-               temperature_costs: tuple[CostComponent, ...] = ()):
+               temperature_costs: tuple[CostComponent, ...] = (),
+               risk_execution_health: ObservationPolicy | None = None,
+               risk_settlement_window: SettlementWindowPolicy | None = None):
     """Construct the nonfinancial KATL CandidatePlan; no network/service call.
 
     `context`/`scope` must be the exact EventContext/CapabilityScope already
@@ -257,6 +264,9 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
     (plan, scope, model) like the live script's build_plan, for an identical
     deployment-report shape. The caller must supply reviewed account and
     scenario limits; this builder never silently widens paper risk budgets.
+    `risk_execution_health`/`risk_settlement_window` are optional reviewed
+    EventRiskInputs policies; left unset, every cycle records those metrics
+    UNKNOWN and the plan's config digest is byte-identical to before.
     """
     event_id, account = context.event_id, context.account_id
     if (scope.station != context.station_id or rule.payload['event_id'] != event_id
@@ -273,6 +283,10 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
     if (type(temperature_costs) is not tuple or len(temperature_costs) > 16
             or any(not isinstance(c, CostComponent) for c in temperature_costs)):
         raise EvidenceError('KATL_PLAN_TEMPERATURE_COST_BOUND')
+    if ((risk_execution_health is not None and type(risk_execution_health) is not ObservationPolicy)
+            or (risk_settlement_window is not None
+                and type(risk_settlement_window) is not SettlementWindowPolicy)):
+        raise EvidenceError('KATL_PLAN_RISK_POLICY_TYPE')
     if pws is not None:
         common_scope_fields = ('station', 'family', 'source_rule_family', 'strategy', 'season', 'time_of_day')
         if (pws.official.station != context.station_id or pws.official.fingerprint != metadata_fingerprint
@@ -280,16 +294,22 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
                 or any(getattr(pws.payout_scope, field) != getattr(pws.observation_scope, field)
                        for field in common_scope_fields)):
             raise EvidenceError('KATL_PLAN_PWS_CONTEXT_OR_MODEL_PAIR_REQUIRED')
-    config_sha = digest({'version': VERSION, 'release': release, 'tree': tree, 'event_id': event_id,
-                         'scope': asdict(scope), 'rule': rule.sha256, 'bundle': bundle_sha256,
-                         'route_valid_until': route_valid_until, 'stage': stage,
-                         'collateral': collateral, 'worker': worker, 'book_provider': book_provider,
-                         'account': asdict(account_policy), 'correlation': asdict(correlation),
-                         'limits': asdict(scenario_limits), 'main_sources': [asdict(s) for s in main_sources],
-                         'temperature_costs': [asdict(c) for c in temperature_costs],
-                         'pws': asdict(pws) if pws is not None else None,
-                         'gefs': [asdict(g) for g in gefs],
-                         'gefs_rollover': asdict(gefs_rollover) if gefs_rollover is not None else None})
+    config = {'version': VERSION, 'release': release, 'tree': tree, 'event_id': event_id,
+              'scope': asdict(scope), 'rule': rule.sha256, 'bundle': bundle_sha256,
+              'route_valid_until': route_valid_until, 'stage': stage,
+              'collateral': collateral, 'worker': worker, 'book_provider': book_provider,
+              'account': asdict(account_policy), 'correlation': asdict(correlation),
+              'limits': asdict(scenario_limits), 'main_sources': [asdict(s) for s in main_sources],
+              'temperature_costs': [asdict(c) for c in temperature_costs],
+              'pws': asdict(pws) if pws is not None else None,
+              'gefs': [asdict(g) for g in gefs],
+              'gefs_rollover': asdict(gefs_rollover) if gefs_rollover is not None else None}
+    # Only present when configured, so every existing release config digest is unchanged.
+    if risk_execution_health is not None:
+        config['risk_execution_health'] = asdict(risk_execution_health)
+    if risk_settlement_window is not None:
+        config['risk_settlement_window'] = asdict(risk_settlement_window)
+    config_sha = digest(config)
     binding = ReleaseBinding(release, tree, config_sha, bundle_sha256, rule.sha256)
     risk_sources = list(main_sources)
     if pws is not None:
@@ -367,7 +387,9 @@ def build_plan(*, context: EventContext, scope: CapabilityScope, rule: RuleFinge
     # builder permits 1. Six is a bounded candidate budget, not a measured
     # throughput or scheduling guarantee under host load.
     candidate = CandidatePolicy(VERSION, 75., 6, 160, .5, 60., .1, 120.)
-    event = CandidateEvent(route, census, inputs, book_provider, valuation, risk_policy, lanes)
+    event = CandidateEvent(route, census, inputs, book_provider, valuation, risk_policy, lanes,
+                           risk_execution_health=risk_execution_health,
+                           risk_settlement_window=risk_settlement_window)
     plan = CandidatePlan(
         VERSION, account_policy, correlation, scenario_limits, (event,), trigger, health, runtime, candidate,
         CensusPolicy(VERSION, 60., 30., 63), BookPolicy(VERSION, BOOK_FRESHNESS_SECONDS, 1000),
