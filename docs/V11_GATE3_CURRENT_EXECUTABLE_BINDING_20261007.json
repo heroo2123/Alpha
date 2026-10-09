@@ -54,6 +54,12 @@
         "commit": "16ca84ec72c637bd8ec325141804eedf5919036d"
       }
     ],
+    "polymarket_scanner/v11/valuation.py": [
+      {
+        "classification": "bind paper acquisition fee to current book and observed fee snapshot",
+        "commit": "34f071bffc7582647dd82b7e3c406e524b3a242e"
+      }
+    ],
     "polymarket_scanner/v11/weather_sources.py": [
       {
         "classification": "offline Xweather PWS history replay ingress",
@@ -482,9 +488,9 @@
       "sha256": "f4011bc81108ceef9ff6958f12283a1175396af32f0d9646cd42a54c56b30e5c"
     },
     "polymarket_scanner/v11/valuation.py": {
-      "byte_length": 18500,
-      "git_blob": "ada979e87d6f369b02700818589eb14736d42591",
-      "sha256": "c87ace6ed8b813fa4e03ab43fbc8bc12dc4163095c93ca340e370fadef0a0cf9"
+      "byte_length": 19568,
+      "git_blob": "3c7902800240bb79d597c1b612747df6a9911bdb",
+      "sha256": "671b1d87f06ff16da1dbe45fa83c6325061f7afbddf7078029b64a3be9e78dbf"
     },
     "polymarket_scanner/v11/weather_sources.py": {
       "byte_length": 20257,
@@ -692,6 +698,13 @@
       "sha256": "743a56faf155be51a5ea3eb9520303b6756d232a47a470764f7aa934798f1086",
       "tree": "022fd9663ab2603639ab1451f596a170a0641d88"
     },
+    "polymarket_scanner/v11/valuation.py": {
+      "byte_length": 18500,
+      "commit": "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d",
+      "git_blob": "ada979e87d6f369b02700818589eb14736d42591",
+      "sha256": "c87ace6ed8b813fa4e03ab43fbc8bc12dc4163095c93ca340e370fadef0a0cf9",
+      "tree": "f46b27281fa1d5500bd86a3e91ad94f774fa38ac"
+    },
     "polymarket_scanner/v11/weather_sources.py": {
       "byte_length": 11631,
       "commit": "fea59027cd3296e55db564a8aaece8975203706b",
@@ -753,6 +766,6 @@
   "qualification_credit": 0,
   "review_limit": "Candidate byte binding only. Historical exact reviews remain scoped to their original commits. Independent exact review of this candidate and separate G3-L inventory/package entry review are required; no provider, capture, runtime launch, or financial authority.",
   "schema": "V11_GATE3_CURRENT_EXECUTABLE_BINDING_V1",
-  "source_commit": "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d",
-  "source_tree": "f46b27281fa1d5500bd86a3e91ad94f774fa38ac"
+  "source_commit": "34f071bffc7582647dd82b7e3c406e524b3a242e",
+  "source_tree": "21da62b921d06e80a6bcccf6f5469823d9565599"
 }

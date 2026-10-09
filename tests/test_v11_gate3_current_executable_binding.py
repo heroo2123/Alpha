@@ -22,19 +22,16 @@ REPO = Path(__file__).resolve().parents[1]
 # (non-hardened) git invocations to honour it. Strip it for those callers,
 # mirroring tests/test_v11_gate3_current_executable_binding_survivor_coverage.py.
 ENV_HONOURING_REPLACE = {k: v for k, v in os.environ.items() if k != "GIT_NO_REPLACE_OBJECTS"}
-SOURCE = "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d"
-PREVIOUS_SOURCE = "fea59027cd3296e55db564a8aaece8975203706b"
-OLDER_SOURCE = "d806c11082fe81defd74993152906ee7454bce1d"
+SOURCE = "34f071bffc7582647dd82b7e3c406e524b3a242e"
+PREVIOUS_SOURCE = "9ffd3832f8c429dff4c5dcdb3161f8cde2918e4d"
+OLDER_SOURCE = "fea59027cd3296e55db564a8aaece8975203706b"
 # Paths changed by this repin. Each is either already under historical
 # baseline/drift tracking before this repin (its drift trace extends; the
 # baseline itself is untouched) or enters historical tracking for the first
 # time here (its baseline is frozen at PREVIOUS_SOURCE's own file entry).
 REPIN_CHANGES = {
-    "polymarket_scanner/v11/pws_quality.py": (
-        "16ca84ec72c637bd8ec325141804eedf5919036d",),
-    "polymarket_scanner/v11/weather_sources.py": (
-        "16ca84ec72c637bd8ec325141804eedf5919036d",
-        "b431f6eb427c3402ba657b74ed61b2dffc81b5ad"),
+    "polymarket_scanner/v11/valuation.py": (
+        "34f071bffc7582647dd82b7e3c406e524b3a242e",),
 }
 # Paths that only ever had a plain current-byte pin (never historical/drift
 # tracked); this repin updates their bytes with no baseline/trace bookkeeping.
@@ -231,7 +228,7 @@ def test_exact_candidate_pins_thirteen_histories_and_dependent_protocol_tests():
                 "source_tree": binding.SOURCE_TREE,
                 "verified_files": len(binding.PATHS),
                 "launchable": False, "qualification_credit": 0}
-    if result != expected or len(binding.HISTORICAL) != 15 or len(binding.PATHS) != 93:
+    if result != expected or len(binding.HISTORICAL) != 16 or len(binding.PATHS) != 93:
         pytest.fail(f"candidate pins or authority changed: {result}")
     if {p for p in binding.PATHS if p.startswith("tests/")} != {
         "tests/test_v11_r09_gate3_collector.py",
