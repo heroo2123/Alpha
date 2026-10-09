@@ -63,6 +63,7 @@ def test_candidate_configuration_requires_external_guardian_without_scheduling_i
     assert guarded.runtime.coordinator.guardian_config=='d'*64
     assert guarded.runtime.config!=base.runtime.config and guarded.assembly_sha256!=base.assembly_sha256
     original=asdict(p);original.pop('guardian_config');original.pop('reconciliation');original['audits']=p.audits.payload()
+    for e in original['events']:e.pop('risk_execution_health');e.pop('risk_settlement_window')  # unset opt-ins are unhashed
     assert base.assembly_sha256==digest(original)
     assert not hasattr(guarded,'guardian')
     with pytest.raises(EvidenceError,match='REQUIRED_BEFORE_OPENING'):
