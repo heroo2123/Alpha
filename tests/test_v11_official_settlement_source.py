@@ -261,6 +261,15 @@ def test_hourly_null_temperature_keeps_row_but_skips_extreme():
     assert_code(result, "SYNTHETIC_DERIVATION_ONLY")
     must(result["whole_degree_value"] == 72)
     must(result["no_data"] is False)
+
+
+def test_hourly_null_temperature_requires_explicit_value_field():
+    r, d = fixture()
+    payload = wrh_payload(d)
+    payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"][13] = None
+    bind_wrh(d, payload)
+    d["observations"][13].pop("value")
+    assert_code(check(r, d), "SOURCE_SEMANTICS_MISMATCH")
     payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"] = [None] * len(
         payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"])
     bind_wrh(d, payload)

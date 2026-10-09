@@ -297,6 +297,8 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
             return _result("UNKNOWN_CLOCK", rule_sha)
         if published >= trigger:
             return _result("REVISION_CONFLICT" if r in corrections else "UNFINAL", rule_sha)
+        if "value" not in r:
+            return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
         if r.get("value") is None and hourly and r in rows:
             value = None
         else:
