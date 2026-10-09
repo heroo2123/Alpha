@@ -1,3 +1,17 @@
+## 2026-10-09 05:58 UTC Manager cycle: one MADIS timeout no longer kills a future day's real-input capture (`dcddae8`+`1791237` on main)
+
+**Witness CURRENT_REAL_INPUT_CAPTURE_HAS_NO_SUCCESS / PAPER_9.** The whole Oct 9 capture has been `HOLD_PRESENT` since 04:11Z. Cause: one `NOAA_MADIS_CWOP` request got `TRANSPORT_FAILURE`/`REQUEST_FAILED` (no HTTP response at all). MADIS is rights-sensitive, so `real_input_capture` turned that into a permanent day hold. Over the same night, the owner-approved passive MADIS collector made about 54 requests to the same public endpoint and every one succeeded; that collector holds only on 401/403/429/503. Fix: Sonnet writer `dcddae8`, reviewed by Opus (different model), plus Opus repair `1791237`, which only tightens the code.
+- Change: a bare MADIS `REQUEST_FAILED`, when it is the only failure, becomes `GATED` with `REAL_INPUT_MADIS_TRANSIENT_TRANSPORT_DEFERRED` and `held_providers=[]`. A 1200 s no-network cooldown follows (`REAL_INPUT_MADIS_TRANSIENT_COOLDOWN`).
+- Cap: at most 2 deferrals per store. The 3rd, and any 5XX/429/4xx/MALFORMED or mixed-provider failure, keeps the permanent `PROVIDER_HELD` exactly as before. Attempts stay at 1; config digest, freshness, QC and STARTED-crash hold are unchanged.
+- Review finding, fixed in the repair: `records()` reads oldest-first with LIMIT, so a full 1000-row page could hide newer deferrals. A full page now fails closed (`REAL_INPUT_MADIS_TRANSIENT_HISTORY_BOUND`).
+- Only `real_input_capture.py` is touched, not Gate-3-pinned `collection.py`.
+- Tests: real_input_capture 50 passed, normal and `-O`; gate3 binding 27 passed.
+- The unchanged Oct 10 `hold_check.py` (sha `afa7cf24...`, identical to Oct 9) returns `OK` for both new outputs.
+- The Oct 10 cron runs the main checkout, so this applies from 2026-10-10T04:00Z.
+- **The Oct 9 HOLD file is preserved and was not cleared or bypassed.**
+
+Not yet verified on real data: whether MADIS-only QC reaches HEALTHY by the 3rd Oct 10 cycle. The PWS worker accumulates captures across cycles over `history_seconds`, and the policy needs 2 samples spanning at least 600 s at 3 or more stations. No score, gate or financial change: strict **9/48 (18.8%)**; PAPER **9/11**; engineering **91/200 (formal 1/50)**; G3-L **NO-GO**, 77 missing; **READY_TO_FUND=false**.
+
 ## 2026-10-09 05:10 UTC Manager cycle: fee adapter and PWS history lanes both held by the Gate-3 executable pin; a real Xweather station-ID crash was found; repair and repin lane launched
 
 **Witness PAPER_9 / MATRIX_R27 / PAPER_8.** Two specialist branches finished, and neither is merged.
