@@ -1,12 +1,41 @@
 --- a/katl_continuous_shadow.py
 +++ b/katl_continuous_shadow.py
-@@ -40,0 +41 @@
+@@ -38,6 +38,8 @@
+ from polymarket_scanner.v11.forecast_sources import ForecastPlan
+ from polymarket_scanner.v11.gefs_sources import GEFSPlan,MODEL_ID,PROVIDER as GEFS_PROVIDER
+ from polymarket_scanner.v11.forecast_features import ForecastFeatureContract
 +from polymarket_scanner.v11.katl_live_plan import commission_targets, upgrade_host_plan
-@@ -122,0 +124,3 @@
-+    # The local per-day specification and its commission identities require separate review.
-+    pws_config=json.loads((ROOT/f"candidate-pws-config-{rule.payload['target_date']}.json").read_text())
-+    plan=upgrade_host_plan(plan,official=metadata,pws_config=pws_config)
-@@ -138 +142,2 @@
++from polymarket_scanner.v11.settlement_window import SettlementWindowPolicy, VERSION as SETTLEMENT_WINDOW_VERSION
+ from polymarket_scanner.v11.candidate_cohort import candidate_cohort
+ from polymarket_scanner.v11.model_registry import ActiveModelRegistry
+ from polymarket_scanner.v11.shadow_commission import ShadowScopeTarget,ShadowCommissionPlan,PLAN_VERSION,ShadowLifecyclePolicy,ShadowCommissionRunner
+@@ -120,6 +122,19 @@
+ def build_runner(client):
+     store=EvidenceStore(DB,NAMESPACE,limits=Limits(max_database_bytes=512 * 1024 * 1024))
+     plan,metadata,rule,scope,binding,gefs=build_plan(store)
++    # Economic + EventRisk lane only (req8 unblock): no PWS sleeve yet -- the
++    # per-day PWS config/model pair the handoff names is not installed, and
++    # pws_config=None is the only value upgrade_host_plan accepts for this
++    # economic-only lane. risk_settlement_window reuses katl_live_plan.
++    # build_plan's own already-reviewed 86400s RuleFingerprint freshness
++    # bound (its ScopeInputs(...,86400.,...) literal) for this exact event,
++    # not a separately invented number. risk_execution_health stays unset:
++    # no ObservationPolicy field (lookback/horizon/receipt-delay/measurement-
++    # age/scan-bound) has an authoritative reviewed production source --
++    # see docs/V11_KATL_ECON_LANE_COMMISSION_20261011.md.
++    pws_config=None
++    plan=upgrade_host_plan(plan,official=metadata,pws_config=pws_config,
++        risk_settlement_window=SettlementWindowPolicy(SETTLEMENT_WINDOW_VERSION,86400.))
+     runner=assemble_candidate(store,client,plan,generation='katl-continuous-shadow-v1')
+     contract=ForecastFeatureContract(((MODEL_ID,31),),'F','daily_high_temperature')
+     expected=json.loads((ROOT/'candidate-static-config.json').read_text())
+@@ -135,7 +150,8 @@
+             raise RuntimeError('INSTALLED_CORRECT_SCOPE_MODEL_DIFFERS_FROM_STAGED_REVIEW')
+     target=ShadowScopeTarget(scope,'F',1,EVENT_ID,model_epoch,model_state_sha256,contract)
+     shadow=ShadowCommissionPlan(PLAN_VERSION,NAMESPACE,WORKER,RELEASE,expected['shadow_plan_created_at'],
 -        'KATL continuous decision Shadow; nonfinancial and uncalibrated', (target,),candidate_cohort(runner))
 +        'KATL continuous decision Shadow; nonfinancial and uncalibrated',
 +        commission_targets(plan,target,pws_config),candidate_cohort(runner))
+     return store,plan,runner,shadow,gefs
+
+ async def inspect():
