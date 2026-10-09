@@ -260,5 +260,31 @@ def test_first_run_defers_clock_unhealthy_second_run_records_qc(tmp_path, monkey
     assert not qc_row["body"]["payload"]["settlement_authority"]
 
 
+def test_backlog_observation_older_than_parser_default_matches_qc_reparse(tmp_path, monkeypatch):
+    """Regression (real Oct9 07:47Z run): a window-wide age gate archived
+    observations the reviewed QC re-parse drops -> PWS_NORMALIZED_RAW_MISMATCH."""
+    root = tmp_path / "xw"; root.mkdir()
+    now = [100_000.0]
+    mono, boot = [500.0], ["boot-a" * 4]
+    _patch_host_stamp(monkeypatch, mono, boot)
+    sync_probe = lambda: dict(synchronized=True, mechanism="SYNTHETIC_OFF_HOST_FIXTURE",
+                              reason="TEST_ONLY", offset_seconds=None)
+    small_policy = health_module.HealthPolicy(ingest.VERSION, 120.0, 120.0, 2.0, 2, 5.0, ("forward-ingest",))
+    store = _store(tmp_path, now=now)
+    stale = [("PWS_A", 33.01, -84.0, 19.0, now[0] - 5_000.0), ("PWS_B", 33.03, -84.0, 19.1, now[0] - 5_000.0),
+             ("PWS_C", 33.05, -84.0, 19.2, now[0] - 5_000.0)]
+    _write(root, ("xweather-20261008T163000-dddddd.json", stale, now[0] - 4_990.0))
+    batch = ingest.select_forward_batch(root, store, now=now[0], window_seconds=7200.0)
+    done = ingest.ingest_forward_batch(store, batch, event_id=EVENT, station=STATION,
+                                       latitude=KATL[0], longitude=KATL[1])
+    assert store.get(done[0]["normalized_id"])["body"]["payload"]["observations"] == []
+    ingest.run_quality_step(store, event_id=EVENT, official=official(), policy=policy(),
+        command_id="run-1", health_policy=small_policy, sync_probe=sync_probe)
+    now[0] += 180.0; mono[0] += 180.0
+    second = ingest.run_quality_step(store, event_id=EVENT, official=official(), policy=policy(),
+        command_id="run-2", health_policy=small_policy, sync_probe=sync_probe)
+    assert second["body"]["details"].get("reason") != "PWS_NORMALIZED_RAW_MISMATCH"
+
+
 def test_module_has_stable_version_string():
     assert ingest.VERSION == "alpha_v11_xweather_pws_forward_ingest_v1"

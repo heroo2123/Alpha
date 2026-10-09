@@ -188,8 +188,7 @@ def open_forward_store(path: Path, namespace: str) -> EvidenceStore:
 
 
 def ingest_forward_batch(store: EvidenceStore, batch: list[dict], *, event_id: str, station: str,
-                         latitude: float, longitude: float,
-                         max_observation_age_seconds: float = 3600.0) -> list[dict]:
+                         latitude: float, longitude: float) -> list[dict]:
     """Idempotently archive each selected artifact using the STORE'S OWN real
     clock (never the collector's `capture_received_epoch`, never backdated)
     as the V11 `received_at`/`available_at`. The collector's own receipt is
@@ -198,12 +197,13 @@ def ingest_forward_batch(store: EvidenceStore, batch: list[dict], *, event_id: s
     Idempotent by `raw_sha256`: re-running this over an overlapping batch
     never creates a second receipt for content already archived, and never
     renews an existing receipt's time (the existing record is returned
-    unchanged). `max_observation_age_seconds` is forwarded to
-    `parse_xweather_json`'s own stale/future-observation gate; the caller
-    should size it to cover the selection window plus the collector's own
-    sensor-to-capture lag, since the conservative (later) V11 receipt used
-    here as `received_at` -- not the collector's own receipt -- is what that
-    gate measures each station observation's age against.
+    unchanged). `parse_xweather_json` is always called with its own DEFAULT
+    observation-age gate, exactly as `pws_quality`'s normalized-vs-raw
+    re-parse calls it; widening it here would archive observations the
+    reviewed QC re-parse drops, and QC would then (correctly) refuse every
+    such row as PWS_NORMALIZED_RAW_MISMATCH. The age is measured against the
+    conservative (later) V11 receipt, so backlog observations older than that
+    default are dropped, never re-timed.
     """
     identity(event_id)
     identity(station, maximum=32)
@@ -232,7 +232,7 @@ def ingest_forward_batch(store: EvidenceStore, batch: list[dict], *, event_id: s
         else:
             parsed = parse_xweather_json(art["raw_body"], raw_sha256=art["raw_sha256"],
                 received_at=raw["body"]["received_at"], params=art["params"], latitude=latitude,
-                longitude=longitude, max_observation_age_seconds=max_observation_age_seconds)
+                longitude=longitude)
             observed = max((finite(o["observed_at"]) for o in parsed["observations"]), default=None)
             derived = dict(parsed, raw_evidence_id=raw["id"], raw_evidence_sha256=raw["sha256"],
                           feature_ready_at=raw["body"]["received_at"], settlement_station_context=station,
@@ -307,9 +307,8 @@ def main(argv=None) -> int:
         now = store.clock()
         batch = select_forward_batch(args.xweather_root, store, now=now, window_seconds=args.window_seconds,
                                       max_artifacts=args.max_artifacts)
-        max_age = min(86400.0, max(3600.0, args.window_seconds + 900.0))
         ingested = ingest_forward_batch(store, batch, event_id=args.event_id, station=args.station,
-            latitude=args.latitude, longitude=args.longitude, max_observation_age_seconds=max_age)
+            latitude=args.latitude, longitude=args.longitude)
         out = dict(version=VERSION, ingest_scope=INGEST_SCOPE, selected=len(batch), ingested=ingested,
                    financial_authority=False, settlement_authority=False, lead_advantage_verified=False,
                    trading_influence_permitted=False)
