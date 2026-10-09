@@ -12,6 +12,7 @@ from .certification import CapabilityScope
 from .event_risk import EventContext, EventRiskEngine, _key
 from .evidence import EvidenceError, ReleaseBinding, digest, finite, identity
 from .position_management import ExitRequest
+from .paper_fee_inputs import current_buy_fee_cost
 from .pws_lead import LeadPolicy
 from .reaction_runtime import PWSLeadRequest, SourceReleaseRequest
 from .relative_value import DiscoveryRequest
@@ -188,8 +189,18 @@ class EntryRequestFactory:
         models = tuple(s.evidence_id for s in leases if s.role == 'MODEL')
         same_day = a.inputs.scope.strategy != 'FUTURE_FORECAST'
         observed, coverage = (_single(leases,'OFFICIAL'),_single(leases,'FEATURES')) if same_day else (None,None)
-        return tuple(EntryRequest(pin['id'],event['id'],t.market_id,t.side,t.units,t.desired_total_units,
-            b['id'],expiry,a.valuation_policy,t.costs,models,observed,coverage) for t,b in zip(self.targets,books))
+        requests = []
+        for t, b in zip(self.targets, books):
+            costs = t.costs
+            if not any('ACQUISITION_FEES' in c.covers for c in costs):
+                fee = current_buy_fee_cost(a.store, rule=a.inputs.rule, market_id=t.market_id,
+                    side=t.side, units=t.units, book_id=b['id'],
+                    max_age_seconds=a.valuation_policy.max_book_age_seconds)
+                if fee is not None:
+                    costs += (fee,)
+            requests.append(EntryRequest(pin['id'],event['id'],t.market_id,t.side,t.units,t.desired_total_units,
+                b['id'],expiry,a.valuation_policy,costs,models,observed,coverage))
+        return tuple(requests)
 
 
 class RelativeValueRequestFactory(EntryRequestFactory):

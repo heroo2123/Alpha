@@ -34,6 +34,10 @@ class CostComponent:
     priced_buy_limit: str | None = None
     post_only: bool | None = None
     valid_until: float | None = None
+    source_evidence_id: str | None = None
+    source_evidence_sha256: str | None = None
+    fee_policy: str | None = None
+    fee_model_version: int | None = None
 
     def __post_init__(self):
         identity(self.name)
@@ -54,6 +58,17 @@ class CostComponent:
             raise EvidenceError('FEE_PRICING_SCOPE_INVALID')
         if self.valid_until is not None:
             finite(self.valid_until)
+        if self.source_evidence_id is not None or self.source_evidence_sha256 is not None:
+            if self.source_evidence_id is None or self.source_evidence_sha256 is None:
+                raise EvidenceError('COST_SOURCE_REFERENCE_INCOMPLETE')
+            identity(self.source_evidence_id)
+            sha(self.source_evidence_sha256)
+        if self.fee_policy is not None or self.fee_model_version is not None:
+            if (self.covers != ('ACQUISITION_FEES',) or self.fee_policy is None
+                    or type(self.fee_model_version) is not int or self.fee_model_version != 1):
+                raise EvidenceError('FEE_MODEL_REFERENCE_INVALID')
+            from ..production.fees import validate_policy
+            validate_policy(self.fee_policy)
 
 
 @dataclass(frozen=True)
@@ -105,7 +120,9 @@ def buy_fee_cost(snapshot: dict, *, target: dict, as_of: float, max_age_seconds:
     return CostComponent('EXISTING_BUY_FEE_POLICY', PAYOUT, str(fee), ('ACQUISITION_FEES',),
                          digest({'snapshot': snapshot, 'priced_buy_limit': limit_price,
                                  'post_only': post_only, 'as_of': at, 'ttl': ttl}),
-                         limit_price, post_only, received+ttl)
+                         limit_price, post_only, received+ttl,
+                         fee_policy=snapshot['fee_policy'],
+                         fee_model_version=snapshot['fee_evidence']['version'])
 
 
 def _costs(costs: tuple[CostComponent, ...], *, horizon: str,
