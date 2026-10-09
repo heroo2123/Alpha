@@ -105,6 +105,17 @@ def test_fresh_rest_receipt_accepts_unchanged_book_with_older_generation_time(bo
     assert p['stream_healthy'] and not p['continuous_stream_verified']
 
 
+@pytest.mark.parametrize('age,accepted', [(30., True), (30.001, False)])
+def test_book_receipt_age_uses_configured_inclusive_limit(books, age, accepted):
+    raw(books)
+    books['now'][0] += age
+    if accepted:
+        assert normalize(books)['body']['received_at'] == books['now'][0]-age
+    else:
+        with pytest.raises(EvidenceError, match='PUBLIC_BOOK_RECEIPT_STALE_OR_FUTURE'):
+            normalize(books)
+
+
 def test_empty_side_is_archived_as_absence_of_liquidity_and_cannot_make_microstructure_features(books):
     body = response(books); body['asks'] = []; raw(books, body=body); row = normalize(books)
     policy = MicrostructurePolicy('fixture','FIXTURE_COLLATERAL',30.,60.,10.,.1,2)

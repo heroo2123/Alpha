@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 import fcntl
 import os
 
-from .book_inputs import BookPolicy, book_request, normalize_book_capture
+from .book_inputs import BookPolicy, PROVIDER as BOOK_PROVIDER, book_request, normalize_book_capture
 from .certification import StationMetadata
 from .collection import SourceRequest
 from .evidence import EvidenceError, digest, finite, identity, sha
@@ -242,9 +242,6 @@ class RealInputCapture:
                     if not row['body']['payload']['observations']:
                         errors.append('REAL_INPUT_EMPTY_'+raw['kind'])
                 normalized_ids.append(row['id'])
-                if (raw['kind'] == 'BOOK' and self.store.clock()-row['body']['payload']['exchange_book_generated_at']
-                        >= self.plan.books.maximum_age_seconds):
-                    errors.append('REAL_INPUT_BOOK_GENERATION_STALE')
             except EvidenceError as exc:
                 errors.append(str(exc))
         qc_id = None
@@ -259,6 +256,8 @@ class RealInputCapture:
             errors.append('REAL_INPUT_PROVIDER_CADENCE')
         finish_health = self.health.sample(key+':finish-clock')
         event = self.plan.rule.payload['event_id']
+        expected_tokens = {b[side+'_token'] for b in self.plan.rule.payload['partition']
+                           for side in ('yes', 'no')}
         view = self.store.pin_read_view(tuple((kind,event) for kind in
                                              ('BOOK','OFFICIAL_OBSERVATION','PWS_OBSERVATION')))
         heads = [(p['kind'],p['event_id'],self.store.get(p['record_id'])['seq'] if p['record_id'] else 0)
@@ -279,6 +278,14 @@ class RealInputCapture:
                     raise EvidenceError('REAL_INPUT_PWS_EXPIRED_BEFORE_PUBLICATION')
             for record_id in normalized_ids:
                 row = self.store.get(record_id); body = row['body']
+                if row['kind'] == 'BOOK':
+                    # A REST /book receipt observes the current snapshot even when
+                    # the exchange last generated that snapshot much earlier.
+                    # The generation time remains in the normalized audit payload.
+                    if (row['event_id'] != event or body['provider'] != BOOK_PROVIDER
+                            or body['source_identity'] not in expected_tokens
+                            or body['observed_at'] != body['received_at']):
+                        raise EvidenceError('REAL_INPUT_BOOK_IDENTITY_CHANGED')
                 current = self.store.latest_source(kind=row['kind'], event_id=row['event_id'],
                     provider=body['provider'], source_identity=body['source_identity'])
                 if current is None or current['id'] != record_id:
@@ -286,9 +293,10 @@ class RealInputCapture:
                 bound = (self.plan.books.maximum_age_seconds if row['kind'] == 'BOOK' else
                          self.plan.quality.fresh_seconds if row['kind'] == 'PWS_OBSERVATION' else
                          self.plan.official_max_age_seconds)
-                if row['kind'] == 'BOOK' and self.store.clock()-body['payload']['exchange_book_generated_at'] >= bound:
-                    raise EvidenceError('REAL_INPUT_BOOK_GENERATION_STALE')
-                if body['observed_at'] is None or not 0 <= self.store.clock()-body['observed_at'] < bound:
+                age = self.store.clock()-body['observed_at'] if body['observed_at'] is not None else None
+                fresh = (age is not None and 0 <= age <= bound if row['kind'] == 'BOOK' else
+                         age is not None and 0 <= age < bound)
+                if not fresh:
                     raise EvidenceError('REAL_INPUT_SOURCE_EXPIRED_BEFORE_PUBLICATION')
         except EvidenceError as exc:
             errors.append(str(exc))

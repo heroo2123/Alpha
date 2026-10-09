@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from polymarket_scanner.v11.book_inputs import BookPolicy
+from polymarket_scanner.v11.microstructure import MakerMicrostructure, MicrostructurePolicy
 from polymarket_scanner.v11.collection import PublicCollector
 from polymarket_scanner.v11.evidence import EvidenceError, digest
 from polymarket_scanner.v11.observation_runtime import ScheduledCollector
@@ -44,7 +45,8 @@ def capture_rig(books, monkeypatch):
     return r
 
 
-def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=False, book_fail_status=None):
+def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=False,
+        book_fail_status=None, empty_book=False):
     calls = []
     book_calls = [0]
     def transport(req):
@@ -61,6 +63,8 @@ def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=
         body = response(r, req.url.params['token_id'])
         if stale:
             body['timestamp'] = str(int((r['now'][0]-31)*1000))
+        if empty_book:
+            body['asks'] = []
         r['now'][0] += delay
         return httpx.Response(200, json=body)
     async def wait(seconds):
@@ -91,12 +95,35 @@ def test_source_only_end_to_end_retains_raw_qc_prices_and_no_authority(capture_r
 
 
 @pytest.mark.parametrize('kwargs,reason', [({'empty':True},'REAL_INPUT_EMPTY_PWS_OBSERVATION'),
-    ({'stale':True},'REAL_INPUT_BOOK_GENERATION_STALE'),
-    ({'delay':6},'PUBLIC_BOOK_RECEIPT_STALE_OR_FUTURE')])
-def test_absent_pws_stale_price_or_collection_race_never_claims_fresh(capture_rig,kwargs,reason):
+    ({'delay':7},'PUBLIC_BOOK_RECEIPT_STALE_OR_FUTURE')])
+def test_absent_pws_or_stale_receipt_never_claims_fresh(capture_rig,kwargs,reason):
     row,_=run(capture_rig,**kwargs); d=row['body']['details']
     assert d['outcome']=='GATED' and any(reason in e for e in d['errors']),d
     assert d['raw_ids'] and not d['acceptance_granted']
+
+
+def test_old_server_generation_with_fresh_rest_receipt_is_source_evidence_only(capture_rig):
+    row,_=run(capture_rig,stale=True); d=row['body']['details']
+    assert d['outcome']=='FRESH_SOURCE_EVIDENCE_ONLY',d
+    for book_id in d['book_ids']:
+        book=capture_rig['store'].get(book_id)['body']
+        assert book['payload']['exchange_book_generated_at'] <= book['received_at']-31
+        assert book['observed_at']==book['received_at']
+        assert not book['payload']['continuous_stream_verified']
+    assert not d['financial_authority'] and not d['acceptance_granted']
+
+
+def test_empty_public_book_is_archived_without_executable_depth(capture_rig):
+    row,_=run(capture_rig,empty_book=True); d=row['body']['details']
+    assert d['outcome']=='FRESH_SOURCE_EVIDENCE_ONLY',d
+    target=capture_rig['rule'].payload['partition'][0]
+    selected=next(book_id for book_id in d['book_ids']
+                  if capture_rig['store'].get(book_id)['body']['source_identity']==target['yes_token'])
+    policy=MicrostructurePolicy('fixture','FIXTURE_COLLATERAL',30.,60.,10.,.1,2)
+    result=MakerMicrostructure(capture_rig['store']).evaluate('empty-book-micro',rule=capture_rig['rule'],
+        market_id=target['market_id'],side='YES',book_ids=(selected,),trade_ids=(),policy=policy)
+    assert result['body']['details']['outcome']=='GATED'
+    assert result['body']['details']['reason']=='MICROSTRUCTURE_BOOK_SIDE_MISSING'
 
 
 def test_provider_cadence_does_not_reuse_old_pws_as_fresh(capture_rig):
@@ -262,6 +289,20 @@ def test_actual_eleven_bucket_shape_collects_all_tokens_in_scheduled_batches(cap
     assert len(calls)==24 and len(d['book_ids'])==22
 
 
+def test_long_book_batches_cannot_publish_expired_early_receipts(capture_rig):
+    r=capture_rig
+    r['rule']=fingerprint_event(_event(station='KATL', labels=['60°F or lower']+
+        [f'{t}°F' for t in range(61,70)]+['70°F or higher']),
+        station_timezone=official().timezone,metadata_fingerprint=official().fingerprint)
+    draft=object.__new__(RealInputPlan)
+    object.__setattr__(draft,'rule',r['rule']);object.__setattr__(draft,'official',official())
+    review=replace(r['plan'].review,requests_sha256=digest([asdict(req) for req in draft.requests()]))
+    r['plan']=replace(r['plan'],rule=r['rule'],review=review)
+    row,calls=run(r,delay=2);d=row['body']['details']
+    assert len(calls)==24 and d['outcome']=='GATED',d
+    assert any('RECEIPT_STALE' in e or 'SOURCE_EXPIRED' in e for e in d['errors'])
+
+
 def test_expiration_during_qc_preserves_receipts_but_gates_publication(capture_rig,monkeypatch):
     from polymarket_scanner.v11.pws_runtime import PWSQualityWorker
     original=PWSQualityWorker.step
@@ -271,8 +312,27 @@ def test_expiration_during_qc_preserves_receipts_but_gates_publication(capture_r
         return result
     monkeypatch.setattr(PWSQualityWorker,'step',delayed)
     row,_=run(capture_rig);d=row['body']['details']
-    assert d['outcome']=='GATED' and 'REAL_INPUT_BOOK_GENERATION_STALE' in d['errors']
+    assert d['outcome']=='GATED' and 'REAL_INPUT_SOURCE_EXPIRED_BEFORE_PUBLICATION' in d['errors']
     assert len(d['raw_ids'])==8 and d['qc_id']
+
+
+def test_superseded_book_before_publication_gates(capture_rig,monkeypatch):
+    from polymarket_scanner.v11.pws_runtime import PWSQualityWorker
+    from polymarket_scanner.v11.book_inputs import PROVIDER
+    original=PWSQualityWorker.step
+    def supersede(self,key):
+        result=original(self,key)
+        store=capture_rig['store']
+        row=store.latest_source(kind='BOOK',event_id=capture_rig['rule'].payload['event_id'],
+            provider=PROVIDER,source_identity=capture_rig['rule'].payload['partition'][0]['yes_token'])
+        raw=store.get(row['body']['payload']['raw_evidence_id'])
+        store.capture('superseding-book',event_id=raw['event_id'],kind='BOOK',provider=PROVIDER,
+            source_identity=raw['body']['source_identity'],revision='later',
+            payload=raw['body']['payload'],evidence_class='SYNTHETIC')
+        return result
+    monkeypatch.setattr(PWSQualityWorker,'step',supersede)
+    row,_=run(capture_rig);d=row['body']['details']
+    assert d['outcome']=='GATED' and 'REAL_INPUT_SOURCE_CHANGED' in d['errors']
 
 
 def test_clock_gate_sends_no_requests(capture_rig):

@@ -86,7 +86,7 @@ def normalize_book_capture(store, raw_id, *, rule, token_id, collateral_asset, p
     current = store.latest_source(kind='BOOK', event_id=raw['event_id'], provider=PROVIDER, source_identity=token_id)
     if current['id'] != raw_id:
         raise EvidenceError('PUBLIC_BOOK_RAW_SUPERSEDED')
-    if not 0 <= now-body['received_at'] < policy.maximum_age_seconds:
+    if not 0 <= now-body['received_at'] <= policy.maximum_age_seconds:
         raise EvidenceError('PUBLIC_BOOK_RECEIPT_STALE_OR_FUTURE')
     response = payload.get('response')
     if (type(response) is not dict or response.get('market') != target['condition_id']
