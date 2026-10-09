@@ -170,6 +170,25 @@ class RealInputCapture:
             real_orders_sent=False, settlement_authority=False, acceptance_granted=False),
             evidence_ids=evidence_ids, expected_heads=expected_heads)
 
+    def _transient_deferral_history(self):
+        """Bounded chronological scan of this KEY's prior MADIS transient deferrals.
+
+        Only a record this code itself marked transient_madis_deferral=True with
+        outcome GATED counts; every other (including legacy/forged) record is
+        either ignored (no marker) or treated as a hard failure, never silently
+        trusted as "no deferral happened".
+        """
+        deferrals = []
+        for row in self.store.records(kind='RUNTIME_STATUS', event_id=KEY, limit=1000):
+            details = row['body']['details']
+            marker = details.get('transient_madis_deferral')
+            if marker is None:
+                continue
+            if marker is not True or details.get('outcome') != 'GATED':
+                raise EvidenceError('REAL_INPUT_MADIS_TRANSIENT_HISTORY_MALFORMED')
+            deferrals.append(row)
+        return deferrals
+
     async def step(self, command_id):
         identity(command_id, maximum=80)
         key = 'real-input:'+digest(command_id)
@@ -202,6 +221,9 @@ class RealInputCapture:
                 raise
         else:
             return previous  # Historical result, never a new freshness claim.
+        deferrals = self._transient_deferral_history()
+        if deferrals and self.store.clock() - deferrals[-1]['body']['recorded_at'] < 1200:
+            return self._save(key, 'GATED', errors=['REAL_INPUT_MADIS_TRANSIENT_COOLDOWN'])
         self.plan.preflight(self.store.clock())
         health = self.health.sample(key+':clock')
         if health['body']['details']['clock_reasons']:
@@ -222,10 +244,13 @@ class RealInputCapture:
             collected['omitted'].extend(books['omitted'])
         raw_ids, normalized_ids, book_ids, errors = [], [], [], []
         held = False
+        failed_sources = []
         for source in collected['sources']:
             if source['state'] != 'SUCCESS':
                 held = True
-                errors.append(self.store.get(source['record_id'])['body']['reason'])
+                reason = self.store.get(source['record_id'])['body']['reason']
+                errors.append(reason)
+                failed_sources.append((source['provider'], source['state'], reason))
                 continue
             raw_id = source['capture_ids'][0]
             raw_ids.append(raw_id)
@@ -304,6 +329,18 @@ class RealInputCapture:
             errors.append('REAL_INPUT_INCOMPLETE_COVERAGE')
         held_providers = sorted({source['provider'] for source in collected['sources']
                                   if source['state'] != 'SUCCESS'})
+        # A bare transport timeout carries no provider refusal or rate signal.
+        # Defer it (never a permanent hold) up to twice; a 3rd occurrence, or any
+        # mix with a genuine refusal/rate-limit/other provider, holds as today.
+        transient_madis_only = held and all(
+            provider == 'NOAA_MADIS_CWOP' and state == 'TRANSPORT_FAILURE' and reason == 'REQUEST_FAILED'
+            for provider, state, reason in failed_sources)
+        if transient_madis_only and len(self._transient_deferral_history()) < 2:
+            return self._save(key, 'GATED', raw_ids=raw_ids, normalized_ids=normalized_ids, book_ids=book_ids,
+                              qc_id=qc_id, errors=errors+['REAL_INPUT_MADIS_TRANSIENT_TRANSPORT_DEFERRED'],
+                              collection=collected, held_providers=[], transient_madis_deferral=True,
+                              evidence_ids=tuple(normalized_ids)+((qc_id,) if qc_id else ()),
+                              expected_heads=tuple(heads))
         return self._save(key, 'PROVIDER_HELD' if held else 'GATED' if errors else 'FRESH_SOURCE_EVIDENCE_ONLY',
                           raw_ids=raw_ids, normalized_ids=normalized_ids, book_ids=book_ids,
                           qc_id=qc_id, errors=errors, collection=collected, held_providers=held_providers,

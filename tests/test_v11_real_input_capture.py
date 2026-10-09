@@ -46,7 +46,7 @@ def capture_rig(books, monkeypatch):
 
 
 def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=False,
-        book_fail_status=None, empty_book=False):
+        book_fail_status=None, empty_book=False, madis_transient=False, madis_malformed=False):
     calls = []
     book_calls = [0]
     def transport(req):
@@ -54,6 +54,12 @@ def run(r, *, cycle='one', empty=False, status=200, stale=False, delay=0, crash=
         if req.url.host == 'madis-data.ncep.noaa.gov':
             if crash:
                 raise RuntimeError('interrupted')
+            if madis_transient:
+                raise httpx.ConnectTimeout('timed out')
+            if madis_malformed:
+                # Invalid UTF-8 bytes: MADIS_XML decoding fails with UnicodeError,
+                # the collector's distinct non-transport MALFORMED/ABSENT-style path.
+                return httpx.Response(200, content=b'\xff\xfe<mesonet/>')
             return httpx.Response(status, text='<mesonet/>' if empty else xml(r['now'][0]))
         if req.url.host == 'aviationweather.gov':
             return httpx.Response(200, json=[dict(icaoId='KATL', obsTime=r['now'][0]-1, temp=25)])
@@ -143,6 +149,67 @@ def test_provider_failure_is_durable_hold_with_no_retry(capture_rig,status):
     capture_rig['now'][0]+=301
     with pytest.raises(EvidenceError,match='PROVIDER_OR_INTERRUPTED_HOLD'):
         run(capture_rig,cycle='retry')
+
+
+def test_madis_transient_timeout_is_deferred_not_held(capture_rig):
+    r = capture_rig
+    row, calls = run(r, madis_transient=True)
+    d = row['body']['details']
+    assert d['outcome'] == 'GATED', d
+    assert 'REAL_INPUT_MADIS_TRANSIENT_TRANSPORT_DEFERRED' in d['errors']
+    assert d['held_providers'] == []
+    assert sum(c.url.host == 'madis-data.ncep.noaa.gov' for c in calls) == 1
+    r['now'][0] += 1200
+    row2, calls2 = run(r, cycle='later')
+    assert sum(c.url.host == 'madis-data.ncep.noaa.gov' for c in calls2) == 1
+    assert row2['body']['details']['outcome'] == 'FRESH_SOURCE_EVIDENCE_ONLY', row2['body']['details']
+
+
+def test_madis_transient_cooldown_blocks_network_until_1200_seconds(capture_rig):
+    r = capture_rig
+    run(r, madis_transient=True)
+    r['now'][0] += 1199
+    row, calls = run(r, cycle='soon')
+    d = row['body']['details']
+    assert d['outcome'] == 'GATED' and d['errors'] == ['REAL_INPUT_MADIS_TRANSIENT_COOLDOWN'], d
+    assert not calls
+
+
+def test_madis_transient_timeout_third_occurrence_becomes_permanent_hold(capture_rig):
+    r = capture_rig
+    run(r, madis_transient=True, cycle='t1')
+    r['now'][0] += 1200
+    row2, _ = run(r, madis_transient=True, cycle='t2')
+    assert row2['body']['details']['outcome'] == 'GATED', row2['body']['details']
+    r['now'][0] += 1200
+    row3, _ = run(r, madis_transient=True, cycle='t3')
+    d = row3['body']['details']
+    assert d['outcome'] == 'PROVIDER_HELD', d
+    assert d['held_providers'] == ['NOAA_MADIS_CWOP']
+    r['now'][0] += 1200
+    with pytest.raises(EvidenceError, match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r, cycle='t4')
+
+
+@pytest.mark.parametrize('kwargs', [{'status': 401}, {'status': 403}, {'status': 429}, {'status': 503},
+                                     {'madis_malformed': True}])
+def test_madis_non_transient_failures_still_hold_permanently(capture_rig, kwargs):
+    r = capture_rig
+    row, _ = run(r, **kwargs)
+    d = row['body']['details']
+    assert d['outcome'] == 'PROVIDER_HELD', d
+    assert d['held_providers'] == ['NOAA_MADIS_CWOP']
+    r['now'][0] += 1200
+    with pytest.raises(EvidenceError, match='PROVIDER_OR_INTERRUPTED_HOLD'):
+        run(r, cycle='retry-non-transient')
+
+
+def test_madis_transient_timeout_with_simultaneous_book_failure_still_holds(capture_rig):
+    r = capture_rig
+    row, _ = run(r, madis_transient=True, book_fail_status=503)
+    d = row['body']['details']
+    assert d['outcome'] == 'PROVIDER_HELD', d
+    assert set(d['held_providers']) == {'NOAA_MADIS_CWOP', 'POLYMARKET_PUBLIC_CLOB'}
 
 
 def test_unrelated_book_transport_failure_does_not_block_future_healthy_cycles(capture_rig):
