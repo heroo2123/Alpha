@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta
+import base64
 import hashlib
 import json
 from zoneinfo import ZoneInfo
@@ -48,11 +49,16 @@ def fixture(day="2026-10-05", unit="F", population="WRH_HOURLY_DATA", fallback=F
     end = datetime.combine(d + timedelta(days=1), time.min, ET).timestamp()
     deadline = datetime.combine(d + timedelta(days=2), time.min, ET).timestamp() - 60
     hours = [start + i * 3600 for i in range(round((end - start) / 3600))]
+    hourly = population == "WRH_HOURLY_DATA" and not fallback and unit == "F"
+    if hourly:
+        hours = [t + 51 * 60 for t in hours]
+        hours.append(start + 13 * 3600 + 20 * 60)  # selected SPECI, second row in this hour
+        hours.sort()
     rows = [{"id": f"o{i}", "source_row_index": i,
              "observed_at": t, "published_at": t + 60,
              "received_at": t + 120, "value": 72 if unit == "F" else 22}
             for i, t in enumerate(hours)]
-    trigger = end + 3600
+    trigger = end + (51 * 60 if hourly else 3600)
     doc = {"rule_fingerprint_sha256": r.sha256, "source_id": FALLBACK_SOURCE if fallback else SOURCE,
            "source_version": "synthetic-v1", "station": "KATL", "target_date": day,
            "timezone": "America/New_York", "unit": unit,
@@ -72,10 +78,46 @@ def fixture(day="2026-10-05", unit="F", population="WRH_HOURLY_DATA", fallback=F
                         "trigger_at": trigger,
                         "kind": "FIRST_FOLLOWING_POINT", "no_earlier_point_proven": True},
            "snapshot": {"published_at": deadline + 60, "received_at": deadline + 120}}
+    if hourly:
+        times = hours + [trigger]
+        observations = {
+            "date_time": [datetime.fromtimestamp(t, ET).isoformat() for t in times],
+            "air_temp_set_1": [72.0] * len(times),
+            "sea_level_pressure_set_1": [None if t == start + 13 * 3600 + 20 * 60 else 1010.0 for t in times],
+            "metar_set_1": ["KATL SPECI" if t == start + 13 * 3600 + 20 * 60 else "KATL METAR" for t in times],
+        }
+        payload = {"UNITS": {"air_temp": "Fahrenheit"},
+                   "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
+                   "STATION": [{"STID": "KATL", "SHORTNAME": "GLOBAL-METAR",
+                                "TIMEZONE": "America/New_York", "OBSERVATIONS": observations}]}
+        bind_wrh(doc, payload)
     return r, doc
 
 
 FALLBACK_SOURCE = "WEATHER_UNDERGROUND_DAILY_OBSERVATIONS"
+
+
+def bind_wrh(doc, payload):
+    raw = json.dumps(payload, sort_keys=True).encode()
+    doc["wrh_source"] = {
+        "response_base64": base64.b64encode(raw).decode("ascii"),
+        "response_sha256": hashlib.sha256(raw).hexdigest(),
+        "query_start_date": doc["target_date"],
+        "query_end_date": (date.fromisoformat(doc["target_date"]) + timedelta(days=1)).isoformat(),
+        "received_at": doc["snapshot"]["received_at"],
+    }
+
+
+def wrh_payload(doc):
+    return json.loads(base64.b64decode(doc["wrh_source"]["response_base64"]))
+
+
+def rewrite_manifest(doc):
+    rows = doc["observations"]
+    for index, row in enumerate(rows):
+        row["source_row_index"] = index
+    doc["manifest"].update(source_row_count=len(rows), observation_ids=[r["id"] for r in rows],
+                           first_observation_id=rows[0]["id"], last_observation_id=rows[-1]["id"])
 
 
 def check(r, doc, *, as_of=None, gamma=(), expected_version="synthetic-v1"):
@@ -107,13 +149,14 @@ def test_complete_synthetic_partition_and_celsius_edge():
     must(result["winning_market_id"] == "m1")
     must(result["winning_yes_token"] == "y1")
     must(set(result["losing_yes_tokens"]) == {"y0", "y2"})
+    r, d = fixture(population="WRH_ALL_TIMES")
     d["observations"][10]["value"] = "74.5"
     must(check(r, d)["winning_market_id"] == "m2")
     for row in d["observations"]:
         row["value"] = 69
     d["observations"][10]["value"] = "69.5"
     must(check(r, d)["winning_market_id"] == "m1")
-    r, d = fixture(unit="C")
+    r, d = fixture(unit="C", population="WRH_ALL_TIMES")
     d["observations"][10]["value"] = "24.5"
     must(check(r, d)["winning_market_id"] == "m2")
     d["observations"][10]["value"] = "19.5"
@@ -149,10 +192,86 @@ def test_adversarial_population_identity_and_clocks(change, code):
 def test_dst_fall_and_spring_have_25_and_23_hours():
     for day, count in (("2026-11-01", 25), ("2026-03-08", 23)):
         r, d = fixture(day)
-        must(len(d["observations"]) == count)
+        must(len(d["observations"]) == count + 1)
         assert_code(check(r, d), "SYNTHETIC_DERIVATION_ONLY")
         d["observations"].pop(count // 2)
         assert_code(check(r, d), "INCOMPLETE_POPULATION")
+
+
+def test_hourly_population_reconstructs_multiple_rows_and_survives_missing_clock_hour():
+    r, d = fixture()
+    times = [row["observed_at"] for row in d["observations"]]
+    must(len(times) == 25)
+    must(sum(datetime.fromtimestamp(t, ET).hour == 13 for t in times) == 2)
+    assert_code(check(r, d), "SYNTHETIC_DERIVATION_ONLY")
+
+    # A complete source response may have no selected row in a clock hour.
+    payload = wrh_payload(d)
+    series = payload["STATION"][0]["OBSERVATIONS"]
+    lost = next(i for i, t in enumerate(times) if datetime.fromtimestamp(t, ET).hour == 8)
+    for key in ("date_time", "air_temp_set_1", "sea_level_pressure_set_1", "metar_set_1"):
+        series[key].pop(lost)
+    d["observations"].pop(lost)
+    rewrite_manifest(d)
+    bind_wrh(d, payload)
+    assert_code(check(r, d), "SYNTHETIC_DERIVATION_ONLY")
+
+
+def test_hourly_claim_cannot_shrink_population_by_rewriting_manifest():
+    r, d = fixture()
+    d["observations"].pop(14)
+    rewrite_manifest(d)
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+
+
+def test_hourly_claim_requires_verified_source_bytes_and_exact_displayed_values():
+    r, d = fixture()
+    d["wrh_source"]["response_sha256"] = "0" * 64
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+    r, d = fixture()
+    d["wrh_source"]["query_end_date"] = d["target_date"]
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+    r, d = fixture()
+    del d["wrh_source"]
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+    r, d = fixture()
+    d["observations"][13]["value"] = 99
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+    r, d = fixture()
+    payload = wrh_payload(d)
+    payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"][13] = 99.0
+    bind_wrh(d, payload)
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+    r, d = fixture()
+    payload = wrh_payload(d)
+    series = payload["STATION"][0]["OBSERVATIONS"]
+    for values in series.values():
+        values.pop()
+    bind_wrh(d, payload)
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+
+
+def test_hourly_null_temperature_keeps_row_but_skips_extreme():
+    r, d = fixture()
+    payload = wrh_payload(d)
+    payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"][13] = None
+    bind_wrh(d, payload)
+    d["observations"][13]["value"] = None
+    result = check(r, d)
+    assert_code(result, "SYNTHETIC_DERIVATION_ONLY")
+    must(result["whole_degree_value"] == 72)
+    must(result["no_data"] is False)
+    payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"] = [None] * len(
+        payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"])
+    bind_wrh(d, payload)
+    for row in d["observations"]:
+        row["value"] = None
+    assert_code(check(r, d), "FALLBACK_UNPROVED")
+
+
+def test_hourly_celsius_without_pinned_reconstruction_fails_closed():
+    r, d = fixture(unit="C")
+    assert_code(check(r, d), "SOURCE_SEMANTICS_MISMATCH")
 
 
 def test_all_times_interior_gap_even_with_rewritten_id_manifest():
@@ -188,6 +307,10 @@ def test_correction_before_and_after_trigger_conflicts():
                   "received_at": d["finality"]["trigger_at"] - 20, "value": 78}
     d["corrections"] = [correction]
     d["manifest"]["correction_ids"] = ["c0"]
+    assert_code(check(r, d), "INCOMPLETE_POPULATION")
+    payload = wrh_payload(d)
+    payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"][12] = 78.0
+    bind_wrh(d, payload)
     must(check(r, d)["winning_market_id"] == "m2")
     correction["published_at"] = d["finality"]["trigger_at"] + 1
     correction["received_at"] = correction["published_at"] + 1

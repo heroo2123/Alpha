@@ -8,11 +8,14 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import base64
+import binascii
 import hashlib
 import json
 import math
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from ..weather_only_wrh import WRHSourceError, parse_synoptic_wrh_hourly_snapshot
 from .rules import RuleFingerprint
 
 
@@ -39,6 +42,44 @@ def _clock(value: object) -> bool:
 
 def _sha(value: object) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+
+
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _reject_non_json_constant(value):
+    raise ValueError("non-JSON numeric constant")
+
+
+def _wrh_hourly_rows(binding: object, *, station: str, target: date,
+                     timezone: str, received_at: float):
+    """Reconstruct the complete selected rows from bound, caller-supplied bytes."""
+    if not isinstance(binding, dict) or not _sha(binding.get("response_sha256")):
+        return None
+    if (binding.get("query_start_date") != target.isoformat()
+            or binding.get("query_end_date") != (target + timedelta(days=1)).isoformat()
+            or binding.get("received_at") != received_at
+            or not isinstance(binding.get("response_base64"), str)):
+        return None
+    try:
+        raw = base64.b64decode(binding["response_base64"], validate=True)
+        if not raw or hashlib.sha256(raw).hexdigest() != binding["response_sha256"]:
+            return None
+        payload = json.loads(raw.decode("utf-8", errors="strict"),
+                             object_pairs_hook=_unique_object,
+                             parse_constant=_reject_non_json_constant)
+        return parse_synoptic_wrh_hourly_snapshot(
+            payload, station=station, target_date=target,
+            query_start_date=target, query_end_date=target + timedelta(days=1),
+            received_at=received_at, expected_timezone=timezone)
+    except (ValueError, TypeError, UnicodeError, binascii.Error, WRHSourceError):
+        return None
 
 
 def _partition(rows: object, unit: str) -> bool:
@@ -79,6 +120,8 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
     ``raw_bytes`` is a UTF-8 JSON document. It must contain source_id,
     source_version, station, target_date, timezone, unit, population, statistic,
     observations, corrections, manifest, primary_status, finality, and snapshot.
+    Primary WRH_HOURLY_DATA also requires wrh_source: base64 exact response bytes,
+    their SHA-256, exact two-date query bounds, and the snapshot receipt clock.
     Each observation has id/observed_at/published_at/received_at/value; each
     correction additionally has replaces_id. Times are Unix UTC seconds.
     The manifest enumerates every row id, boundary ids and explicit completeness.
@@ -103,20 +146,12 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
             or raw_sha256 in gamma_raw_sha256s):
         return _result("MISSING_SOURCE", rule_sha)
     try:
-        def unique_object(pairs):
-            result = {}
-            for key, value in pairs:
-                if key in result:
-                    raise ValueError("duplicate JSON key")
-                result[key] = value
-            return result
-
         if not raw_bytes or len(raw_bytes) > 2_000_000:
             raise ValueError
         # The contract is a UTF-8 JSON document; reject UTF-16/UTF-32 and BOM-prefixed
         # bytes that json.loads(bytes) would otherwise silently accept via sniffing.
         text = raw_bytes.decode("utf-8", errors="strict")
-        d = json.loads(text, object_pairs_hook=unique_object)
+        d = json.loads(text, object_pairs_hook=_unique_object)
         if not isinstance(d, dict):
             raise ValueError
         target = date.fromisoformat(p["target_date"])
@@ -187,6 +222,20 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
     if (snap["published_at"] < trigger or snap["received_at"] < snap["published_at"]
             or snap["received_at"] > as_of or status["checked_at"] > snap["published_at"]):
         return _result("UNFINAL", rule_sha)
+    hourly = not fallback and p["observation_population"] == "WRH_HOURLY_DATA"
+    if hourly:
+        # The pinned viewer reconstruction only certifies Fahrenheit ASOS/AWOS.
+        if p["unit"] != "F":
+            return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
+        wrh = _wrh_hourly_rows(d.get("wrh_source"), station=p["station"],
+                               target=target, timezone=p["timezone"],
+                               received_at=snap["received_at"])
+        if wrh is None:
+            return _result("INCOMPLETE_POPULATION", rule_sha)
+        following = wrh.first_following_row
+        if (first is None) != (following is None) or (following is not None and
+                following.observation_time_local.timestamp() != first):
+            return _result("INCOMPLETE_POPULATION", rule_sha)
     if fallback and (status.get("primary_snapshot_sha256") is None
                      or not _sha(status["primary_snapshot_sha256"])
                      or status["primary_snapshot_sha256"] == raw_sha256):
@@ -223,8 +272,8 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
         return _result("UNKNOWN_CLOCK", rule_sha)
     if rows and (manifest.get("first_observation_id") != rows[0]["id"]
                  or manifest.get("last_observation_id") != rows[-1]["id"]
-                 or rows[0].get("observed_at") != start
-                 or not end - 3600 <= rows[-1].get("observed_at", -1) < end):
+                 or (not hourly and rows[0].get("observed_at") != start)
+                 or (not hourly and not end - 3600 <= rows[-1].get("observed_at", -1) < end)):
         return _result("INCOMPLETE_POPULATION", rule_sha)
     if not rows and manifest.get("no_data") is not True:
         return _result("INCOMPLETE_POPULATION", rule_sha)
@@ -248,12 +297,15 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
             return _result("UNKNOWN_CLOCK", rule_sha)
         if published >= trigger:
             return _result("REVISION_CONFLICT" if r in corrections else "UNFINAL", rule_sha)
-        try:
-            value = Decimal(str(r["value"]))
-        except (KeyError, InvalidOperation, ValueError):
-            return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
-        if not value.is_finite() or abs(value) > 200 or type(r["value"]) is bool:
-            return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
+        if r.get("value") is None and hourly and r in rows:
+            value = None
+        else:
+            try:
+                value = Decimal(str(r["value"]))
+            except (KeyError, InvalidOperation, ValueError):
+                return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
+            if not value.is_finite() or abs(value) > 200 or type(r["value"]) is bool:
+                return _result("SOURCE_SEMANTICS_MISMATCH", rule_sha)
         if r in corrections:
             prior = by_id.get(r.get("replaces_id"))
             if (prior is None or prior["observed_at"] != observed
@@ -267,15 +319,24 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
         return _result("REVISION_CONFLICT", rule_sha)
     if rows and [r["observed_at"] for r in rows] != sorted(r["observed_at"] for r in rows):
         return _result("INCOMPLETE_POPULATION", rule_sha)
-    if rows and p["observation_population"] == "WRH_HOURLY_DATA" and not fallback:
-        expected_hours = [datetime.fromtimestamp(start + 3600*i, zone).timestamp() for i in range(round((end-start)/3600))]
-        if [r["observed_at"] for r in rows] != expected_hours:
+    if hourly:
+        selected = wrh.target_rows
+        if len(rows) != len(selected) or any(
+            row["observed_at"] != source.observation_time_local.timestamp()
+            or type(current[row["observed_at"]].get("value")) is not
+               (type(None) if source.displayed_temp_f is None else int)
+            or current[row["observed_at"]]["value"] != source.displayed_temp_f
+            for row, source in zip(rows, selected)
+        ):
             return _result("INCOMPLETE_POPULATION", rule_sha)
-    if not rows:
+    values = [Decimal(str(r["value"])) for r in current.values() if r["value"] is not None]
+    if hourly and not values:
+        return _result("FALLBACK_UNPROVED", rule_sha)
+    if not values:
         winner = sorted(p["partition"], key=lambda b: float("-inf") if b["lower"] is None else b["lower"])[0]
         whole = None
     else:
-        extreme = (max if p["statistic"] == "DAILY_HIGHEST_TEMP" else min)(Decimal(str(r["value"])) for r in current.values())
+        extreme = (max if p["statistic"] == "DAILY_HIGHEST_TEMP" else min)(values)
         whole = int(extreme.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         winners = [b for b in p["partition"] if (b["lower"] is None or b["lower"] <= whole)
                    and (b["upper"] is None or whole <= b["upper"])]
@@ -289,4 +350,4 @@ def derive_offline_settlement_source(*, rule: RuleFingerprint, raw_bytes: bytes,
                    whole_degree_value=whole, winning_market_id=winner["market_id"],
                    winning_yes_token=winner["yes_token"],
                    losing_yes_tokens=tuple(b["yes_token"] for b in p["partition"] if b is not winner),
-                   no_data=not rows)
+                   no_data=not values)
