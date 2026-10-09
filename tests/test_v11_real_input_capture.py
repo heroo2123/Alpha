@@ -449,3 +449,21 @@ def test_cli_collect_opens_dedicated_store_and_runs_full_source_path(capture_rig
     assert result['recorded_at']==r['now'][0] and not result['acceptance_granted']
     store=EvidenceStore(destination,'CHALLENGER:real-input-capture')
     assert not store.records(kind='COORDINATOR_EVENT') and not store.records(kind='TRADE')
+
+
+def test_transient_history_full_page_fails_closed(monkeypatch):
+    from polymarket_scanner.v11 import real_input_capture as ric
+    from polymarket_scanner.v11.evidence import EvidenceError
+
+    class Store:
+        def records(self, **kwargs):
+            return [{'body': {'details': {}}}] * 1000
+
+    capture = object.__new__(ric.RealInputCapture)
+    capture.store = Store()
+    try:
+        capture._transient_deferral_history()
+    except EvidenceError as exc:
+        assert str(exc) == 'REAL_INPUT_MADIS_TRANSIENT_HISTORY_BOUND'
+    else:
+        raise AssertionError('full page must fail closed')

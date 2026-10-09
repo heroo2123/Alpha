@@ -179,7 +179,11 @@ class RealInputCapture:
         trusted as "no deferral happened".
         """
         deferrals = []
-        for row in self.store.records(kind='RUNTIME_STATUS', event_id=KEY, limit=1000):
+        rows = self.store.records(kind='RUNTIME_STATUS', event_id=KEY, limit=1000)
+        if len(rows) >= 1000:
+            # Oldest-first bounded read: a full page could hide newer deferrals.
+            raise EvidenceError('REAL_INPUT_MADIS_TRANSIENT_HISTORY_BOUND')
+        for row in rows:
             details = row['body']['details']
             marker = details.get('transient_madis_deferral')
             if marker is None:
