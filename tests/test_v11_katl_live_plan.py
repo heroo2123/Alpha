@@ -271,6 +271,20 @@ def test_host_upgrade_requires_reviewed_pws_config_and_retains_account_limits(jo
         katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config={})
 
 
+def test_pws_sleeve_from_config_rejects_malformed_nested_value(joined, setup):
+    r = joined
+    base, _, _ = economic_plan(r, main_sources=main_sources_for(r))
+    config = asdict(pws_sleeve(r, setup[3]))
+    config.pop('official')
+    # All required top-level keys are present; only the nested quality_policy
+    # value is malformed, so this must not surface as a raw TypeError/KeyError.
+    config['quality_policy'] = 5
+    with pytest.raises(EvidenceError, match='KATL_PLAN_PWS_CONFIG_SCHEMA'):
+        katl_live_plan.pws_sleeve_from_config(config, setup[3])
+    with pytest.raises(EvidenceError, match='KATL_PLAN_PWS_CONFIG_SCHEMA'):
+        katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=config)
+
+
 def test_host_upgrade_without_pws_config_builds_economic_lane_only(joined, setup):
     r = joined
     base, _, _ = economic_plan(r, main_sources=main_sources_for(r))

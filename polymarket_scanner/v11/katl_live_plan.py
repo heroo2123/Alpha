@@ -129,20 +129,23 @@ def pws_sleeve_from_config(value: dict, official: StationMetadata) -> PWSSleeve:
                 'without_pws_sources', 'lead_policy', 'rule_max_age_seconds', 'payout_costs'}
     if type(value) is not dict or not required <= set(value) or set(value) - required - {'commission', 'temperature_costs'}:
         raise EvidenceError('KATL_PLAN_PWS_CONFIG_SCHEMA')
-    quality = dict(value['quality_policy'])
-    quality['distance_bands'] = tuple(tuple(band) for band in quality['distance_bands'])
-    return PWSSleeve(
-        official=official, quality_policy=PWSPolicy(**quality),
-        payout_scope=CapabilityScope(**value['payout_scope']),
-        observation_scope=CapabilityScope(**value['observation_scope']),
-        observation_bundle_sha256=value['observation_bundle_sha256'],
-        payout_sources=tuple(SourceSelector(**s) for s in value['payout_sources']),
-        observation_sources=tuple(SourceSelector(**s) for s in value['observation_sources']),
-        without_pws_sources=tuple(SourceSelector(**s) for s in value['without_pws_sources']),
-        lead_policy=LeadPolicy(**value['lead_policy']),
-        rule_max_age_seconds=value['rule_max_age_seconds'],
-        payout_costs=_cost_components(value['payout_costs']),
-    )
+    try:
+        quality = dict(value['quality_policy'])
+        quality['distance_bands'] = tuple(tuple(band) for band in quality['distance_bands'])
+        return PWSSleeve(
+            official=official, quality_policy=PWSPolicy(**quality),
+            payout_scope=CapabilityScope(**value['payout_scope']),
+            observation_scope=CapabilityScope(**value['observation_scope']),
+            observation_bundle_sha256=value['observation_bundle_sha256'],
+            payout_sources=tuple(SourceSelector(**s) for s in value['payout_sources']),
+            observation_sources=tuple(SourceSelector(**s) for s in value['observation_sources']),
+            without_pws_sources=tuple(SourceSelector(**s) for s in value['without_pws_sources']),
+            lead_policy=LeadPolicy(**value['lead_policy']),
+            rule_max_age_seconds=value['rule_max_age_seconds'],
+            payout_costs=_cost_components(value['payout_costs']),
+        )
+    except (TypeError, KeyError, ValueError) as exc:
+        raise EvidenceError('KATL_PLAN_PWS_CONFIG_SCHEMA') from exc
 
 
 def _cost_components(value) -> tuple[CostComponent, ...]:
