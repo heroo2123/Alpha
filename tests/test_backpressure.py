@@ -279,7 +279,9 @@ def test_newest_seen_history_is_bounded_and_reports_evictions(monkeypatch):
     output, stats = bp.coalesce_signal_batches([oversized])
     assert output == []
     assert stats["overflow_dropped"] == 20
-    assert stats["newest_seen_history_evicted"] == 18
+    # On the first capacity loss, new unknown keys become unproven and are
+    # refused without minting another timestamp or evicting more history.
+    assert stats["newest_seen_history_evicted"] == 1
     assert not stats["evidence_complete"]
 
 
@@ -299,4 +301,29 @@ def test_history_eviction_does_not_allow_resurrection_of_unknown_stale_actionabl
     assert out == []
     assert stats["newest_seen_history_evicted"] >= 1
     assert stats["overflow_dropped"] == 4
+    assert not stats["evidence_complete"]
+
+
+def test_highwater_overflow_cannot_trust_second_stale_actionable_arrival(monkeypatch):
+    """An unknown key stays unproven; its rejected receipt cannot mint history."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 1)
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 900)
+    def huge_watch(key,when):
+        v = sig(key, confidence="WATCH", seconds=when)
+        v.detail = "x" * 1500
+        return v
+    a3 = huge_watch("A", 3)
+    b4 = huge_watch("B", 4)
+    c5 = huge_watch("C", 5)
+    a1 = sig("A", confidence="ACTIONABLE", seconds=1, edge=0.03)
+    a2 = sig("A", confidence="ACTIONABLE", seconds=2, edge=0.04)
+    a2_same_time = sig("A", confidence="ACTIONABLE", seconds=2, edge=0.06)
+    output, stats = bp.coalesce_signal_batches(
+        [[a3], [b4], [c5], [a1], [a2], [a2_same_time]]
+    )
+    assert output == []
+    assert stats["retained_payload_bytes"] == 0
+    assert stats["newest_seen_history_evicted"] == 1
+    assert stats["overflow_dropped"] == 6
     assert not stats["evidence_complete"]

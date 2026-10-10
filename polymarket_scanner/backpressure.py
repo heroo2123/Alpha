@@ -84,19 +84,21 @@ def coalesce_signal_batches(
                 if ((seen_at is not None and signal.created_at < seen_at) or
                         (prior is not None and signal.created_at < prior.created_at)):
                     continue
+            if highwater_evicted and prior is None and seen_at is None:
+                # A missing key might be genuinely new OR the episode whose
+                # timestamp was forgotten at the highwater capacity boundary.
+                # Do not record a new timestamp for an unproven key: doing so
+                # would allow the NEXT older ACTIONABLE receipt to resurrect.
+                # This conservative hold includes WATCH receipts; known keys
+                # with retained history can still progress while memory stays
+                # bounded and evidence completeness is marked false.
+                overflow += 1
+                continue
             newest_seen.pop(key, None)
             newest_seen[key] = signal.created_at
             if len(newest_seen) > highwater_limit:
                 del newest_seen[next(iter(newest_seen))]
                 highwater_evicted += 1
-            if (highwater_evicted and prior is None and seen_at is None
-                    and signal.confidence == "ACTIONABLE"):
-                # Once bounded freshness history has discarded any episode,
-                # an unknown ACTIONABLE might actually be a delayed obsolete
-                # receipt from that episode. Drop instead of manufacturing
-                # false actionable currentness while evidence is incomplete.
-                overflow += 1
-                continue
             size = len(json.dumps({"metadata": signal.metadata, "detail": signal.detail,
                                    "title": signal.title, "tokens": signal.token_ids}, default=str).encode())
             # Stage resource evictions BEFORE mutating the working set.
