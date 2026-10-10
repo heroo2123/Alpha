@@ -216,7 +216,17 @@ class RelativeValueRequestFactory(EntryRequestFactory):
 
     def __call__(self, claim):
         a = self.assembler; pin, leases, books, event, expiry = a.current(claim,self.targets)
-        legs = tuple(BasketLeg(t.market_id,t.side,t.units,b['id'],t.costs) for t,b in zip(self.targets,books))
+        legs = []
+        for t, b in zip(self.targets, books):
+            costs = t.costs
+            if not any('ACQUISITION_FEES' in c.covers for c in costs):
+                fee = current_buy_fee_cost(a.store, rule=a.inputs.rule, market_id=t.market_id,
+                    side=t.side, units=t.units, book_id=b['id'],
+                    max_age_seconds=a.valuation_policy.max_book_age_seconds)
+                if fee is not None:
+                    costs += (fee,)
+            legs.append(BasketLeg(t.market_id,t.side,t.units,b['id'],costs))
+        legs = tuple(legs)
         desired = tuple((contract_target(a.inputs.rule,t.market_id,t.side)['token_id'],t.desired_total_units) for t in self.targets)
         return (DiscoveryRequest(pin['id'],event['id'],legs,desired,tuple(s.evidence_id for s in leases if s.role=='MODEL'),
                                   self.policy,expiry,self.maximum),)

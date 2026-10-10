@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from polymarket_scanner.v11.basket_valuation import analyze_basket
 from polymarket_scanner.v11.event_risk import EventRiskEngine
 from polymarket_scanner.v11.evidence import EvidenceError, digest
 from polymarket_scanner.v11.paper_runtime import TemperatureEventAdapter, PaperRuntime
@@ -11,7 +12,7 @@ from polymarket_scanner.v11.reaction_runtime import PWSLeadEventAdapter, SourceR
 from polymarket_scanner.v11.request_assembly import (SourceSelector, ScopeInputs, TargetPlan, RequestAssembler,
     EntryRequestFactory, RelativeValueRequestFactory, PWSRequestFactory, SourceReleaseRequestFactory, ExitRequestFactory)
 from polymarket_scanner.v11.strategy_runtime import MultiStrategyEventAdapter, RelativeValueEventAdapter
-from polymarket_scanner.v11.valuation import HOLD_RISKS, SALE_RISKS, SALE, contract_target
+from polymarket_scanner.v11.valuation import CostComponent, HOLD_RISKS, PAYOUT, SALE_RISKS, SALE, contract_target
 from test_v11_basket_coordinator import rig
 from test_v11_certification_rules import setup
 from test_v11_event_risk import policy as event_policy, metrics
@@ -220,6 +221,75 @@ def test_public_mock_candidate_uses_current_relative_value_factory_and_common_ac
     assert len(state['intents']) == 3 and len(state['baskets']) == 1
     assert Decimal(adapted.coordinator.snapshot()['reserved_cash']) == Decimal('1.2')
     assert not rig['store'].records(kind='TRADE') and not state['financial_authority']
+
+
+@pytest.mark.parametrize('case', ('supplied', 'covered', 'covered_unknown', 'missing'))
+def test_relative_value_fee_completion_reaches_basket_valuation(rig, monkeypatch, case):
+    # The basket rig already has current SYNTHETIC books from basket-fixture.
+    # Public CLOB books exist only after run_candidate's separate mock census.
+    q = queue(rig); a = assembler(rig, q, provider='basket-fixture')
+    targets = tuple(TargetPlan(l.market_id,l.side,l.units,l.units,l.costs) for l in rig['kw']['legs'])
+    first = targets[0]
+    fee_components = tuple(c for c in first.costs if 'ACQUISITION_FEES' in c.covers)
+    assert len(fee_components) == 1
+    if case in {'supplied', 'missing'}:
+        targets = (replace(first, costs=tuple(c for c in first.costs
+                    if 'ACQUISITION_FEES' not in c.covers)),) + targets[1:]
+    elif case == 'covered_unknown':
+        targets = (replace(first, costs=tuple(replace(c, per_share=None)
+                    if 'ACQUISITION_FEES' in c.covers else c for c in first.costs)),) + targets[1:]
+
+    books = tuple(a.book(t)['id'] for t in targets)
+    source = fee = None
+    if case == 'supplied':
+        source = rig['store'].audit('assembled-fee-source', event_id='paper-fee:'+books[0],
+            kind='MEASUREMENT', details={'status': 'TEST_FEE_MEASUREMENT'}, evidence_ids=(books[0],))
+        asks = rig['store'].get(books[0])['body']['payload']['asks']
+        priced_limit = str(max(Decimal(level['price']) for level in asks))
+        fee = CostComponent('ASSEMBLED_BUY_FEE', PAYOUT, '.03', ('ACQUISITION_FEES',),
+            digest({'source': source['sha256'], 'book': books[0], 'units': targets[0].units}),
+            priced_buy_limit=priced_limit, post_only=False, valid_until=rig['now'][0]+10,
+            source_evidence_id=source['id'], source_evidence_sha256=source['sha256'])
+
+    calls = []
+    def measured(store, **kwargs):
+        calls.append((store, kwargs))
+        return fee
+    monkeypatch.setattr('polymarket_scanner.v11.request_assembly.current_buy_fee_cost', measured)
+
+    f = RelativeValueRequestFactory(a, targets, basket_policy=rig['kw']['policy'])
+    # Reuse the official receipt actually admitted by the basket test fixture.
+    q.publish('assembled-fee:update', kind='BOOK', evidence_id=books[0])
+    with q.work('assembled-fee:claim') as claim:
+        state_for(rig, books, ('model2', 'official2'), key='assembled-fee:risk')
+        request = f(claim)[0]
+        details = analyze_basket(rig['store'], 'assembled-fee:'+case, rule=rig['rule'],
+            prediction=rig['kw']['prediction'], binding=rig['binding'],
+            strategy='CROSS_TEMP_RELATIVE_VALUE', account_id=rig['context'].account_id,
+            legs=request.instruments, policy=rig['kw']['policy'])['body']['details']
+
+    if case in {'covered', 'covered_unknown'}:
+        assert not calls
+        assert request.instruments[0].costs == targets[0].costs
+    else:
+        assert calls == [(rig['store'], dict(rule=rig['rule'], market_id=targets[0].market_id,
+            side=targets[0].side, units=targets[0].units, book_id=books[0],
+            max_age_seconds=a.valuation_policy.max_book_age_seconds))]
+
+    assert details['outcome'] == 'GATED' and details['proposal'] is None
+    assert details['financial_authority'] is False
+    if case == 'supplied':
+        assert request.instruments[0].costs == targets[0].costs + (fee,)
+        assert details['legs'][0]['costs']['components'][-1]['source_evidence_id'] == source['id']
+        assert details['legs'][0]['costs']['components'][-1]['source_evidence_sha256'] == source['sha256']
+        assert details['legs'][0]['costs']['missing'] == []
+        assert details['full_fill_all_in_cost'] is not None
+    elif case == 'covered':
+        assert details['full_fill_all_in_cost'] is not None
+    else:
+        assert request.instruments[0].costs == targets[0].costs
+        assert details['full_fill_all_in_cost'] is None
+        assert 'LEG_0:UNKNOWN_OR_MISSING_COST_COVERAGE' in details['reasons']
 
 
 @pytest.mark.parametrize('defect',['stage','route','targets'])
