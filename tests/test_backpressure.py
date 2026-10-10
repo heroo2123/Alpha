@@ -228,3 +228,75 @@ def test_later_oversized_watch_invalidates_prior_actionable_without_evicting_pee
     assert stats["duplicate_episodes_coalesced"] == 1
     assert stats["overflow_dropped"] == 1
     assert not stats["evidence_complete"]
+
+
+def test_latest_rejected_duplicate_never_resurrects_older_actionable(monkeypatch):
+    """A delayed old ACTIONABLE cannot come back after a newer oversized WATCH."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 2)
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 900)
+    old_action = sig("same", confidence="ACTIONABLE", seconds=1, edge=0.08)
+    newest_watch = sig("same", confidence="WATCH", seconds=3, edge=0.01)
+    newest_watch.detail = "x" * 1500
+    delayed_action = sig("same", confidence="ACTIONABLE", seconds=2, edge=0.09)
+    result, stats = bp.coalesce_signal_batches(
+        [[old_action], [newest_watch], [delayed_action]]
+    )
+    assert result == []
+    assert stats["duplicate_episodes_coalesced"] == 2
+    assert stats["overflow_dropped"] == 1
+    assert stats["retained_payload_bytes"] == 0
+    assert not stats["evidence_complete"]
+
+
+def test_first_oversized_observation_blocks_later_stale_actionable(monkeypatch):
+    """Even a rejected first receipt establishes bounded freshness history."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 2)
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 900)
+    newest_watch = sig("same", confidence="WATCH", seconds=3, edge=0.01)
+    newest_watch.detail = "x" * 1500
+    older_action = sig("same", confidence="ACTIONABLE", seconds=2, edge=0.09)
+    output, stats = bp.coalesce_signal_batches(
+        [[newest_watch], [older_action]]
+    )
+    assert output == []
+    assert stats["overflow_dropped"] == 1
+    assert stats["duplicate_episodes_coalesced"] == 1
+    assert not stats["evidence_complete"]
+
+
+def test_newest_seen_history_is_bounded_and_reports_evictions(monkeypatch):
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 1)
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 120)
+    oversized = [
+        sig(f"oversize-{i}", confidence="ACTIONABLE", seconds=i)
+        for i in range(20)
+    ]
+    for signal in oversized:
+        signal.detail = "x" * 300
+    output, stats = bp.coalesce_signal_batches([oversized])
+    assert output == []
+    assert stats["overflow_dropped"] == 20
+    assert stats["newest_seen_history_evicted"] == 18
+    assert not stats["evidence_complete"]
+
+
+def test_history_eviction_does_not_allow_resurrection_of_unknown_stale_actionable(monkeypatch):
+    """When bounded freshness metadata is lost, unknown ACTIONABLE fails closed."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 1)
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 900)
+    newest = sig("same", confidence="WATCH", seconds=3)
+    newest.detail = "x" * 1500
+    other1 = sig("other1", confidence="WATCH", seconds=4)
+    other1.detail = "x" * 1500
+    other2 = sig("other2", confidence="WATCH", seconds=5)
+    other2.detail = "x" * 1500
+    stale = sig("same", confidence="ACTIONABLE", seconds=2, edge=0.12)
+    out, stats = bp.coalesce_signal_batches([[newest], [other1, other2], [stale]])
+    assert out == []
+    assert stats["newest_seen_history_evicted"] >= 1
+    assert stats["overflow_dropped"] == 4
+    assert not stats["evidence_complete"]

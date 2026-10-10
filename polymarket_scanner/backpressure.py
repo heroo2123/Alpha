@@ -60,6 +60,14 @@ def coalesce_signal_batches(
     duplicates = 0
     batch_count = 0
     byte_count = overflow = expired = 0
+    highwater_evicted = 0
+    # Keep a bounded newest-seen timestamp even for an episode whose latest
+    # observation could not fit. Otherwise a delayed older ACTIONABLE could
+    # resurrect after a newer WATCH was rejected as oversized. This history
+    # is explicitly bounded: exhaustive recall of arbitrarily many rejected
+    # episodes would defeat the shared-VM memory budget.
+    newest_seen: dict[tuple, object] = {}
+    highwater_limit = max(1, 2 * CANDIDATE_MAX_COUNT)
     sizes = {}
     for batch in batches:
         batch_count += 1
@@ -70,10 +78,25 @@ def coalesce_signal_batches(
                 continue
             key = signal_episode_key(signal)
             prior = latest.get(key)
-            if prior is not None:
+            seen_at = newest_seen.get(key)
+            if prior is not None or seen_at is not None:
                 duplicates += 1
-                if signal.created_at < prior.created_at:
+                if ((seen_at is not None and signal.created_at < seen_at) or
+                        (prior is not None and signal.created_at < prior.created_at)):
                     continue
+            newest_seen.pop(key, None)
+            newest_seen[key] = signal.created_at
+            if len(newest_seen) > highwater_limit:
+                del newest_seen[next(iter(newest_seen))]
+                highwater_evicted += 1
+            if (highwater_evicted and prior is None and seen_at is None
+                    and signal.confidence == "ACTIONABLE"):
+                # Once bounded freshness history has discarded any episode,
+                # an unknown ACTIONABLE might actually be a delayed obsolete
+                # receipt from that episode. Drop instead of manufacturing
+                # false actionable currentness while evidence is incomplete.
+                overflow += 1
+                continue
             size = len(json.dumps({"metadata": signal.metadata, "detail": signal.detail,
                                    "title": signal.title, "tokens": signal.token_ids}, default=str).encode())
             # Stage resource evictions BEFORE mutating the working set.
@@ -147,5 +170,6 @@ def coalesce_signal_batches(
         "retained_payload_bytes": sum(sizes[signal_episode_key(s)] for s in output),
         "overflow_dropped": overflow,
         "expired_dropped": expired,
-        "evidence_complete": overflow == 0 and expired == 0,
+        "newest_seen_history_evicted": highwater_evicted,
+        "evidence_complete": overflow == 0 and expired == 0 and highwater_evicted == 0,
     }
