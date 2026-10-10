@@ -100,3 +100,131 @@ def test_zero_watch_limit_still_keeps_all_actionables():
     assert len(batch) == 1
     assert batch[0].confidence == "ACTIONABLE"
     assert stats["watch_dropped"] == 1
+
+
+def test_actionable_after_watch_count_saturation_is_not_displaced(monkeypatch):
+    """A late genuine ACTIONABLE must outrank earlier WATCH within count cap."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 2)
+    old_watch = sig("old-watch", confidence="WATCH", edge=0.80)
+    new_watch = sig("new-watch", confidence="WATCH", edge=0.70)
+    late_action = sig("late-action", confidence="ACTIONABLE", edge=0.04)
+    result, stats = bp.coalesce_signal_batches([[old_watch, new_watch, late_action]])
+    assert late_action in result
+    assert len(result) <= 2
+    assert stats["unique_actionable_retained"] == 1
+    assert not stats["evidence_complete"]
+
+
+def test_actionable_after_watch_byte_saturation_is_not_displaced(monkeypatch):
+    """A later ACTIONABLE cannot be starved by WATCH bytes admitted first."""
+    import json
+    from polymarket_scanner import backpressure as bp
+
+    def bytes_needed(row):
+        return len(json.dumps({"metadata": row.metadata, "detail": row.detail,
+                               "title": row.title, "tokens": row.token_ids},
+                              default=str).encode())
+
+    w1 = sig("byte-watch-1", confidence="WATCH", edge=0.75)
+    w2 = sig("byte-watch-2", confidence="WATCH", edge=0.55)
+    actionable = sig("byte-action", confidence="ACTIONABLE", edge=0.05)
+    allowed = bytes_needed(w1) + bytes_needed(w2)
+    assert bytes_needed(actionable) <= allowed
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", allowed)
+    result, stats = bp.coalesce_signal_batches([[w1, w2, actionable]])
+    assert actionable in result
+    assert stats["retained_payload_bytes"] <= allowed
+    assert stats["unique_actionable_retained"] == 1
+    assert not stats["evidence_complete"]
+
+
+def test_unfittable_new_duplicate_removes_superseded_episode(monkeypatch):
+    """Obsolete ACTIONABLE is removed even if newer evidence is too large."""
+    from polymarket_scanner import backpressure as bp
+    prior = sig("same", confidence="ACTIONABLE", edge=0.03, seconds=1)
+    updated = sig("same", confidence="ACTIONABLE", edge=0.04, seconds=3)
+    updated.detail = "x" * 2000
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 900)
+    result, stats = bp.coalesce_signal_batches([[prior], [updated]])
+    assert result == []  # The old entry is no longer current.
+    assert stats["duplicate_episodes_coalesced"] == 1
+    assert stats["overflow_dropped"] == 1
+    assert stats["retained_payload_bytes"] == 0
+    assert not stats["evidence_complete"]
+
+
+def test_new_watch_can_displace_only_weaker_watch_under_count_limit(monkeypatch):
+    """A stronger research lead may replace the weakest, not an actionable."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 2)
+    old = sig("old", edge=0.01, seconds=1)
+    strong = sig("strong", edge=0.30, seconds=1)
+    arriving = sig("arriving", edge=0.15, seconds=2)
+    output, stats = bp.coalesce_signal_batches([[old, strong, arriving]], watch_limit=2)
+    assert output == [strong, arriving]
+    assert stats["overflow_dropped"] == 1
+    assert stats["retained_payload_bytes"] > 0
+    weak = sig("weaker", edge=0.001, seconds=3)
+    output, stats = bp.coalesce_signal_batches([[strong, arriving, weak]], watch_limit=2)
+    assert output == [strong, arriving]
+    assert stats["overflow_dropped"] == 1
+
+
+def test_actionable_does_not_evade_count_limit_when_all_reserved(monkeypatch):
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 2)
+    first = sig("first", confidence="ACTIONABLE", edge=0.03)
+    second = sig("second", confidence="ACTIONABLE", edge=0.04)
+    late = sig("late", confidence="ACTIONABLE", edge=0.70)
+    result, stats = bp.coalesce_signal_batches([[first, second, late]])
+    assert len(result) == 2
+    assert set(signal_episode_key(x) for x in result) == {
+        signal_episode_key(first), signal_episode_key(second)
+    }
+    assert stats["overflow_dropped"] == 1
+    assert stats["unique_actionable_retained"] == 2
+
+
+def test_oversized_actionable_does_not_evict_watch_when_cannot_fit(monkeypatch):
+    from polymarket_scanner import backpressure as bp
+    watch = sig("watch", edge=0.04)
+    huge = sig("huge", confidence="ACTIONABLE")
+    huge.detail = "x" * 1000
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 800)
+    result, stats = bp.coalesce_signal_batches([[watch, huge]])
+    assert result == [watch]
+    assert stats["overflow_dropped"] == 1
+    assert stats["retained_payload_bytes"] <= 800
+
+
+def test_watch_limit_reports_bytes_of_emitted_payload_only():
+    import json
+    first = sig("w1", edge=0.01)
+    second = sig("w2", edge=0.02)
+    output, stats = coalesce_signal_batches([[first, second]], watch_limit=1)
+    assert output == [second]
+    expected = len(json.dumps({"metadata": second.metadata,
+                               "detail": second.detail,
+                               "title": second.title,
+                               "tokens": second.token_ids}, default=str).encode())
+    assert stats["retained_payload_bytes"] == expected
+    assert stats["watch_dropped"] == 1
+
+
+def test_later_oversized_watch_invalidates_prior_actionable_without_evicting_peer(monkeypatch):
+    """Latest downgraded evidence must not leave an obsolete actionable live."""
+    from polymarket_scanner import backpressure as bp
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_COUNT", 2)
+    monkeypatch.setattr(bp, "CANDIDATE_MAX_BYTES", 900)
+    first = sig("same", confidence="ACTIONABLE", edge=0.05, seconds=1)
+    peer_watch = sig("peer", confidence="WATCH", edge=0.06, seconds=2)
+    latest = sig("same", confidence="WATCH", edge=0.00, seconds=3)
+    latest.detail = "x" * 1500  # cannot fit even if peer is discarded
+    output, stats = bp.coalesce_signal_batches([[first, peer_watch, latest]])
+    assert output == [peer_watch]
+    assert stats["unique_actionable_retained"] == 0
+    assert stats["unique_watch_retained"] == 1
+    assert stats["duplicate_episodes_coalesced"] == 1
+    assert stats["overflow_dropped"] == 1
+    assert not stats["evidence_complete"]

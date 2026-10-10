@@ -46,6 +46,15 @@ def coalesce_signal_batches(
     (then newest created_at) because they are evidence leads, not financial
     instructions. Returned accounting makes every research drop observable.
     """
+    def watch_priority(signal: Signal) -> tuple:
+        # Smaller tuple is the stronger research lead. Retain the existing
+        # deterministic edge, recency and episode identity ordering.
+        return (
+            -(float(signal.edge) if signal.edge is not None else -1.0),
+            -signal.created_at.timestamp(),
+            signal_episode_key(signal),
+        )
+
     latest: dict[tuple, Signal] = {}
     total = 0
     duplicates = 0
@@ -67,11 +76,47 @@ def coalesce_signal_batches(
                     continue
             size = len(json.dumps({"metadata": signal.metadata, "detail": signal.detail,
                                    "title": signal.title, "tokens": signal.token_ids}, default=str).encode())
-            next_bytes = byte_count - sizes.get(key, 0) + size
-            if (prior is None and len(latest) >= CANDIDATE_MAX_COUNT) or next_bytes > CANDIDATE_MAX_BYTES:
+            # Stage resource evictions BEFORE mutating the working set.
+            # A newer duplicate supersedes the earlier episode even if it
+            # cannot fit: an obsolete ACTIONABLE must never remain live.
+            old_size = sizes.get(key, 0)
+            next_count = len(latest) + (prior is None)
+            next_bytes = byte_count - old_size + size
+            victims: list[tuple] = []
+            if next_count > CANDIDATE_MAX_COUNT or next_bytes > CANDIDATE_MAX_BYTES:
+                # An ACTIONABLE must get capacity ahead of WATCH regardless
+                # of arrival order. WATCH may replace only weaker WATCH, not
+                # a stronger research lead or any ACTIONABLE.
+                weakest_watch_keys = sorted(
+                    (item for item, existing in latest.items()
+                     if item != key and existing.confidence != "ACTIONABLE"),
+                    key=lambda item: watch_priority(latest[item]),
+                    reverse=True,
+                )
+                for victim in weakest_watch_keys:
+                    if (signal.confidence != "ACTIONABLE" and
+                            watch_priority(signal) >= watch_priority(latest[victim])):
+                        break
+                    victims.append(victim)
+                    next_count -= 1
+                    next_bytes -= sizes[victim]
+                    if next_count <= CANDIDATE_MAX_COUNT and next_bytes <= CANDIDATE_MAX_BYTES:
+                        break
+            if (next_count > CANDIDATE_MAX_COUNT or next_bytes > CANDIDATE_MAX_BYTES
+                    or size > CANDIDATE_MAX_BYTES):
                 overflow += 1
+                if prior is not None:
+                    # Supersession is unconditional once a newer observation
+                    # is seen. Do NOT evict any speculative unrelated WATCH
+                    # victims when the replacement itself cannot be admitted.
+                    byte_count -= sizes.pop(key)
+                    del latest[key]
                 continue
-            byte_count = next_bytes
+            for victim in victims:
+                byte_count -= sizes.pop(victim)
+                del latest[victim]
+                overflow += 1
+            byte_count = byte_count - old_size + size
             sizes[key] = size
             latest[key] = signal
 
@@ -85,13 +130,7 @@ def coalesce_signal_batches(
             signal_episode_key(s),
         )
     )
-    watches.sort(
-        key=lambda s: (
-            -(float(s.edge) if s.edge is not None else -1.0),
-            -s.created_at.timestamp(),
-            signal_episode_key(s),
-        )
-    )
+    watches.sort(key=watch_priority)
 
     keep = max(0, int(watch_limit))
     kept_watches = watches[:keep]
@@ -105,7 +144,7 @@ def coalesce_signal_batches(
         "unique_watch_retained": len(kept_watches),
         "watch_dropped": watch_dropped,
         "output_signals": len(output),
-        "retained_payload_bytes": byte_count,
+        "retained_payload_bytes": sum(sizes[signal_episode_key(s)] for s in output),
         "overflow_dropped": overflow,
         "expired_dropped": expired,
         "evidence_complete": overflow == 0 and expired == 0,
