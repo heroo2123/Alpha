@@ -17,7 +17,7 @@ from test_v11_paper_runtime import queue as make_queue
 from test_v11_runtime_health import advance
 
 
-def setup(r,monkeypatch,*,transport=None):
+def setup(r,monkeypatch,*,transport=None,pending_age=1800.):
     r['rule']=r['plan'].rule;calls=[]
     def handle(req):
         calls.append(req)
@@ -29,7 +29,7 @@ def setup(r,monkeypatch,*,transport=None):
         return httpx.Response(200,json=response(r,req.url.params['token_id']))
     gw=worker(r,monkeypatch,transport or httpx.MockTransport(handle));old=make_queue(r)
     q=EventQueue(r['store'],routes=tuple(replace(p,required_source_kinds=('MODEL','OFFICIAL_OBSERVATION')) for p in old.routes.values()),
-        policy=replace(old.policy,max_pending_age_seconds=1800.,max_rule_age_seconds=3600.,
+        policy=replace(old.policy,max_pending_age_seconds=pending_age,max_rule_age_seconds=3600.,
             source_age_seconds=tuple((k,86400. if k=='MODEL' else v) for k,v in old.policy.source_age_seconds)))
     q.schedule_census('needed')
     r['store'].audit('rules',event_id=r['plan'].event_id,kind='RULE_STATE',details=dict(fingerprint=r['rule'].sha256,quarantined=False))
@@ -41,6 +41,40 @@ def setup(r,monkeypatch,*,transport=None):
 def begin(r,q,key='epoch'):
     row=q.begin_model_census(key,plan=r['plan'],expires_at=r['now'][0]+1200.)
     return row,row['body']['details']['result']['preparation']
+
+
+def test_model_epoch_survives_short_event_notice_ttl_without_extending_market_freshness(gefs,monkeypatch):
+    r=gefs
+    q,cw,gw,calls=setup(r,monkeypatch,pending_age=300.)
+    assert q.policy.max_pending_age_seconds==300.
+    async def run():
+        first=await cw.step('ttl-first')
+        assert first['body']['details']['outcome']=='MODEL_CENSUS_COLLECTION_PENDING'
+        p=q.snapshot()['model_preparations'][r['plan'].event_id]
+        # Old source allocated 300 seconds, which expired before 31-member
+        # GEFS collection could complete and repeatedly restarted the epoch.
+        assert p['expires_at']-p['began_at']==1800.
+        assert len(cw.model_stage.fields(p))==1 and len(calls)==1
+        # Exercise the actual market-notice admission/expiry functions, not
+        # merely the stored policy constant. This temporary local snapshot
+        # does not manufacture source coverage or commit a live notice.
+        _,notice_state=q._read()
+        received=r['now'][0]
+        event=r['plan'].event_id
+        notice={'channel':'MODEL:unit-test','received_at':received,
+                'valid_until':received+1000.,'priority':1}
+        assert q._enqueue(notice_state,q.routes[event],notice,received)
+        assert notice_state['pending'][event]['expires_at']==received+300.
+        advance(r,350.)
+        q._expire(notice_state,r['now'][0])
+        assert event not in notice_state['pending']
+        assert notice_state['metrics']['expired']==1
+        # The independent MODEL epoch survives, while the isolated market
+        # event notice has correctly expired under its unchanged TTL.
+        recovered=q.model_preparation(p['id'],event_id=event)[1]
+        assert recovered['id']==p['id'] and q.policy.max_pending_age_seconds==300.
+        await gw.scheduled.collector.client.aclose()
+    asyncio.run(run())
 
 
 def test_full_multistep_fresh_model_census_preserves_old_model_and_short_claim(gefs,monkeypatch):

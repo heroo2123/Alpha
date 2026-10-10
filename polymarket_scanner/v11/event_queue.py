@@ -202,9 +202,12 @@ class EventQueue:
         prior=self._replay(record_id,request)
         if prior:return prior
         row,state=self._read();route=self.routes.get(event)
+        # A many-field GEFS epoch is not an event notification. Keep its own
+        # bounded source-collection horizon (<= 1 hour), while _enqueue/_expire
+        # continue enforcing the much shorter market-event pending TTL.
         if (route is None or 'MODEL' not in route.required_source_kinds or route.rule_fingerprint!=plan.rule.sha256
                 or event not in state['needs_census'] or state['active'] is not None
-                or not now<expiry<=min(now+3600,route.valid_until,now+self.policy.max_pending_age_seconds)):
+                or not now<expiry<=min(now+3600,route.valid_until)):
             raise EvidenceError('CENSUS_MODEL_PREPARATION_SCOPE_OR_WINDOW')
         p=dict(id=record_id,event_id=event,plan=asdict(plan),plan_sha256=request['plan_sha256'],began_at=now,
                expires_at=expiry,generation=state['census_generations'].get(event,0))

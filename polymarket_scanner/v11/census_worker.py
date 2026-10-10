@@ -175,8 +175,11 @@ class CensusWorker:
                             return self._save(key,state,outcome='PRIOR_GEFS_OPERATION_RECONCILED',event_id=event,gefs_step_id=recovered['id'])
                         plan=self.gefs.plans[event]
                         if self.gefs.rollover is not None:plan=requested_plan(plan,self.gefs.rollover,now=now)
+                        # The GEFS multi-request epoch needs a bounded collection
+                        # horizon independent of the short event-notice TTL.
+                        # Source/receipt ages and later book claims remain strict.
                         expiry=min(now+1800,self.queue.routes[event].valid_until,
-                            now+self.queue.policy.max_pending_age_seconds,now+plan.forecast.maximum_receipt_age_seconds)
+                            now+plan.forecast.maximum_receipt_age_seconds)
                         prep=self.queue.begin_model_census(key+':model-epoch',plan=plan,expires_at=expiry)
                         model_preparation_id=prep['id']
                     else:
