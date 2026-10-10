@@ -35,7 +35,8 @@ STATUS_PAGE_SIZE = 256
 STATUS_MAX_ROWS = 10000
 FORWARD_UNAVAILABLE = 'NO_CAUSALLY_QUALIFIED_FORWARD_ADMISSION'
 _NAMESPACE_RE = re.compile(r'(?:CHALLENGER|ABLATION):[a-zA-Z0-9_-]{1,64}')
-_FORBIDDEN_IMPORT_PREFIXES = ('production', 'http', 'requests', 'socket', 'pickle', 'subprocess',
+_FORBIDDEN_IMPORT_PREFIXES = ('production', 'polymarket_scanner.production',
+                              'http', 'requests', 'socket', 'pickle', 'subprocess',
                               'urllib', 'ftplib', 'smtplib', 'websockets')
 
 
@@ -230,6 +231,8 @@ def _no_financial_or_v10_imports() -> tuple[bool, str]:
             names.extend(n.name for n in node.names)
         if isinstance(node, ast.ImportFrom) and node.module:
             names.append(node.module)
+            if node.level == 0 and node.module == 'polymarket_scanner':
+                names.extend(node.module + '.' + name.name for name in node.names)
     bad = sorted({n for n in names if any(n == p or n.startswith(p + '.') for p in _FORBIDDEN_IMPORT_PREFIXES)})
     if bad:
         return False, 'FORBIDDEN_IMPORT:' + ','.join(bad)

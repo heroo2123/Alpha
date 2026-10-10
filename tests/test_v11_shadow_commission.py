@@ -555,6 +555,32 @@ def test_static_import_guard(tmp_path, monkeypatch):
     assert not sc._no_financial_or_v10_imports()[0]
 
 
+@pytest.mark.parametrize('source', (
+    'import polymarket_scanner.production',
+    'import polymarket_scanner.production.orders',
+    'from polymarket_scanner.production import scanner',
+    'from polymarket_scanner import production',
+))
+def test_static_import_guard_rejects_absolute_production(tmp_path, monkeypatch, source):
+    fake = tmp_path / 'fake.py'
+    fake.write_text(source)
+    monkeypatch.setattr(sc, '__file__', str(fake))
+    ok, reason = sc._no_financial_or_v10_imports()
+    assert not ok and reason.startswith('FORBIDDEN_IMPORT:polymarket_scanner.production')
+
+
+@pytest.mark.parametrize('source', (
+    'from . import certification',
+    'from ..weather_only_contracts import DAILY_HIGH',
+    'import polymarket_scanner.v11.shadow_commission',
+))
+def test_static_import_guard_preserves_relative_and_v11_imports(tmp_path, monkeypatch, source):
+    fake = tmp_path / 'fake.py'
+    fake.write_text(source)
+    monkeypatch.setattr(sc, '__file__', str(fake))
+    assert sc._no_financial_or_v10_imports()[0]
+
+
 def test_plan_cannot_replace_actual_runner_contract(rig):
     wrong = replace(rig['plan'], cohort=replace(rig['plan'].cohort, graph_sha256='f' * 64))
     with expect_refusal('SHADOW_RUNNER_COHORT_MISMATCH'):
