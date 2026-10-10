@@ -335,6 +335,17 @@ def test_risk_policy_opt_ins_reach_candidate_event_and_release_binding(joined, s
     assert upgraded.events[0].risk_settlement_window is window
     assert upgraded.events[0].risk_inputs.binding.config_sha256 == opted.events[0].risk_inputs.binding.config_sha256
     assert katl_live_plan.upgrade_host_plan(base, official=setup[3], pws_config=None) == base
+    # Omitting risk_* overrides must carry the base event's own non-None
+    # policy forward, not silently reset it to None.
+    preserved = katl_live_plan.upgrade_host_plan(opted, official=setup[3], pws_config=None)
+    assert preserved.events[0].risk_execution_health is health
+    assert preserved.events[0].risk_settlement_window is window
+    async def assemble():
+        async with httpx.AsyncClient() as client:
+            return app.assemble_candidate(r['store'], client, preserved, generation='katl-upgrade-preserve-risk')
+    candidate = asyncio.run(assemble())
+    risk_adapter = candidate.runtime.evaluator.inputs[r['context'].event_id]
+    assert risk_adapter.execution_health_policy is health
 
 
 def test_default_window_derives_through_candidate_event_and_event_risk_inputs(factory, monkeypatch):

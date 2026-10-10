@@ -200,9 +200,12 @@ def commission_targets(plan: CandidatePlan, base_target: ShadowScopeTarget,
     return tuple(targets)
 
 
+_UNSPECIFIED = object()
+
+
 def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_config: dict | None,
-                      risk_execution_health: ObservationPolicy | None = None,
-                      risk_settlement_window: SettlementWindowPolicy | None = None) -> CandidatePlan:
+                      risk_execution_health: ObservationPolicy | None = _UNSPECIFIED,
+                      risk_settlement_window: SettlementWindowPolicy | None = _UNSPECIFIED) -> CandidatePlan:
     """Replace one daily smoke event while retaining its reviewed account limits.
 
     The host must pass the plan returned by its existing build_plan(store).
@@ -210,6 +213,9 @@ def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_con
     but malformed configuration fails before any candidate is assembled. Only an
     explicit pws_config=None selects the economic/EventRisk plan without the PWS
     sleeve, so a missing PWS champion cannot block the temperature lane.
+    Omitting risk_execution_health/risk_settlement_window carries the base
+    event's own existing policy forward unchanged; passing either explicitly
+    (including explicit None) overrides it exactly like build_plan does.
     """
     if (not isinstance(base, CandidatePlan) or len(base.events) != 1 or len(base.events[0].lanes) != 1
             or type(base.events[0].lanes[0]) is not TemperatureLane
@@ -217,6 +223,10 @@ def upgrade_host_plan(base: CandidatePlan, *, official: StationMetadata, pws_con
                     base.preparations, base.drift, base.reconciliation, base.guardian_config))):
         raise EvidenceError('KATL_PLAN_HOST_SHAPE_REVIEW_REQUIRED')
     event = base.events[0]
+    if risk_execution_health is _UNSPECIFIED:
+        risk_execution_health = event.risk_execution_health
+    if risk_settlement_window is _UNSPECIFIED:
+        risk_settlement_window = event.risk_settlement_window
     inputs = event.risk_inputs
     model_sources = tuple(s for s in inputs.sources if s.role == 'MODEL')
     if len(model_sources) != 1 or event.route.station != official.station:
