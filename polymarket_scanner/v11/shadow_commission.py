@@ -620,9 +620,11 @@ def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_
         and d.get('runner_config_sha256') == plan.cohort.runner_config_sha256
         and (config_sha256 is None or d.get('config_sha256') == config_sha256)]
     groups = {}
+    malformed_status_rows_scanned = 0
     for row in selected:
         d = row['body']['details']
-        if 'run_id' not in d:
+        if not all(isinstance(d.get(field), str) for field in ('config_sha256', 'run_id', 'outcome')):
+            malformed_status_rows_scanned += 1
             continue
         key = d['config_sha256'], d['run_id']
         state = groups.setdefault(key, dict(refused=False, started=False, outcome=None))
@@ -675,7 +677,8 @@ def evidence_status(plan, store, *, config_sha256=None, maximum_rows=STATUS_MAX_
         plan_intent_created_at=plan.created_at, forward_evidence_available=has_forward,
         reason=None if has_forward else FORWARD_UNAVAILABLE,
         history_complete=complete, totals_are_lower_bounds=not complete, run_history_coverage=coverage,
-        targets=targets, attempts_recorded=len(groups), refused_attempts_recorded=sum(g['refused'] for g in groups.values()),
+        targets=targets, malformed_status_rows_scanned=malformed_status_rows_scanned,
+        attempts_recorded=len(groups), refused_attempts_recorded=sum(g['refused'] for g in groups.values()),
         incomplete_attempts_recorded=sum(g['started'] and g['outcome'] is None for g in groups.values()),
         completed_commission_runs_recorded=completed, degraded_commission_runs_recorded=degraded,
         total_commission_runs_recorded=completed + degraded, forward_commission_runs_recorded=0,
