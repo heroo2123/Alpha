@@ -77,6 +77,21 @@ def fixture(*, second=False):
     return records, catalog
 
 
+def oversized_catalog():
+    records, catalog = fixture()
+    view = catalog["views"][0]
+    body = b"x" * journal.MAX_ROW_BYTES
+    body_hash, body_hex = digest(body), body.hex()
+    prefix = view["genesis_hash"]
+    rows = []
+    for seq in range(1, journal.MAX_ROWS + 1):
+        prefix = digest(bytes.fromhex(prefix) + seq.to_bytes(8, "big") + body)
+        rows.append(dict(seq=seq, prefix_hash=prefix, kind="CAPTURE", event_id="event-A",
+                         body_sha256=body_hash, row_hex=body_hex))
+    view.update(seq=len(rows), prefix_hash=prefix, rows=rows)
+    return records, catalog
+
+
 def wire(records):
     previous = journal.ZERO
     lines = []
@@ -97,6 +112,20 @@ def result(records, catalog, *, anchor=None, witnesses=None):
 def refuses(actual, code):
     check(type(actual) is journal.Refusal, "NOT_TYPED_REFUSAL")
     check(actual.code == code, f"EXPECTED_{code}_GOT_{actual.code}")
+
+
+def test_oversized_catalog_precedes_view_hash_refusal():
+    records, catalog = oversized_catalog()
+    check(len(encoded(catalog)) > journal.MAX_CATALOG_BYTES, "CATALOG_NOT_OVERSIZED")
+    refuses(result(records, catalog), "CATALOG_BOUND")
+
+
+def test_oversized_catalog_skips_view_validation(monkeypatch):
+    records, catalog = oversized_catalog()
+    def unexpected_view(*_args):
+        raise AssertionError("VIEW_CALLED_FOR_OVERSIZED_CATALOG")
+    monkeypatch.setattr(journal, "_view", unexpected_view)
+    refuses(result(records, catalog), "CATALOG_BOUND")
 
 
 def test_valid_synthetic_history_has_no_commissioned_anchor_or_coverage():

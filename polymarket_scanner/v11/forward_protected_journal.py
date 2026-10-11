@@ -209,6 +209,7 @@ def _view(view, namespace, plan_id, event_id):
 
 def _catalog(catalog, records):
     _keys(catalog, CATALOG_KEYS)
+    _need(len(_canonical(catalog)) <= MAX_CATALOG_BYTES, "CATALOG_BOUND")
     _need(type(catalog["version"]) is int and catalog["version"] == VERSION, "UNSUPPORTED_VERSION")
     _need(catalog["complete"] is True, "CATALOG_INCOMPLETE")
     _need(all(_id(catalog[k]) for k in ("namespace", "plan_id", "event_id")), "SCHEMA_TYPE")
@@ -236,7 +237,6 @@ def _catalog(catalog, records):
         prefixes = _view(view, catalog["namespace"], catalog["plan_id"], catalog["event_id"])
         _need(view["genesis_hash"] == enrollments[view["ledger_id"]]["genesis_hash"], "GENESIS_MISMATCH")
         by_id[view["ledger_id"]] = (view, prefixes)
-    _need(len(_canonical(catalog)) <= MAX_CATALOG_BYTES, "CATALOG_BOUND")
     unsigned = {k: v for k, v in catalog.items() if k != "catalog_sha256"}
     _need(_sha(_canonical(unsigned)) == catalog["catalog_sha256"], "CATALOG_HASH")
     _need(any(record["kind"] == "CHECKPOINT" for record in records),
