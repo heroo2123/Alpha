@@ -152,10 +152,14 @@ class PWSQualityWorker:
                     capture_ids=tuple(active['capture_ids']),official=plan.official,policy=plan.policy,
                     provider=plan.provider,expected_source_seq=active['source_seq'],deadline=deadline)
             except EvidenceError as exc:
-                resumable=str(exc) in {'PWS_QC_TIME_BOUND','ARCHIVE_STATE_CHANGED','AUDIT_STATE_CHANGED'}
+                reason=str(exc)
+                source_changed=(reason in {'ARCHIVE_STATE_CHANGED','PWS_QC_SOURCE_CHANGED'}
+                    and (self.store.latest(kind='PWS_OBSERVATION',event_id=event) or {}).get('seq',0)!=active['source_seq'])
+                resumable=reason in {'PWS_QC_TIME_BOUND','ARCHIVE_STATE_CHANGED','AUDIT_STATE_CHANGED'} and not source_changed
                 if not resumable:state['active']=None
-                return self._save(key,state,outcome='QC_PROGRESS_RETAINED' if resumable else 'PWS_SOURCE_GATED',
-                    event_id=event,reason=str(exc))
+                return self._save(key,state,outcome='QC_OBSOLETE_SOURCE_ABANDONED' if source_changed
+                    else 'QC_PROGRESS_RETAINED' if resumable else 'PWS_SOURCE_GATED',
+                    event_id=event,reason=reason)
             state['completed'][event]=dict(qc_id=qc['id'],input_token=digest([
                 active['channel_id'],qc['body']['payload']['metadata_sequence']]))
             state['active']=None

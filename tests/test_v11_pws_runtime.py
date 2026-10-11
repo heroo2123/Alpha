@@ -170,3 +170,26 @@ def test_qc_replay_conflicting_policy_is_rejected(rig):
     assert qc.archive_neighborhood(rig['store'],'qc',**kw)==first
     with pytest.raises(EvidenceError,match='REPLAY_CONFLICT'):
         qc.archive_neighborhood(rig['store'],'qc',**dict(kw,policy=policy(fresh_seconds=300.)))
+
+
+def test_worker_reselects_after_raced_source_publication(rig,monkeypatch):
+    from polymarket_scanner.v11.evidence import digest
+    capture(rig);w=assemble(rig,monkeypatch);s=rig['store'];original_capture=s.capture;newer=[]
+    def racing(key,**kw):
+        if kw.get('provider')=='ALPHA_PWS_QC':
+            newer.append(capture(rig,'racing-normalized'))
+        return original_capture(key,**kw)
+    with monkeypatch.context() as patch:
+        patch.setattr(s,'capture',racing)
+        rejected=w.step('raced-source')['body']['details']
+    assert len(newer)==1 and rejected['reason']=='ARCHIVE_STATE_CHANGED'
+    assert rejected['outcome']=='QC_OBSOLETE_SOURCE_ABANDONED' and rejected['state']['active'] is None
+    assert s.latest_source(kind='PWS_OBSERVATION',event_id=rig['context'].event_id,
+                           provider='ALPHA_PWS_QC',source_identity='KATL') is None
+    selected=w.current_inputs(rig['context'].event_id)
+    assert newer[0]['id'] in selected['capture_ids']
+    recorded=w.step('after-race')['body']['details']
+    assert recorded['outcome']=='PWS_QC_RECORDED' and recorded['state']['active'] is None
+    result=s.get(recorded['qc_id'])
+    assert [ref['id'] for ref in result['body']['payload']['source_captures']]==selected['capture_ids']
+    assert s.get('pws-qc-work:'+digest(recorded['qc_id']))['body']['details']['source_seq']==selected['source_seq']
