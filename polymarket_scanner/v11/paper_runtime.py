@@ -323,6 +323,7 @@ class PaperRuntime:
                     except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
                 state['last_maker_quote'] = quote_id
                 save(outcome='MAKER_SAFETY_PROGRESS')
+        initial_health_gated = bool(hd['global_reasons'])
         if hd['global_reasons']:
             errors.append(dict(stage='HEALTH', reason='CLOCK_OR_WORKER_GATED'))
         else:
@@ -366,6 +367,9 @@ class PaperRuntime:
                             state['census_retry'].pop(event, None)
                             # Newly received census sources require a new health sample.
                             health = self.health.sample(prefix+':post-census-health:'+str(index))
+                            hd = health['body']['details']
+                            if hd['global_reasons']:
+                                raise EvidenceError('RUNTIME_POST_CENSUS_HEALTH_GATED')
                         output = self.evaluator.evaluate(claim, prefix+':evaluation:'+str(index))
                         if not isinstance(output, Evaluation) or len(output.proposals) > 6:
                             raise EvidenceError('RUNTIME_EVALUATION_BOUND')
@@ -382,6 +386,7 @@ class PaperRuntime:
                         batch = self.coordinator.coordinate(prefix+':coordinate:'+str(index), output.proposals)
                         coordinated.append(batch['id'])
                 save(outcome='EVALUATION_PROGRESS')
+                if hd['global_reasons']: break
         if self.rewards is not None and not hd['global_reasons'] and budget():
             try:
                 row = self.rewards.refresh('rewards:'+digest(prefix)); reward_reports.append(row['id'])
@@ -392,7 +397,7 @@ class PaperRuntime:
             except EvidenceError as exc:errors.append(dict(stage='AUDIT_SCHEDULE',reason=str(exc)))
         return self._save(final_id, state, request=request, outcome='BUDGET_EXHAUSTED' if not budget() else 'DEGRADED' if errors else 'TICK_COMPLETED',
             health_id=health['id'], errors=errors, evaluation_ids=evaluations, account_batch_ids=coordinated,
-            updates_consumed=not hd['global_reasons'] and not any(e['stage']=='INGEST' for e in errors),
+            updates_consumed=not initial_health_gated and not any(e['stage']=='INGEST' for e in errors),
             cancellation_report_ids=cancellation_reports, retired_quote_ids=retired,
             resting_admission_check_ids=admission_checks,
             reward_report_ids=reward_reports,

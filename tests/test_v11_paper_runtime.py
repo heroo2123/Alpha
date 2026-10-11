@@ -233,3 +233,22 @@ def test_minimum_cancel_budget_does_not_starve_rule_quarantine_behind_healthy_or
     assert two['state']['rule_cursor']==guard['seq']
     assert len(two['cancellation_report_ids'])<=3  # one old + one health + one intake
     assert not two['account_batch_ids']
+
+
+def test_post_census_global_gate_records_gated_result_without_evaluating(rig,monkeypatch):
+    c=coordinator(rig);q=queue(rig);m=monitor(rig,monkeypatch);ready(rig,m)
+    normal_census=census_fixture(rig)
+    def census(claim,prefix):
+        coverage=normal_census(claim,prefix)
+        rig['sync'][0]=False
+        return coverage
+    evaluator=GatedEvaluator(rig['store'])
+    rt=runtime.PaperRuntime(c,q,m,runtime.RuntimePolicy('fixture'),evaluator=evaluator,census=census)
+    d=rt.tick('post-census-gate')['body']['details']
+    assert rig['store'].get(d['health_id'])['body']['details']['global_reasons']
+    assert d['outcome']=='DEGRADED' and evaluator.calls==0 and not d['account_batch_ids']
+    assert len(d['evaluation_ids'])==1
+    finished=rig['store'].get(d['evaluation_ids'][0])
+    result=rig['store'].get(finished['body']['details']['request']['result_ids'][0])
+    assert result['body']['details']['outcome']=='GATED'
+    assert result['body']['details']['reason']=='RUNTIME_POST_CENSUS_HEALTH_GATED'
