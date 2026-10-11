@@ -239,6 +239,8 @@ def _catalog(catalog, records):
     _need(len(_canonical(catalog)) <= MAX_CATALOG_BYTES, "CATALOG_BOUND")
     unsigned = {k: v for k, v in catalog.items() if k != "catalog_sha256"}
     _need(_sha(_canonical(unsigned)) == catalog["catalog_sha256"], "CATALOG_HASH")
+    _need(any(record["kind"] == "CHECKPOINT" for record in records),
+          "CATALOG_CHECKPOINT_MISSING")
     for record in records:
         if record["kind"] == "CHECKPOINT":
             _need(record["detail"]["catalog_sha256"] == catalog["catalog_sha256"],

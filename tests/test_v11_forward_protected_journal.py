@@ -105,6 +105,12 @@ def test_valid_synthetic_history_has_no_commissioned_anchor_or_coverage():
     refuses(result(records, catalog, anchor={"commissioned": True}), "ANCHOR_UNAVAILABLE")
 
 
+def test_missing_checkpoint_refuses_before_anchor_fallback():
+    records, catalog = fixture()
+    records = [record for record in records if record["kind"] != "CHECKPOINT"]
+    refuses(result(records, catalog), "CATALOG_CHECKPOINT_MISSING")
+
+
 @pytest.mark.parametrize("field", ("clock_lower", "clock_upper"))
 @pytest.mark.parametrize("value", (10**309, -(10**309)))
 def test_large_signed_integer_clocks_are_typed_refusals(field, value):
