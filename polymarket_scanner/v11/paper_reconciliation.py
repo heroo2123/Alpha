@@ -138,9 +138,12 @@ class PaperReconciliation:
                   else self.coordinator.reconcile_terminal(command, row['id']))
         details = dict(outcome='RECONCILED_RECEIPT', account_record_id=result['id'])
         if self.queue is not None:
-            routed = self.queue.reconciled_account_change('paper-receipt-event:'+digest([self.config,row['sha256']]),
-                account_record_id=result['id'], account_id=self.coordinator.policy.account_id,
-                account_policy_sha=self.coordinator.policy_sha)
+            try:
+                routed = self.queue.reconciled_account_change('paper-receipt-event:'+digest([self.config,row['sha256']]),
+                    account_record_id=result['id'], account_id=self.coordinator.policy.account_id,
+                    account_policy_sha=self.coordinator.policy_sha)
+            except EvidenceError as exc:
+                raise EvidenceError('PAPER_RECEIPT_EVENT_DELIVERY_PENDING') from exc
             details['event_queue_record_id'] = routed['id']
         return details
 
@@ -177,7 +180,8 @@ class PaperReconciliation:
             if (old['attempted_account_seq'] != (account['seq'] if account else 0)
                     or old['reason'] in {'CLOCK_REGRESSION', 'AUDIT_CLOCK_REGRESSION', 'AUDIT_STATE_CHANGED',
                                          'AUDIT_GUARDED_STATE_CHANGED', 'TRIGGER_STATE_BYTES_BOUND',
-                                         'ARCHIVE_DISK_HEADROOM', 'ARCHIVE_BYTES_LIMIT', 'ARCHIVE_RECORD_LIMIT'}):
+                                         'ARCHIVE_DISK_HEADROOM', 'ARCHIVE_BYTES_LIMIT', 'ARCHIVE_RECORD_LIMIT',
+                                         'PAPER_RECEIPT_EVENT_DELIVERY_PENDING'}):
                 row = self.store.get(receipt_id)
                 if row['sha256'] != old['receipt_sha256']: raise EvidenceError('PAPER_RECEIPT_IDENTITY_CHANGED')
                 attempt(row)

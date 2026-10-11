@@ -336,3 +336,30 @@ def test_runtime_reevaluates_after_fill_without_waiting_for_periodic_census(rig,
     before=base.queue.snapshot()['census_generations'][p.context.event_id]
     w.step('no-new-account-receipt')
     assert base.queue.snapshot()['census_generations'][p.context.event_id]==before
+
+
+def test_event_delivery_recovers_after_two_evidence_failures_without_duplicate_fill(rig):
+    from test_v11_paper_runtime import queue
+    c,p=reserved(rig);q=queue(rig);fill_receipt(rig)
+    class FailingQueue:
+        def __init__(self):
+            self.store=q.store;self.config=q.config;self.failures=0
+        def reconciled_account_change(self,*args,**kwargs):
+            self.failures+=1
+            if self.failures<=2:raise EvidenceError('SYNTHETIC_QUEUE_UNAVAILABLE')
+            return q.reconciled_account_change(*args,**kwargs)
+    flaky=FailingQueue();w=PaperReconciliation(c,ReconciliationPolicy('two-failures'),queue=flaky)
+    first=w.step('one')['body']['details'];head=c._head()
+    assert first['pending_count']==1 and first['attempted']==1
+    assert len(state(rig)['fills'])==1 and Decimal(state(rig)['cash'])==Decimal('9.6')
+    second=w.step('two')['body']['details']
+    assert second['pending_count']==1 and second['attempted']==1
+    assert second['state']['pending']['receipt']['attempted_account_seq']==head['seq']
+    assert q.snapshot()['census_generations'].get(p.context.event_id,0)==0
+    third=w.step('three')['body']['details']
+    assert third['outcome']=='RECONCILED' and third['pending_count']==0 and third['attempted']==1
+    assert flaky.failures==3 and c._head()==head
+    assert len(state(rig)['fills'])==1 and Decimal(state(rig)['cash'])==Decimal('9.6')
+    assert q.snapshot()['census_generations'][p.context.event_id]==1
+    assert q.snapshot()['needs_census'][p.context.event_id]=='RECONCILED_ACCOUNT_CHANGE'
+    assert third['state']['pending']=={}
