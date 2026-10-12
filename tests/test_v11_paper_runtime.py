@@ -171,6 +171,48 @@ def test_monotonic_tick_budget_defers_work_without_claiming_completion(rig,monke
     assert d['budget_exhausted'] and not d['evaluation_ids'] and not d['account_batch_ids']
 
 
+def test_census_exhausting_tick_budget_defers_without_calling_evaluator(rig,monkeypatch):
+    c=coordinator(rig);q=queue(rig);m=monitor(rig,monkeypatch);ready(rig,m)
+    normal_census=census_fixture(rig);started=runtime.time.monotonic();clock=[started]
+    def census(claim,prefix):
+        coverage=normal_census(claim,prefix);clock[0]=started+100.;return coverage
+    evaluator=GatedEvaluator(rig['store'])
+    rt=runtime.PaperRuntime(c,q,m,runtime.RuntimePolicy('fixture'),evaluator=evaluator,census=census)
+    monkeypatch.setattr(runtime.time,'monotonic',lambda:clock[0])
+    d=rt.tick('census-budget')['body']['details']
+    assert evaluator.calls==0 and d['budget_exhausted'] and not d['account_batch_ids']
+    assert any(e['stage']=='EVALUATE' and e['reason']=='RUNTIME_TICK_BUDGET_EXHAUSTED_BEFORE_EVALUATION' for e in d['errors']),d['errors']
+
+
+def test_evaluator_exhausting_tick_budget_defers_without_coordinating(rig,monkeypatch):
+    p=proposal(rig,units='2');base=rig['store'].get(p.valuation_id)['body']['details']
+    started=runtime.time.monotonic();clock=[started]
+    class BudgetExhaustingPositiveMechanicsFixture:
+        def __init__(self):self.calls=0
+        def evaluate(self,claim,prefix):
+            self.calls+=1
+            data=deepcopy(base);token=data['target']['token_id']
+            book=rig['store'].latest_source(kind='BOOK',event_id=claim['event_id'],provider='fixture',source_identity=token)
+            data['book'].update(book_id=book['id'],book_sha256=book['sha256'])
+            key='mechanics-value:'+digest(prefix)
+            rig['store'].audit(key,event_id=claim['event_id'],kind='MEASUREMENT',details=data,evidence_ids=(book['id'],))
+            clock[0]=started+100.
+            return runtime.Evaluation((key,),(replace(p,valuation_id=key),))
+    evaluator=BudgetExhaustingPositiveMechanicsFixture()
+    rt=assembled(rig,monkeypatch,evaluator=evaluator)
+    monkeypatch.setattr(runtime.time,'monotonic',lambda:clock[0])
+    coordinate_calls=[]
+    original_coordinate=rt.coordinator.coordinate
+    def spy(*a,**kw):
+        coordinate_calls.append((a,kw));return original_coordinate(*a,**kw)
+    monkeypatch.setattr(rt.coordinator,'coordinate',spy)
+    d=rt.tick('evaluator-budget')['body']['details']
+    assert evaluator.calls==1 and coordinate_calls==[]
+    assert not d['account_batch_ids'] and not rig['store'].records(kind='TRADE')
+    assert Decimal(rt.coordinator.snapshot()['reserved_cash'])==Decimal('0')
+    assert any(e['stage']=='EVALUATE' and e['reason']=='RUNTIME_TICK_BUDGET_EXHAUSTED_BEFORE_COORDINATION' for e in d['errors']),d['errors']
+
+
 def test_queue_periodic_census_does_not_clear_existing_gap(rig,monkeypatch):
     rt=assembled(rig,monkeypatch);event=rig['context'].event_id
     rt.queue.stream_gap('gap',event_id=event,reason='RECONNECT_REQUIRED')

@@ -370,9 +370,13 @@ class PaperRuntime:
                             hd = health['body']['details']
                             if hd['global_reasons']:
                                 raise EvidenceError('RUNTIME_POST_CENSUS_HEALTH_GATED')
+                        if not budget():
+                            raise EvidenceError('RUNTIME_TICK_BUDGET_EXHAUSTED_BEFORE_EVALUATION')
                         output = self.evaluator.evaluate(claim, prefix+':evaluation:'+str(index))
                         if not isinstance(output, Evaluation) or len(output.proposals) > 6:
                             raise EvidenceError('RUNTIME_EVALUATION_BOUND')
+                        if not budget():
+                            raise EvidenceError('RUNTIME_TICK_BUDGET_EXHAUSTED_BEFORE_COORDINATION')
                     except (EvidenceError, TimeoutError) as exc:
                         reason = str(exc) if isinstance(exc, EvidenceError) else 'ADAPTER_TIMEOUT'
                         errors.append(dict(stage='EVALUATE', event_id=event, reason=reason))
