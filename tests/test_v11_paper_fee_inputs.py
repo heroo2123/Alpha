@@ -152,3 +152,28 @@ def test_current_request_factory_adds_only_the_imported_fee(factory):
     assert request.book_id == book['id']
     assert len(request.costs) == 1 and request.costs[0].covers == ('ACQUISITION_FEES',)
     assert Decimal(request.costs[0].per_share) == Decimal('.016')
+
+
+def test_current_buy_fee_cost_preserves_fractional_depth_remainder(rig):
+    from decimal import localcontext
+    book, snapshot = observed(rig)
+    store, _, kwargs, _ = rig
+    target = contract_target(kwargs['rule'], kwargs['market_id'], 'YES')
+    response = deepcopy(store.get(book['body']['payload']['raw_evidence_id'])['body']['payload']['response'])
+    response['asks'] = [dict(price='.3', size='1'), dict(price='.4', size='9')]
+    raw = store.capture('fractional-depth-raw', event_id=kwargs['rule'].payload['event_id'],
+        kind='BOOK', provider=PROVIDER, source_identity=target['token_id'],
+        revision='fractional-depth', evidence_class='PUBLIC_OBSERVED', payload=dict(endpoint=ENDPOINT,
+            request_params={'token_id': target['token_id']}, http_status=200,
+            response_format='JSON', source_time_status='NOT_YET_NORMALIZED', response=response))
+    book = normalize_book_capture(store, raw['id'], rule=kwargs['rule'], token_id=target['token_id'],
+        collateral_asset='FIXTURE_COLLATERAL', policy=BookPolicy('paper-fee-test'))
+    import_observed(rig, book, snapshot)
+    request = dict(rule=kwargs['rule'], market_id=kwargs['market_id'], side='YES',
+                   book_id=book['id'], max_age_seconds=10.)
+    with localcontext() as context:
+        context.prec = 28
+        assert current_buy_fee_cost(store, units='10.0000000000000000000000000001', **request) is None
+        exact = current_buy_fee_cost(store, units='10', **request)
+        assert exact is not None and exact.priced_buy_limit == '.4'
+        assert current_buy_fee_cost(store, units='11', **request) is None

@@ -5,6 +5,7 @@ The fee is a conditional published-policy requirement, not a venue guarantee.
 """
 from dataclasses import replace
 from decimal import Decimal
+from fractions import Fraction
 
 from ..production.chain import NEG_RISK_EXCHANGE, STANDARD_EXCHANGE
 from ..production.fees import EXCHANGE_PUBLISHED_SCHEDULE, ONCHAIN_BOUND
@@ -74,11 +75,11 @@ def current_buy_fee_cost(store, *, rule, market_id, side, units, book_id, max_ag
             or details.get('book_id') != book_id or details.get('book_sha256') != book['sha256']
             or row['body']['evidence'] != [{'id': book_id, 'sha256': book['sha256']}]):
         raise EvidenceError('PAPER_FEE_IMPORT_BINDING_INVALID')
-    remaining, worst = Decimal(str(units)), None
+    remaining, worst = Fraction(Decimal(str(units))), None
     if remaining <= 0:
         raise EvidenceError('PAPER_FEE_UNITS_INVALID')
     for level in book['body']['payload']['asks']:
-        remaining -= min(remaining, Decimal(level['size']))
+        remaining -= min(remaining, Fraction(Decimal(level['size'])))
         worst = level['price']
         if remaining == 0:
             break
